@@ -5,10 +5,7 @@ import { getTrip } from "@/lib/services/trips";
 import { KakaoMapCanvas } from "@/components/map/KakaoMapCanvas";
 import { PlaceForm } from "./PlaceForm";
 import { PlaceList } from "./PlaceList";
-
-function formatDate(d: Date) {
-  return new Date(d).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" });
-}
+import { TripMetaEditor } from "./TripMetaEditor";
 
 export default async function TripDetailPage({
   params,
@@ -40,10 +37,15 @@ export default async function TripDetailPage({
 
       <aside className="absolute right-0 top-0 z-10 flex h-full w-[380px] flex-col border-l border-neutral-200 bg-white shadow-xl">
         <header className="border-b border-neutral-200 p-4">
-          <h1 className="text-lg font-bold">{trip.name}</h1>
-          <p className="text-sm text-neutral-500">
-            {formatDate(trip.startDate)} – {formatDate(trip.endDate)} · {trip.personnel}명
-          </p>
+          <TripMetaEditor
+            trip={{
+              id: trip.id,
+              name: trip.name,
+              startDate: trip.startDate,
+              endDate: trip.endDate,
+              personnel: trip.personnel,
+            }}
+          />
         </header>
 
         <PlaceForm tripId={trip.id} />
