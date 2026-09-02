@@ -17,6 +17,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useToast } from "@/components/toast/ToastProvider";
+import { RouteSegmentRow } from "./RouteSegmentRow";
 import type { PlaceEntry } from "./types";
 
 function DragHandle(props: React.HTMLAttributes<HTMLButtonElement>) {
@@ -39,13 +40,19 @@ function DragHandle(props: React.HTMLAttributes<HTMLButtonElement>) {
 }
 
 function SortablePlaceRow({
+  tripId,
   place,
   index,
+  nextPlace,
   onDelete,
+  onModeChange,
 }: {
+  tripId: string;
   place: PlaceEntry;
   index: number;
+  nextPlace: PlaceEntry | null;
   onDelete: (place: PlaceEntry) => void;
+  onModeChange: (placeId: string, mode: "car" | "bus") => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: place.id,
@@ -55,27 +62,36 @@ function SortablePlaceRow({
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex items-start gap-1 rounded-md px-1 py-2 hover:bg-neutral-50 ${
-        isDragging ? "bg-neutral-50 opacity-70" : ""
-      }`}
+      className={isDragging ? "bg-neutral-50 opacity-70" : ""}
     >
-      <DragHandle {...attributes} {...listeners} />
-      <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full border border-neutral-300 text-[11px] font-semibold text-neutral-600">
-        {index + 1}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold">{place.name}</p>
-        {place.address ? (
-          <p className="truncate text-xs text-neutral-400">{place.address}</p>
-        ) : null}
+      <div className="flex items-start gap-1 rounded-md px-1 py-2 hover:bg-neutral-50">
+        <DragHandle {...attributes} {...listeners} />
+        <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full border border-neutral-300 text-[11px] font-semibold text-neutral-600">
+          {index + 1}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold">{place.name}</p>
+          {place.address ? (
+            <p className="truncate text-xs text-neutral-400">{place.address}</p>
+          ) : null}
+        </div>
+        <button
+          onClick={() => onDelete(place)}
+          aria-label="삭제"
+          className="flex-none rounded px-1.5 py-0.5 text-xs text-neutral-400 hover:bg-neutral-100 hover:text-red-600"
+        >
+          삭제
+        </button>
       </div>
-      <button
-        onClick={() => onDelete(place)}
-        aria-label="삭제"
-        className="flex-none rounded px-1.5 py-0.5 text-xs text-neutral-400 hover:bg-neutral-100 hover:text-red-600"
-      >
-        삭제
-      </button>
+      {nextPlace ? (
+        <RouteSegmentRow
+          tripId={tripId}
+          fromPlaceId={place.id}
+          toPlaceId={nextPlace.id}
+          mode={place.transportToNext === "bus" ? "bus" : "car"}
+          onModeChange={(mode) => onModeChange(place.id, mode)}
+        />
+      ) : null}
     </li>
   );
 }
@@ -140,6 +156,15 @@ export function PlaceList({ tripId, places }: { tripId: string; places: PlaceEnt
     });
   }
 
+  function handleModeChange(placeId: string, mode: "car" | "bus") {
+    setItems((prev) => prev.map((p) => (p.id === placeId ? { ...p, transportToNext: mode } : p)));
+    fetch(`/api/trips/${tripId}/places/${placeId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transportToNext: mode }),
+    });
+  }
+
   if (items.length === 0) {
     return <p className="p-3 text-sm text-neutral-500">장소를 추가해보세요.</p>;
   }
@@ -149,7 +174,15 @@ export function PlaceList({ tripId, places }: { tripId: string; places: PlaceEnt
       <SortableContext items={items.map((p) => p.id)} strategy={verticalListSortingStrategy}>
         <ol className="flex flex-col gap-1 overflow-y-auto p-2">
           {items.map((place, index) => (
-            <SortablePlaceRow key={place.id} place={place} index={index} onDelete={handleDelete} />
+            <SortablePlaceRow
+              key={place.id}
+              tripId={tripId}
+              place={place}
+              index={index}
+              nextPlace={items[index + 1] ?? null}
+              onDelete={handleDelete}
+              onModeChange={handleModeChange}
+            />
           ))}
         </ol>
       </SortableContext>

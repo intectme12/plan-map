@@ -56,8 +56,28 @@ model PlaceEntry {
   expenses Expense[]
   photos   Photo[]
 
+  routesFrom RouteSegment[] @relation("RouteFrom")
+  routesTo   RouteSegment[] @relation("RouteTo")
+
   @@index([tripId, order])
   @@map("place_entries")
+}
+
+model RouteSegment {
+  id          String   @id @default(cuid())
+  fromPlaceId String
+  toPlaceId   String
+  mode        String // "car" | "bus"
+  distanceM   Int
+  durationSec Int
+  fareWon     Int?
+  computedAt  DateTime @default(now())
+
+  fromPlace PlaceEntry @relation("RouteFrom", fields: [fromPlaceId], references: [id], onDelete: Cascade)
+  toPlace   PlaceEntry @relation("RouteTo", fields: [toPlaceId], references: [id], onDelete: Cascade)
+
+  @@unique([fromPlaceId, toPlaceId, mode])
+  @@map("route_segments")
 }
 
 model Expense {
