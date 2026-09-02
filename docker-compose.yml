@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: planmap
+      POSTGRES_PASSWORD: planmap
+      POSTGRES_DB: planmap
+    ports:
+      - "55432:5432"
+    volumes:
+      - planmap-db:/var/lib/postgresql/data
+
+volumes:
+  planmap-db:

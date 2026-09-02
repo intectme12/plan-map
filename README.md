@@ -24,25 +24,24 @@
 ```
 apps/
   web/      Next.js (App Router, TypeScript) — 계획 편집 UI + API Route Handler
-packages/
-  shared/   zod 스키마 / 공용 타입 (추후 모바일 클라이언트 추가 시 재사용)
 ```
 
-모바일(Expo) 클라이언트는 F7 사진첩 자동연동, F8 만보기/GPS가 필요해지는 시점에 별도 앱으로 추가한다. 그전까지 web이 API 서버 역할까지 겸한다.
+모바일(Expo) 클라이언트는 F7 사진첩 자동연동, F8 만보기/GPS가 필요해지는 시점에 별도 앱으로 추가한다. 그전까지 web이 API 서버 역할까지 겸한다. `packages/shared`(공용 타입/zod 스키마)는 모바일 앱이 실제로 생기기 전까지는 만들지 않는다 — 지금은 소비할 곳이 없는 조기 추상화라서 보류.
 
 ## 스택
 
 | 영역 | 선택 | 이유 |
 |---|---|---|
-| 웹 프론트 + API | Next.js 14 (App Router) + TypeScript | SSR로 지도/편집 UI 빠른 로딩, Route Handler로 별도 백엔드 없이 API 겸용 |
-| DB | PostgreSQL + Prisma | PostGIS로 추후 이동거리/경로 비교 등 지오 쿼리 확장 용이, 타입 자동 생성 |
-| 서버 상태 관리 | TanStack Query | 기존 axios+useState 반복 패턴 제거 |
-| 지도 | 카카오맵 JS SDK | 국내 POI 검색 품질, 기존 로직 재사용 |
+| 웹 프론트 + API | Next.js 16 (App Router, Turbopack) + TypeScript | SSR로 지도/편집 UI 빠른 로딩, Route Handler로 별도 백엔드 없이 API 겸용. `middleware`가 `proxy`로 개명되는 등 15 이전 문서와 다른 부분이 있어 로컬 `node_modules/next/dist/docs`를 기준으로 개발 |
+| 모노레포 | npm workspaces | pnpm 미설치 환경이라 npm workspaces로 대체(기능상 차이 없음) |
+| DB | PostgreSQL(Docker) + Prisma | PostGIS로 추후 이동거리/경로 비교 등 지오 쿼리 확장 용이, 타입 자동 생성 |
+| 서버 상태 관리 | (보류) 우선 fetch + `router.refresh()` | 화면 수가 적은 지금은 TanStack Query 도입이 조기 추상화. 화면이 늘어나 캐싱/로딩상태 반복이 생기면 그때 도입 |
+| 지도 | 카카오맵 JS SDK | 국내 POI 검색 품질, 기존 로직 재사용. 현재는 키 미설정으로 자리표시자만 렌더 |
 | 인증 | bcrypt 해싱 + JWT(httpOnly 쿠키) | 평문 비밀번호/파일세션 문제 해결 |
 | 검증 | zod | 요청 검증 + 타입 동시 확보 |
-| AI 파싱(F4) | Claude API (tool use) | 비정형 텍스트 → 구조화 일정 JSON 추출 |
-| 대중교통 경로(F3) | 카카오모빌리티(자동차) + ODsay/Tmap(버스·지하철) | 카카오는 자동차 경로만 공개 API 제공 |
-| 스토리지 | Supabase Storage 또는 R2 | 사진 업로드, 운영 부담 최소화 |
+| AI 파싱(F4) | Claude API (tool use) | 비정형 텍스트 → 구조화 일정 JSON 추출 (미착수) |
+| 대중교통 경로(F3) | 카카오모빌리티(자동차) + ODsay/Tmap(버스·지하철) | 카카오는 자동차 경로만 공개 API 제공 (미착수) |
+| 스토리지 | Supabase Storage 또는 R2 | 사진 업로드, 운영 부담 최소화 (미착수) |
 
 ## 데이터 모델 (초안)
 
@@ -58,12 +57,30 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 
 ## 로드맵
 
-- [ ] **Phase 0 — 긴급 보안 조치**: 카카오 API 키 재발급, DB 비밀번호 변경, 시크릿 `.env`화, 기존 client/server 내 중첩 `.git` 정리
-- [ ] **Phase 1 — 웹 MVP**: Next.js + Prisma + Postgres 스캐폴딩, 로그인/Trip/PlaceEntry CRUD, 카카오맵 검색·저장 이식 (F1, F2, F5)
+- [~] **Phase 0 — 긴급 보안 조치**: 새 코드는 시크릿을 전부 `.env`로 분리해 하드코딩 재발 방지 완료. **미완료(사용자 조치 필요): 카카오 API 키 재발급**, DB 비밀번호 변경, 기존 `client/`·`server/` 내 중첩 `.git` 정리
+- [~] **Phase 1 — 웹 MVP**: 아래 "진행 상황" 참고 (F1, F2, F5 중 F2는 수동 좌표 입력까지만)
 - [ ] **Phase 2 — 경로/교통**: 자동차 경로 서버 프록시 + 대중교통(ODsay/Tmap) 연동 (F3)
 - [ ] **Phase 3 — AI 자동생성**: Claude 파싱 + 지오코딩 매칭 + 사용자 확인 UI (F4)
-- [ ] **Phase 4 — 비용/사진 기본형**: 지출 수동입력, 사진 업로드 (F6, F7 웹 범위)
+- [ ] **Phase 4 — 비용/사진 기본형**: 지출 수동입력, 사진 업로드 (F6, F7 웹 범위) — Prisma 스키마(Expense/Photo)는 이미 마련됨
 - [ ] **Phase 5 (고도화) — 모바일 앱**: Expo 앱, 사진첩 자동연동, 만보기/GPS (F7 완성, F8)
 - [ ] **Phase 6 (장기) — 카드 자동연동**: 오픈뱅킹/코드에프 등 제휴 검토 (F6 고도화)
 
-현재 단계: **Phase 0 착수 예정**
+현재 단계: **Phase 1 진행 중**
+
+## 진행 상황
+
+이 섹션은 매 작업 세션 후 갱신한다.
+
+**완료**
+- 모노레포(npm workspaces) + `apps/web`(Next.js 16 + TS + Tailwind) 스캐폴딩
+- Postgres를 docker-compose로 로컬 구동(`localhost:55432`), Prisma 스키마(User/Trip/PlaceEntry/Expense/Photo) + 마이그레이션
+- 인증: 회원가입/로그인/로그아웃/me, bcrypt 해싱 + JWT httpOnly 쿠키
+- Trip·PlaceEntry CRUD API(`/api/trips`, `/api/trips/[tripId]/places`) — 전 요청 소유권 검증 포함
+- 여행 리스트 화면, 여행 상세 화면(지도 배경 + 오른쪽 타임라인 패널 레이아웃)
+- 브라우저 수동 테스트로 회원가입→로그인→여행 생성→장소 추가/삭제→로그아웃→미인증 접근 차단 전체 플로우 확인
+
+**할 일 (다음 세션)**
+- 카카오맵 실 연동: 사용자가 새 키 발급 후 `.env`에 `NEXT_PUBLIC_KAKAO_JS_KEY`/`KAKAO_REST_API_KEY` 입력 → 장소 검색 자동완성으로 교체(현재는 위경도 수동 입력)
+- 여행 정보 수정 UI, 장소 순서 변경(드래그)
+- DESIGN.md의 인터랙션 규칙 적용: `confirm()`/에러 텍스트를 토스트로, optimistic update
+- Phase 0 잔여 작업: 카카오 키 재발급(사용자), 중첩 `.git` 정리

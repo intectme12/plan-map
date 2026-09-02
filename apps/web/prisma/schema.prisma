@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  nickname     String
+  createdAt    DateTime @default(now())
+
+  trips Trip[]
+
+  @@map("users")
+}
+
+model Trip {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  personnel Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  places PlaceEntry[]
+
+  @@index([userId])
+  @@map("trips")
+}
+
+model PlaceEntry {
+  id               String    @id @default(cuid())
+  tripId           String
+  order            Int
+  name             String
+  category         String?
+  lat              Float
+  lng              Float
+  address          String?
+  roadAddress      String?
+  placeUrl         String?
+  scheduledAt      DateTime?
+  transportToNext  String    @default("car") // "car" | "bus"
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  trip     Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  expenses Expense[]
+  photos   Photo[]
+
+  @@index([tripId, order])
+  @@map("place_entries")
+}
+
+model Expense {
+  id           String   @id @default(cuid())
+  placeEntryId String
+  amount       Int
+  memo         String?
+  source       String   @default("manual") // "manual" | "card_auto"
+  createdAt    DateTime @default(now())
+
+  placeEntry PlaceEntry @relation(fields: [placeEntryId], references: [id], onDelete: Cascade)
+
+  @@index([placeEntryId])
+  @@map("expenses")
+}
+
+model Photo {
+  id           String   @id @default(cuid())
+  placeEntryId String
+  storageKey   String
+  takenAt      DateTime?
+  createdAt    DateTime @default(now())
+
+  placeEntry PlaceEntry @relation(fields: [placeEntryId], references: [id], onDelete: Cascade)
+
+  @@index([placeEntryId])
+  @@map("photos")
+}

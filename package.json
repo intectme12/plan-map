@@ -1,0 +1,13 @@
+{
+  "name": "plan-map",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=web",
+    "build": "npm run build --workspace=web",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down"
+  }
+}
