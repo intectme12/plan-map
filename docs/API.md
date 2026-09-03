@@ -32,6 +32,14 @@
 | `PATCH` | `/api/trips/{tripId}` | 부분 수정 |
 | `DELETE` | `/api/trips/{tripId}` | 삭제 |
 
+## 장소 검색 (`/api/places/search`)
+
+`lib/services/geocode.ts`. 특정 여행에 종속되지 않는 순수 카카오 장소검색 프록시라 소유권 검사가 없다(로그인만 확인). [PlaceForm.tsx](../apps/web/src/app/trips/[tripId]/PlaceForm.tsx)가 300ms 디바운스로 호출해 검색어에 맞는 장소 후보를 드롭다운으로 보여주고, 클릭 한 번으로 `POST /api/trips/{tripId}/places`까지 이어서 호출한다(위도/경도 직접 입력 폐지, 2026-09-03).
+
+| Method | Path | 설명 |
+| --- | --- | --- |
+| `GET` | `/api/places/search?q={검색어}` | `{ candidates: GeocodeCandidate[] }`. 2자 미만이면 빈 배열. `KAKAO_REST_API_KEY` 미설정 시 `503` |
+
 ## 장소 (`/api/trips/{tripId}/places`)
 
 `lib/services/places.ts`. 항상 여행 소유권을 먼저 검사한 뒤 장소를 조회/수정한다.
@@ -49,7 +57,9 @@
 
 | Method | Path | 설명 |
 | --- | --- | --- |
-| `GET` | `/api/trips/{tripId}/routes?from={placeId}&to={placeId}&mode=car\|bus` | 소요시간/거리/요금. API 키 미설정 시 `null` 반환(에러 아님) — 프런트는 "교통 API 키 설정 필요"로 표시 |
+| `GET` | `/api/trips/{tripId}/routes?from={placeId}&to={placeId}&mode=car\|bus` | 소요시간/거리/요금(+ `mode=bus`일 때 `detail`에 지하철/버스 구간별 상세). API 키 미설정 시 `null` 반환(에러 아님) — 프런트는 "교통 API 키 설정 필요"로 표시 |
+
+프런트(`RouteSegmentRow.tsx`)는 `car`/`bus` 두 모드를 항상 동시에 조회해서 나란히 보여준다(토글 아님) — 자차는 거리/시간, 택시는 카카오모빌리티가 같이 내려주는 예상 요금(`fareWon`), 대중교통은 ODsay 응답의 `subPath`를 파싱한 지하철/버스 구간별 상세(`detail`, 예: "2호선 강남역→교대역 3개역 → 402번 ...")까지 표시한다.
 
 ## AI 일정 자동생성 (`/api/trips/{tripId}/ai-parse`)
 

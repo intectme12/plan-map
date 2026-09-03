@@ -8,7 +8,20 @@ const CACHE_TTL_MS = 10 * 60 * 1000;
 
 export type TransportMode = "car" | "bus";
 
-type RouteResult = { distanceM: number; durationSec: number; fareWon: number | null };
+export type TransitLeg = {
+  mode: "subway" | "bus" | "walk";
+  label: string; // "2호선", "402번", "도보 3분"
+  from?: string;
+  to?: string;
+  stationCount?: number;
+};
+
+type RouteResult = {
+  distanceM: number;
+  durationSec: number;
+  fareWon: number | null;
+  legs?: TransitLeg[]; // 버스 모드에서만 채워짐(지하철/버스 구간별 상세)
+};
 
 type LatLng = { lat: number; lng: number };
 
@@ -36,6 +49,36 @@ async function fetchCarRoute(from: LatLng, to: LatLng): Promise<RouteResult | nu
   };
 }
 
+// ODsay subPath.trafficType: 1=지하철, 2=버스, 3=도보
+function parseSubPath(subPath: unknown): TransitLeg[] {
+  if (!Array.isArray(subPath)) return [];
+
+  const legs: TransitLeg[] = [];
+  for (const step of subPath) {
+    if (step.trafficType === 1) {
+      legs.push({
+        mode: "subway",
+        label: step.lane?.[0]?.name ?? "지하철",
+        from: step.startName,
+        to: step.endName,
+        stationCount: step.stationCount,
+      });
+    } else if (step.trafficType === 2) {
+      const busNo = step.lane?.[0]?.busNo;
+      legs.push({
+        mode: "bus",
+        label: busNo ? `${busNo}번` : "버스",
+        from: step.startName,
+        to: step.endName,
+        stationCount: step.stationCount,
+      });
+    } else if (step.trafficType === 3 && step.sectionTime) {
+      legs.push({ mode: "walk", label: `도보 ${step.sectionTime}분` });
+    }
+  }
+  return legs;
+}
+
 async function fetchBusRoute(from: LatLng, to: LatLng): Promise<RouteResult | null> {
   if (!ODSAY_API_KEY) return null;
 
@@ -51,13 +94,15 @@ async function fetchBusRoute(from: LatLng, to: LatLng): Promise<RouteResult | nu
   if (!res.ok) return null;
 
   const data = await res.json();
-  const path = data?.result?.path?.[0]?.info;
-  if (!path) return null;
+  const firstPath = data?.result?.path?.[0];
+  const info = firstPath?.info;
+  if (!info) return null;
 
   return {
-    distanceM: path.totalDistance,
-    durationSec: path.totalTime * 60,
-    fareWon: path.payment ?? null,
+    distanceM: info.totalDistance,
+    durationSec: info.totalTime * 60,
+    fareWon: info.payment ?? null,
+    legs: parseSubPath(firstPath.subPath),
   };
 }
 
@@ -92,9 +137,12 @@ export async function getRoute(
     return cached ?? null;
   }
 
+  const { legs, ...metrics } = result;
+  const detail = legs ?? undefined;
+
   return prisma.routeSegment.upsert({
     where: { fromPlaceId_toPlaceId_mode: { fromPlaceId, toPlaceId, mode } },
-    create: { fromPlaceId, toPlaceId, mode, ...result },
-    update: { ...result, computedAt: new Date() },
+    create: { fromPlaceId, toPlaceId, mode, ...metrics, detail },
+    update: { ...metrics, detail, computedAt: new Date() },
   });
 }

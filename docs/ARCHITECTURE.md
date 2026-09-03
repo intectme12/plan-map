@@ -57,6 +57,7 @@ Prisma Client → PostgreSQL
 | `/api/auth/*` | `lib/auth.ts` | 회원가입/로그인/로그아웃/me |
 | `/api/trips` | `lib/services/trips.ts` | 여행 CRUD |
 | `/api/trips/[tripId]/places` | `lib/services/places.ts` | 장소 CRUD, 순서(order) 관리 |
+| `/api/places/search` | `lib/services/geocode.ts` | 카카오 장소검색(여행에 종속되지 않음) — 장소 추가 폼이 위도/경도 직접 입력 대신 이걸 씀 |
 | `/api/trips/[tripId]/routes` | `lib/services/routes.ts` | 자동차/버스 경로 조회 + 캐시 |
 | `/api/trips/[tripId]/ai-parse` | `lib/services/aiParse.ts` + `geocode.ts` + `aiImport.ts` | AI 일정 자동생성(F4), 자세한 내용은 [AI.md](./AI.md) |
 | `/api/trips/[tripId]/places/[placeId]/expense` | `lib/services/expenses.ts` | 장소별 지출 인라인 입력 |

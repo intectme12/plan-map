@@ -47,14 +47,12 @@ function SortablePlaceRow({
   index,
   nextPlace,
   onDelete,
-  onModeChange,
 }: {
   tripId: string;
   place: PlaceEntry;
   index: number;
   nextPlace: PlaceEntry | null;
   onDelete: (place: PlaceEntry) => void;
-  onModeChange: (placeId: string, mode: "car" | "bus") => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: place.id,
@@ -92,13 +90,7 @@ function SortablePlaceRow({
       />
       <PlacePhotos tripId={tripId} placeId={place.id} initialPhotos={place.photos} compact />
       {nextPlace ? (
-        <RouteSegmentRow
-          tripId={tripId}
-          fromPlaceId={place.id}
-          toPlaceId={nextPlace.id}
-          mode={place.transportToNext === "bus" ? "bus" : "car"}
-          onModeChange={(mode) => onModeChange(place.id, mode)}
-        />
+        <RouteSegmentRow tripId={tripId} fromPlaceId={place.id} toPlaceId={nextPlace.id} />
       ) : null}
     </li>
   );
@@ -164,15 +156,6 @@ export function PlaceList({ tripId, places }: { tripId: string; places: PlaceEnt
     });
   }
 
-  function handleModeChange(placeId: string, mode: "car" | "bus") {
-    setItems((prev) => prev.map((p) => (p.id === placeId ? { ...p, transportToNext: mode } : p)));
-    fetch(`/api/trips/${tripId}/places/${placeId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ transportToNext: mode }),
-    });
-  }
-
   if (items.length === 0) {
     return <p className="p-3 text-sm text-neutral-500">장소를 추가해보세요.</p>;
   }
@@ -189,7 +172,6 @@ export function PlaceList({ tripId, places }: { tripId: string; places: PlaceEnt
               index={index}
               nextPlace={items[index + 1] ?? null}
               onDelete={handleDelete}
-              onModeChange={handleModeChange}
             />
           ))}
         </ol>

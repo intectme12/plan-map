@@ -28,8 +28,9 @@
 - 자동차 경로: 카카오모빌리티 Directions API 서버 프록시(`lib/services/routes.ts`).
 - 대중교통(버스) 경로: ODsay API 연동.
 - 두 경우 모두 키 미설정 시 에러 대신 "교통 API 키 설정 필요"로 안전하게 폴백 — 패턴 상세는 [PUBLISHING.md](./PUBLISHING.md).
-- 타임라인에 장소 간 차/버스 토글 + 소요시간·거리·요금 표시.
+- 타임라인에 장소 간 차/버스 소요시간·거리·요금 표시.
 - 발견/수정한 버그: `prisma migrate dev` 이후 dev 서버 재시작을 안 해서 `prisma.routeSegment` undefined 500 에러 발생 → 재현 후 "스키마 변경 후 dev 서버 재시작 필요"를 README에 명시.
+- **2026-09-03 개편**: 차/버스를 토글로 하나만 보여주던 걸 폐기하고, 자차(거리/시간)+택시(카카오모빌리티 예상 요금)+대중교통(거리/시간)을 항상 동시에 보여주는 형태로 변경. 대중교통은 ODsay `subPath`를 파싱해 실제 지하철 노선/버스 번호·정류장 구간까지 표시(`RouteSegment.detail` Json 컬럼 추가) — 사용자 피드백으로 진행, [DATABASE.md](./DATABASE.md)/[API.md](./API.md) 참고. 실제 ODsay 응답으로 검증은 안 됨(이 환경엔 `ODSAY_API_KEY`가 없음) — 공개 문서 기준 `trafficType`(1=지하철/2=버스/3=도보) 파싱이라 실제 키로 확인 필요.
 
 ## Phase 3 — AI 자동생성(F4) — 완료
 

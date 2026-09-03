@@ -72,6 +72,7 @@ model RouteSegment {
   distanceM   Int
   durationSec Int
   fareWon     Int?
+  detail      Json?    // mode="bus"일 때만: 지하철/버스 구간별 상세(TransitLeg[]) — routes.ts의 parseSubPath 참고
   computedAt  DateTime @default(now()) // 캐시 TTL 기준(10분, 코드 상수)
 
   fromPlace PlaceEntry @relation("RouteFrom", fields: [fromPlaceId], references: [id], onDelete: Cascade)
