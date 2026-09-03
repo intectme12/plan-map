@@ -73,7 +73,23 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 
 - **Prisma 클라이언트가 최초 `npm install` 시 자동 생성되지 않는다** — npm의 `allow-scripts` 정책이 `@prisma/client`/`prisma`의 postinstall/preinstall 스크립트를 차단해서, 스키마 기반 타입이 생성되지 않은 빈 stub 클라이언트만 남는다. 증상: `trip.places` 등 Prisma 조회 결과가 `any`로 추론되며 `tsc`에서 관련 없어 보이는 implicit-any 에러가 다수 발생. **`npm install` 후에는 반드시 `cd apps/web && npx prisma generate`를 한 번 실행**해야 한다(이번 세션에서 실행 완료).
 - **Next.js 16의 `LayoutProps` 등 전역 라우트 타입은 `next dev`/`next build`를 한 번도 안 돌리면 존재하지 않는다** — `npx next typegen`으로 미리 생성 가능(이번 세션에서 실행 완료). 그 전에는 `layout.tsx`의 `LayoutProps<"/">` 참조가 "Cannot find name" 에러로 뜨는데, 코드 버그가 아니라 타입 생성 누락임.
-- **Docker Desktop이 이 환경에서 실행되지 않는다**(사용자 확인) — `docker-compose.yml`의 Postgres를 못 띄우므로, 로그인·DB 필요 화면은 이 세션에서 브라우저로 검증할 수 없다. `tsc --noEmit` + `eslint`만으로 검증하고 있다.
+- **Docker Desktop이 이 환경에서 실행되지 않는다**(사용자 확인) — `docker-compose.yml`의 Postgres를 못 띄우므로, DB가 필요한 화면(로그인 제출, `/trips` 이후 전체)은 이 환경에서 브라우저로 검증할 수 없다. DB 없이도 렌더링되는 화면(`/login`, `/register` 등 인증 전 화면)은 dev 서버로 직접 확인 가능 — 아래 항목 참고.
+- **`npm install`만으로는 Windows용 네이티브 바이너리가 안 깔려서 `next dev` 자체가 빌드 에러로 죽는다** — `lightningcss`, `@tailwindcss/oxide`(Tailwind v4가 쓰는 Rust 바이너리)의 `-win32-x64-msvc` optional dependency가 설치되지 않는 npm 버그. 증상: `next dev` 실행 시 `globals.css` 처리 중 `Cannot find module '...win32-x64-msvc.node'` Build Error. 해결(이번 세션에서 실행 완료, 재현되면 다시 실행):
+  ```bash
+  cd apps/web
+  npm install lightningcss-win32-x64-msvc --no-save
+  npm install @tailwindcss/oxide-win32-x64-msvc@4.3.3 --no-save
+  ```
+  그래도 안 되면(Turbopack이 새로 설치된 패키지를 못 찾는 경우) `.node` 바이너리를 각 패키지가 기대하는 폴백 경로에 직접 복사하고 `.next` 캐시를 지운 뒤 재시작:
+  ```bash
+  cp node_modules/lightningcss-win32-x64-msvc/lightningcss.win32-x64-msvc.node \
+     node_modules/lightningcss/lightningcss.win32-x64-msvc.node
+  cp node_modules/@tailwindcss/oxide-win32-x64-msvc/tailwindcss-oxide.win32-x64-msvc.node \
+     node_modules/@tailwindcss/oxide/tailwindcss-oxide.win32-x64-msvc.node
+  rm -rf .next
+  ```
+  (`@tailwindcss/oxide-win32-x64-msvc`는 npm workspaces 호이스팅으로 루트 `node_modules`에 설치될 수 있음 — 그 경우 첫 번째 `cp`의 소스 경로를 `../../node_modules/...`로 바꿀 것.)
+- **DB 없이 프런트만 확인하려면**: `cd apps/web && npm run dev` → `http://localhost:3000` — `/`는 미인증 시 `/login`으로 리다이렉트되는데, `getCurrentUser()`가 쿠키 없으면 DB 조회 자체를 안 해서 `/login`·`/register` 화면은 정상 렌더링된다(2026-09-03 확인). 폼 **제출**과 `/trips` 이후는 DB가 필요해 실패한다.
 
 ## 진행 상황
 
