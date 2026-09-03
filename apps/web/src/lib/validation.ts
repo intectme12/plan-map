@@ -31,6 +31,10 @@ export const createPlaceSchema = z.object({
   scheduledAt: z.coerce.date().optional(),
 });
 
+export const aiParseRequestSchema = z.object({
+  text: z.string().min(10, "10자 이상 입력해주세요.").max(5000),
+});
+
 export const updatePlaceSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   category: z.string().max(50).optional(),

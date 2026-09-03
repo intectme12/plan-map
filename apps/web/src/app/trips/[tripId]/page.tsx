@@ -48,6 +48,13 @@ export default async function TripDetailPage({
           />
         </header>
 
+        <Link
+          href={`/trips/${trip.id}/import`}
+          className="mx-3 mt-3 rounded-md border border-dashed border-blue-300 px-3 py-2 text-center text-sm font-semibold text-blue-600 hover:bg-blue-50"
+        >
+          ✨ AI로 일정 가져오기
+        </Link>
+
         <PlaceForm tripId={trip.id} />
 
         <div className="min-h-0 flex-1">

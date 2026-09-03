@@ -60,16 +60,16 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - [~] **Phase 0 — 긴급 보안 조치**: 새 코드는 시크릿을 전부 `.env`로 분리해 하드코딩 재발 방지 완료. **미완료(사용자 조치 필요): 카카오 API 키 재발급**, DB 비밀번호 변경, 기존 `client/`·`server/` 내 중첩 `.git` 정리
 - [x] **Phase 1 — 웹 MVP**: F1·F5 완료, F2는 수동 좌표 입력까지(자동완성은 카카오 키 필요)
 - [x] **Phase 2 — 경로/교통**: 코드·UI 완료, 실제 조회는 API 키 설정 후 활성화 (F3)
-- [ ] **Phase 3 — AI 자동생성**: **사용자 요청으로 보류(2026-09-03) — 나중에 진행**. Claude 파싱 + 지오코딩 매칭 + 사용자 확인 UI (F4)
-- [~] **Phase 4 — 비용/사진 기본형**: 진행 중 — Phase 3을 건너뛰고 먼저 진행 (F6, F7 웹 범위) — Prisma 스키마(Expense/Photo)는 이미 마련됨
+- [~] **Phase 3 — AI 자동생성**: 코드 완료 — Claude API 파싱(구조화 출력) + 카카오 로컬 검색 지오코딩 매칭 + 사용자 확인 UI(`/trips/[tripId]/import`) (F4). 실제 동작은 `ANTHROPIC_API_KEY`/`KAKAO_REST_API_KEY` 설정 및 로컬 DB 구동 후 확인 필요 — 이번 세션은 Docker가 꺼져 있어 브라우저 E2E 테스트를 못 함
+- [~] **Phase 4 — 비용/사진 기본형**: 진행 중 (F6, F7 웹 범위) — Prisma 스키마(Expense/Photo)는 이미 마련됨
 - [ ] **Phase 5 (고도화) — 모바일 앱**: Expo 앱, 사진첩 자동연동, 만보기/GPS (F7 완성, F8) — **웹 우선 진행이라는 기존 결정에 따라 이번 자동 진행 범위에서 제외**
 - [ ] **Phase 6 (장기) — 카드 자동연동**: 오픈뱅킹/코드에프 등 제휴 검토 (F6 고도화) — **실제 금융기관 제휴가 필요해 코드만으로는 완료 불가, 계정 생성 등 실제 사업자 절차는 사용자 본인이 진행해야 함**
 
-현재 단계: **Phase 4 진행 중** (Phase 3은 사용자 요청으로 뒤로 미룸)
+현재 단계: **Phase 3 코드 완료, Phase 4 진행 중** (둘 다 검증/마무리 필요)
 
 ## 진행 상황
 
-이 섹션은 매 작업 세션 후 갱신한다. 자동 진행 지시(2026-09-03)에 따라 Phase 5(모바일)·Phase 6(카드 연동)은 외부 계정/제휴가 필요해 제외했고, 이후 사용자가 Phase 3(AI 자동생성)을 나중으로 미루라고 해서 Phase 4를 먼저 진행한다.
+이 섹션은 매 작업 세션 후 갱신한다. Phase 5(모바일)·Phase 6(카드 연동)은 외부 계정/제휴가 필요해 자동 진행 범위에서 제외했다. Phase 3(AI 자동생성)은 한 세션에서 보류됐다가 이후 세션(2026-09-03)에 재개 요청을 받아 코드를 완료했다.
 
 **완료 (Phase 1)**
 - 모노레포(npm workspaces) + `apps/web`(Next.js 16 + TS + Tailwind) 스캐폴딩
@@ -89,8 +89,17 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - 타임라인에 장소 간 차/버스 토글 + 소요시간·거리·요금 표시, 토글 시 `transportToNext` 저장
 - 브라우저 테스트로 키 미설정 상태의 정상 폴백, 모드 전환 시 DB 반영까지 확인. 개발 중 `prisma migrate dev` 이후 dev 서버 재시작 안 해서 생긴 500 에러(`prisma.routeSegment` undefined)를 재현·수정함 — **스키마 변경 후에는 dev 서버 재시작 필요**
 
+**완료 (Phase 3)**
+- `AiParseRequest` 대신 상태 없는 동기 플로우로 구현 — 별도 `AIParseJob` 테이블 없이 요청 1회로 파싱→지오코딩→확인 응답까지 처리(화면 수가 적은 지금은 잡 큐가 조기 추상화라 보류, README 데이터 모델 초안의 `AIParseJob`은 미적용)
+- `lib/services/aiParse.ts`: Claude API(`claude-opus-5`, `messages.parse` + zod 구조화 출력)로 원문 텍스트에서 장소명/카테고리/지역힌트 추출
+- `lib/services/geocode.ts`: 카카오 로컬 키워드 검색으로 장소명 → 좌표 후보(최대 5개) 매칭, 카카오 키 미설정 시 다른 서비스와 동일하게 안전 폴백(빈 후보)
+- `lib/services/aiImport.ts`: 소유권 검증 후 위 둘을 조합, `ANTHROPIC_API_KEY` 미설정 시 503 에러로 명확히 알림(카카오/ODsay와 달리 이 기능은 키 없이 대체 동작 불가)
+- `POST /api/trips/[tripId]/ai-parse`: 텍스트 → 후보 목록 반환
+- `/trips/[tripId]/import` 확인 화면: 텍스트 붙여넣기 → 스켈레톤 로딩 → 후보 카드 리스트(체크박스 기본 선택, 동명 장소는 노란 뱃지+선택 드롭다운) + 지도 마커 → "선택한 N개 일정에 추가" 일괄 커밋(기존 `/places` API 순차 호출, order 충돌 방지 위해 병렬 실행 안 함)
+- `tsc --noEmit`, `eslint` 통과 확인. **미확인**: 이번 세션은 Docker Desktop이 꺼져 있어 Postgres를 못 띄웠고, 실제 `ANTHROPIC_API_KEY`/`KAKAO_REST_API_KEY`도 없어 브라우저로 로그인→여행 생성→AI 가져오기 전체 플로우를 실행해보지 못함 — 다음 세션에서 DB 기동 후 필수 확인
+
 **다음 세션 할 일**
+- Phase 3: 위 미확인 항목 — Docker DB 기동 후 회원가입→여행 생성→`/trips/[tripId]/import`에서 텍스트 분석→후보 확인→일괄 추가까지 브라우저로 검증. `ANTHROPIC_API_KEY` 미설정 상태에서 503 에러 배너가 뜨는지도 함께 확인
 - Phase 4: 지출 수동입력(장소 카드 인라인) + 사진 업로드(로컬 디스크 저장, S3/R2는 추후)
-- Phase 3(AI 자동생성)은 보류 상태 — 재개 요청 시 Claude API 파싱 + 카카오 로컬 검색 지오코딩 + 확인 UI로 진행
 - 카카오맵/장소검색 실 연동, 대중교통 실 연동: 각각 `NEXT_PUBLIC_KAKAO_JS_KEY`/`KAKAO_REST_API_KEY`, `ODSAY_API_KEY` 사용자 발급 필요
 - Phase 0 잔여 작업: 카카오 키 재발급(사용자), 중첩 `.git` 정리 — 둘 다 사용자 확인/조치가 필요해 자동 진행하지 않음
