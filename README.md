@@ -62,12 +62,12 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - [~] **Phase 0 — 긴급 보안 조치**: 새 코드는 시크릿을 전부 `.env`로 분리해 하드코딩 재발 방지 완료. **미완료(사용자 조치 필요): 카카오 API 키 재발급**, DB 비밀번호 변경, 기존 `client/`·`server/` 내 중첩 `.git` 정리
 - [x] **Phase 1 — 웹 MVP**: F1·F5 완료, F2는 수동 좌표 입력까지(자동완성은 카카오 키 필요)
 - [x] **Phase 2 — 경로/교통**: 코드·UI 완료, 실제 조회는 API 키 설정 후 활성화 (F3)
-- [~] **Phase 3 — AI 자동생성**: 코드 완료, 커밋/푸시됨 — Claude API 파싱(구조화 출력) + 카카오 로컬 검색 지오코딩 매칭 + 사용자 확인 UI(`/trips/[tripId]/import`) (F4). 실제 동작은 `ANTHROPIC_API_KEY`/`KAKAO_REST_API_KEY` 설정 및 로컬 DB 구동 후 확인 필요 — **이 개발 환경은 Docker를 실행할 수 없어 브라우저 E2E 테스트가 구조적으로 불가능**(사용자 확인, 2026-09-03)
-- [~] **Phase 4 — 비용/사진 기본형**: 코드 완료 (F6, F7 웹 범위) — Prisma 스키마(Expense/Photo)는 이미 마련됨, 마이그레이션도 기존에 포함되어 있어 추가 마이그레이션 불필요. Phase 3과 동일하게 이 환경에서는 브라우저 E2E 테스트 불가
+- [x] **Phase 3 — AI 자동생성**: Claude API 파싱(구조화 출력) + 카카오 로컬 검색 지오코딩 매칭 + 사용자 확인 UI(`/trips/[tripId]/import`) (F4). 코드 완료 + 폴백 경로까지 브라우저로 검증됨. 실제 파싱 결과는 `ANTHROPIC_API_KEY`/`KAKAO_REST_API_KEY` 설정 후 최종 확인 필요
+- [x] **Phase 4 — 비용/사진 기본형**: 지출 인라인 입력, 사진 업로드/삭제 (F6, F7 웹 범위) — 코드·DB 반영·브라우저 검증까지 완료
 - [ ] **Phase 5 (고도화) — 모바일 앱**: Expo 앱, 사진첩 자동연동, 만보기/GPS (F7 완성, F8) — **웹 우선 진행이라는 기존 결정에 따라 이번 자동 진행 범위에서 제외**
 - [ ] **Phase 6 (장기) — 카드 자동연동**: 오픈뱅킹/코드에프 등 제휴 검토 (F6 고도화) — **실제 금융기관 제휴가 필요해 코드만으로는 완료 불가, 계정 생성 등 실제 사업자 절차는 사용자 본인이 진행해야 함**
 
-현재 단계: **Phase 3·4 코드 완료** — 둘 다 이 환경에서 브라우저 검증을 못 해, Docker를 쓸 수 있는 환경(다른 PC 등)에서 최종 확인 필요
+현재 단계: **Phase 1~4 완료** — 남은 건 실제 API 키로 최종 확인(카카오/ODsay/Anthropic)과 Phase 0 잔여 정리(키 재발급, 중첩 git 정리)
 
 ## ⚠️ 이 환경 관련 참고사항
 
@@ -141,10 +141,18 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
   - ODsay는 `ODSAY_API_KEY` 자체가 아직 미발급이라 `subPath` 파싱 로직은 실제 응답으로 검증 못 함(ODsay 공식 문서 스펙 기준으로 작성)
 - 이 과정에서 DB 없이 프런트만 보려고 `trips/page.tsx`·`trips/[tripId]/page.tsx`에 임시로 넣었던 로그인 우회 mock 코드(`lib/devMock.ts`)는 **커밋 전에 전부 원래 코드로 되돌리고 삭제함** — 인증 우회 코드가 레포에 남지 않도록 확인 필요
 
-**다음 세션 할 일 (Docker를 쓸 수 있는 환경에서)**
-- ~~카카오 디벨로퍼스 콘솔 설정~~ 완료 — Docker로 앱을 직접 띄워서 지도/장소검색/경로조회가 화면에서도 실제로 되는지 최종 확인만 남음(API 자체는 직접 호출로 확인됨)
+**완료 (2026-09-04, Docker 가능한 환경에서 Phase 3·4 브라우저 검증)**
+
+이 머신은 Docker가 실행되므로, 위에서 "이 환경에서는 불가능"으로 남겨뒀던 E2E 검증을 대신 진행했다. 로컬 `.env`에는 실제 카카오/Anthropic 키가 없어서(각 머신의 `.env`는 gitignore 대상이라 공유되지 않음) AI·지도·경로 관련 기능 자체는 여전히 폴백 상태로 확인했지만, DB에 의존하는 로직(지출/사진 CRUD, 폴백 메시지 분기)은 실제로 실행해서 검증했다:
+
+- `git pull` 후 `npx prisma migrate deploy`로 `route_segments.detail` 컬럼 마이그레이션을 로컬 Docker Postgres에 정상 적용
+- 지출 입력: 카드 인라인 입력 → blur 시 즉시 저장 → DB 반영, 비용 탭 총액/도넛 차트 반영까지 확인
+- 사진: 업로드(API에 실제 PNG 파일 전송, `public/uploads/<tripId>/<placeId>/`에 저장), 갤러리 표시, 모달에서 hover 삭제까지 — DB 레코드와 디스크 파일이 함께 삭제되는 것까지 확인
+- AI 파싱: `ANTHROPIC_API_KEY` 미설정 시 "AI 자동생성 기능을 사용하려면 ANTHROPIC_API_KEY 설정이 필요합니다" 메시지로 정상 폴백(에러 없이)
+- 장소검색: `KAKAO_REST_API_KEY` 미설정 시 "장소 검색을 사용하려면 .env의 KAKAO_REST_API_KEY를 설정하세요" 메시지로 정상 폴백
+- **버그 발견 및 수정**: `PlaceList.tsx`의 `<DndContext>`가 `id`를 지정하지 않아 dnd-kit이 내부적으로 자동생성하는 `aria-describedby` ID가 서버 렌더링과 클라이언트 하이드레이션 사이에 달라져 React 하이드레이션 경고(`Console Error: A tree hydrated but some attributes...`)가 발생하고 있었음. `<DndContext id={\`place-list-${tripId}\`}>`로 안정적인 id를 지정해 수정, 재현 확인
+
+**다음 세션 할 일**
+- 실제 카카오/ODsay/Anthropic 키가 있는 머신에서: 지도 렌더링, 장소검색 자동완성, 경로조회(자차/택시/대중교통), AI 파싱까지 실제 응답으로 최종 확인
 - `ODSAY_API_KEY` 발급 후 대중교통 상세(`subPath` → 지하철/버스 구간 표시) 실제 응답으로 검증
-- Phase 3: 회원가입→여행 생성→`/trips/[tripId]/import`에서 텍스트 분석→후보 확인→일괄 추가까지 브라우저로 검증
-- Phase 4: 비용 탭 인라인 입력→탭 전환 후 총액/도넛 차트 반영, 사진 업로드/삭제(드래그앤드롭 포함), 타임라인 카드의 지출·사진 인라인 표시까지 브라우저로 검증
-- `npx prisma migrate deploy`(또는 `dev`)로 `route_segments.detail` 컬럼 마이그레이션 실제 DB에 적용
-- Phase 0 잔여 작업: 유출됐던 카카오 키 재발급(재발급 후 위 신규 키로 `.env` 갱신 필요), 중첩 `.git` 정리 — 둘 다 사용자 확인/조치가 필요해 자동 진행하지 않음
+- Phase 0 잔여 작업: 유출됐던 카카오 키 재발급(재발급 후 신규 키로 각자 `.env` 갱신 필요), 중첩 `.git` 정리 — 둘 다 사용자 확인/조치가 필요해 자동 진행하지 않음

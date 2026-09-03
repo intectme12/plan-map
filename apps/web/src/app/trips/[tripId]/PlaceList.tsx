@@ -161,7 +161,12 @@ export function PlaceList({ tripId, places }: { tripId: string; places: PlaceEnt
   }
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    <DndContext
+      id={`place-list-${tripId}`}
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
       <SortableContext items={items.map((p) => p.id)} strategy={verticalListSortingStrategy}>
         <ol className="flex flex-col gap-1 overflow-y-auto p-2">
           {items.map((place, index) => (
