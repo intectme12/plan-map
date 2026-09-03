@@ -1,0 +1,56 @@
+type CategoryTotal = { category: string; amount: number };
+
+const CHART_COLORS = ["#2F6FED", "#FF7A45", "#16A34A", "#D97706", "#8B5CF6", "#DC2626"];
+
+export function ExpenseSummary({
+  total,
+  byCategory,
+}: {
+  total: number;
+  byCategory: CategoryTotal[];
+}) {
+  const segments = byCategory.reduce<{ start: number; end: number }[]>((acc, c) => {
+    const start = acc.length > 0 ? acc[acc.length - 1].end : 0;
+    acc.push({ start, end: start + (c.amount / total) * 360 });
+    return acc;
+  }, []);
+  const gradientStops = segments.map(
+    (s, i) => `${CHART_COLORS[i % CHART_COLORS.length]} ${s.start}deg ${s.end}deg`
+  );
+
+  return (
+    <div className="flex flex-col gap-6 p-4">
+      <div>
+        <p className="text-xs text-neutral-500">여행 총 지출</p>
+        <p className="text-3xl font-bold tabular-nums">{total.toLocaleString()}원</p>
+      </div>
+
+      {byCategory.length === 0 ? (
+        <p className="text-sm text-neutral-400">
+          아직 입력된 지출이 없습니다. 타임라인 카드에서 장소별 지출을 입력해보세요.
+        </p>
+      ) : (
+        <div className="flex items-center gap-6">
+          <div
+            className="h-32 w-32 flex-none rounded-full"
+            style={{ background: `conic-gradient(${gradientStops.join(", ")})` }}
+          />
+          <ul className="flex flex-1 flex-col gap-1.5 text-sm">
+            {byCategory.map((c, i) => (
+              <li key={c.category} className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className="h-2.5 w-2.5 flex-none rounded-full"
+                    style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}
+                  />
+                  {c.category}
+                </span>
+                <span className="tabular-nums text-neutral-600">{c.amount.toLocaleString()}원</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -60,12 +60,18 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - [~] **Phase 0 — 긴급 보안 조치**: 새 코드는 시크릿을 전부 `.env`로 분리해 하드코딩 재발 방지 완료. **미완료(사용자 조치 필요): 카카오 API 키 재발급**, DB 비밀번호 변경, 기존 `client/`·`server/` 내 중첩 `.git` 정리
 - [x] **Phase 1 — 웹 MVP**: F1·F5 완료, F2는 수동 좌표 입력까지(자동완성은 카카오 키 필요)
 - [x] **Phase 2 — 경로/교통**: 코드·UI 완료, 실제 조회는 API 키 설정 후 활성화 (F3)
-- [~] **Phase 3 — AI 자동생성**: 코드 완료 — Claude API 파싱(구조화 출력) + 카카오 로컬 검색 지오코딩 매칭 + 사용자 확인 UI(`/trips/[tripId]/import`) (F4). 실제 동작은 `ANTHROPIC_API_KEY`/`KAKAO_REST_API_KEY` 설정 및 로컬 DB 구동 후 확인 필요 — 이번 세션은 Docker가 꺼져 있어 브라우저 E2E 테스트를 못 함
-- [~] **Phase 4 — 비용/사진 기본형**: 진행 중 (F6, F7 웹 범위) — Prisma 스키마(Expense/Photo)는 이미 마련됨
+- [~] **Phase 3 — AI 자동생성**: 코드 완료, 커밋/푸시됨 — Claude API 파싱(구조화 출력) + 카카오 로컬 검색 지오코딩 매칭 + 사용자 확인 UI(`/trips/[tripId]/import`) (F4). 실제 동작은 `ANTHROPIC_API_KEY`/`KAKAO_REST_API_KEY` 설정 및 로컬 DB 구동 후 확인 필요 — **이 개발 환경은 Docker를 실행할 수 없어 브라우저 E2E 테스트가 구조적으로 불가능**(사용자 확인, 2026-09-03)
+- [~] **Phase 4 — 비용/사진 기본형**: 코드 완료 (F6, F7 웹 범위) — Prisma 스키마(Expense/Photo)는 이미 마련됨, 마이그레이션도 기존에 포함되어 있어 추가 마이그레이션 불필요. Phase 3과 동일하게 이 환경에서는 브라우저 E2E 테스트 불가
 - [ ] **Phase 5 (고도화) — 모바일 앱**: Expo 앱, 사진첩 자동연동, 만보기/GPS (F7 완성, F8) — **웹 우선 진행이라는 기존 결정에 따라 이번 자동 진행 범위에서 제외**
 - [ ] **Phase 6 (장기) — 카드 자동연동**: 오픈뱅킹/코드에프 등 제휴 검토 (F6 고도화) — **실제 금융기관 제휴가 필요해 코드만으로는 완료 불가, 계정 생성 등 실제 사업자 절차는 사용자 본인이 진행해야 함**
 
-현재 단계: **Phase 3 코드 완료, Phase 4 진행 중** (둘 다 검증/마무리 필요)
+현재 단계: **Phase 3·4 코드 완료** — 둘 다 이 환경에서 브라우저 검증을 못 해, Docker를 쓸 수 있는 환경(다른 PC 등)에서 최종 확인 필요
+
+## ⚠️ 이 환경 관련 참고사항
+
+- **Prisma 클라이언트가 최초 `npm install` 시 자동 생성되지 않는다** — npm의 `allow-scripts` 정책이 `@prisma/client`/`prisma`의 postinstall/preinstall 스크립트를 차단해서, 스키마 기반 타입이 생성되지 않은 빈 stub 클라이언트만 남는다. 증상: `trip.places` 등 Prisma 조회 결과가 `any`로 추론되며 `tsc`에서 관련 없어 보이는 implicit-any 에러가 다수 발생. **`npm install` 후에는 반드시 `cd apps/web && npx prisma generate`를 한 번 실행**해야 한다(이번 세션에서 실행 완료).
+- **Next.js 16의 `LayoutProps` 등 전역 라우트 타입은 `next dev`/`next build`를 한 번도 안 돌리면 존재하지 않는다** — `npx next typegen`으로 미리 생성 가능(이번 세션에서 실행 완료). 그 전에는 `layout.tsx`의 `LayoutProps<"/">` 참조가 "Cannot find name" 에러로 뜨는데, 코드 버그가 아니라 타입 생성 누락임.
+- **Docker Desktop이 이 환경에서 실행되지 않는다**(사용자 확인) — `docker-compose.yml`의 Postgres를 못 띄우므로, 로그인·DB 필요 화면은 이 세션에서 브라우저로 검증할 수 없다. `tsc --noEmit` + `eslint`만으로 검증하고 있다.
 
 ## 진행 상황
 
@@ -96,10 +102,19 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - `lib/services/aiImport.ts`: 소유권 검증 후 위 둘을 조합, `ANTHROPIC_API_KEY` 미설정 시 503 에러로 명확히 알림(카카오/ODsay와 달리 이 기능은 키 없이 대체 동작 불가)
 - `POST /api/trips/[tripId]/ai-parse`: 텍스트 → 후보 목록 반환
 - `/trips/[tripId]/import` 확인 화면: 텍스트 붙여넣기 → 스켈레톤 로딩 → 후보 카드 리스트(체크박스 기본 선택, 동명 장소는 노란 뱃지+선택 드롭다운) + 지도 마커 → "선택한 N개 일정에 추가" 일괄 커밋(기존 `/places` API 순차 호출, order 충돌 방지 위해 병렬 실행 안 함)
-- `tsc --noEmit`, `eslint` 통과 확인. **미확인**: 이번 세션은 Docker Desktop이 꺼져 있어 Postgres를 못 띄웠고, 실제 `ANTHROPIC_API_KEY`/`KAKAO_REST_API_KEY`도 없어 브라우저로 로그인→여행 생성→AI 가져오기 전체 플로우를 실행해보지 못함 — 다음 세션에서 DB 기동 후 필수 확인
+- `tsc --noEmit`, `eslint` 통과 확인(단, `npx prisma generate` + `npx next typegen`을 먼저 실행해야 함 — 위 "이 환경 관련 참고사항" 참고). **미확인**: 이 환경은 Docker를 실행할 수 없어 브라우저로 로그인→여행 생성→AI 가져오기 전체 플로우를 실행해보지 못함
 
-**다음 세션 할 일**
-- Phase 3: 위 미확인 항목 — Docker DB 기동 후 회원가입→여행 생성→`/trips/[tripId]/import`에서 텍스트 분석→후보 확인→일괄 추가까지 브라우저로 검증. `ANTHROPIC_API_KEY` 미설정 상태에서 503 에러 배너가 뜨는지도 함께 확인
-- Phase 4: 지출 수동입력(장소 카드 인라인) + 사진 업로드(로컬 디스크 저장, S3/R2는 추후)
+**완료 (Phase 4)**
+- `lib/services/expenses.ts`: `setPlaceExpense` — 장소당 대표 지출 1건을 upsert로 즉시저장(카드 인라인 입력에 맞춘 단순화, Expense 모델 자체는 장소당 여러 건을 허용하지만 UI는 1건만 다룸)
+- `lib/services/photos.ts`: 로컬 디스크 저장(`apps/web/public/uploads/<tripId>/<placeId>/<uuid>.<ext>`) — jpg/png/webp/gif만 허용, 8MB 제한, storageKey를 public 상대경로로 저장해 별도 서빙 라우트 없이 바로 `<img src>`로 노출. S3/R2는 스택 표에 명시된 대로 후순위
+- `PATCH /api/trips/[tripId]/places/[placeId]/expense`, `POST`/`DELETE /api/trips/[tripId]/places/[placeId]/photos(/[photoId])` 라우트 추가
+- 여행 상세 화면에 `?tab=timeline|expense|photos` 탭 추가(DESIGN.md IA 반영) — 타임라인 탭은 기존 카드에 지출 입력 인풋 + 사진 썸네일(최대 3장, `+`로 업로드 모달) 추가, 비용 탭은 총액 큰 숫자 + 카테고리별(장소의 `category` 필드 기준) 도넛 차트(CSS `conic-gradient`, 별도 차트 라이브러리 없이 구현), 사진 탭은 장소별 그룹 그리드
+- 업로드 모달은 Radix/shadcn 없이 직접 구현(고정 오버레이 + 드래그앤드롭 + 파일선택) — DESIGN.md는 shadcn/ui 도입을 명시했지만 아직 코드에 들어있지 않아 이번에 새로 끌어들이지 않음. 도입하려면 별도 세션에서 결정 필요
+- `AIParseJob`처럼 `Expense`도 카테고리 필드가 없어, 비용 탭의 카테고리 분류는 지출 자체가 아니라 **장소(PlaceEntry)의 category**로 묶음 — 장소에 카테고리를 안 채우면 "기타"로 집계됨
+- `tsc --noEmit`, `eslint` 통과 확인. 브라우저 E2E는 Phase 3와 동일한 이유로 미확인
+
+**다음 세션 할 일 (Docker를 쓸 수 있는 환경에서)**
+- Phase 3: 회원가입→여행 생성→`/trips/[tripId]/import`에서 텍스트 분석→후보 확인→일괄 추가까지 브라우저로 검증. `ANTHROPIC_API_KEY` 미설정 상태에서 503 에러 배너가 뜨는지도 함께 확인
+- Phase 4: 비용 탭 인라인 입력→탭 전환 후 총액/도넛 차트 반영, 사진 업로드/삭제(드래그앤드롭 포함), 타임라인 카드의 지출·사진 인라인 표시까지 브라우저로 검증
 - 카카오맵/장소검색 실 연동, 대중교통 실 연동: 각각 `NEXT_PUBLIC_KAKAO_JS_KEY`/`KAKAO_REST_API_KEY`, `ODSAY_API_KEY` 사용자 발급 필요
 - Phase 0 잔여 작업: 카카오 키 재발급(사용자), 중첩 `.git` 정리 — 둘 다 사용자 확인/조치가 필요해 자동 진행하지 않음

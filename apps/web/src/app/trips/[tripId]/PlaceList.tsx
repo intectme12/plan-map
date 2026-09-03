@@ -18,6 +18,8 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useToast } from "@/components/toast/ToastProvider";
 import { RouteSegmentRow } from "./RouteSegmentRow";
+import { ExpenseInput } from "./ExpenseInput";
+import { PlacePhotos } from "./PlacePhotos";
 import type { PlaceEntry } from "./types";
 
 function DragHandle(props: React.HTMLAttributes<HTMLButtonElement>) {
@@ -83,6 +85,12 @@ function SortablePlaceRow({
           삭제
         </button>
       </div>
+      <ExpenseInput
+        tripId={tripId}
+        placeId={place.id}
+        initialAmount={place.expenses[0]?.amount ?? null}
+      />
+      <PlacePhotos tripId={tripId} placeId={place.id} initialPhotos={place.photos} compact />
       {nextPlace ? (
         <RouteSegmentRow
           tripId={tripId}

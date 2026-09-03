@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
-import { NotFoundError, ServiceUnavailableError } from "./errors";
+import { NotFoundError, ServiceUnavailableError, InvalidFileError } from "./errors";
 
 export function unauthorized() {
   return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
@@ -19,6 +19,9 @@ export function handleRouteError(err: unknown) {
   }
   if (err instanceof ServiceUnavailableError) {
     return NextResponse.json({ error: err.message }, { status: 503 });
+  }
+  if (err instanceof InvalidFileError) {
+    return NextResponse.json({ error: err.message }, { status: 400 });
   }
   console.error(err);
   return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });

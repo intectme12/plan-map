@@ -31,6 +31,10 @@ export const createPlaceSchema = z.object({
   scheduledAt: z.coerce.date().optional(),
 });
 
+export const expenseAmountSchema = z.object({
+  amount: z.coerce.number().int().min(0).max(100_000_000),
+});
+
 export const aiParseRequestSchema = z.object({
   text: z.string().min(10, "10자 이상 입력해주세요.").max(5000),
 });

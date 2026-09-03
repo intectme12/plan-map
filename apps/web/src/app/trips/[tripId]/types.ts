@@ -10,4 +10,6 @@ export type PlaceEntry = {
   placeUrl: string | null;
   scheduledAt: string | Date | null;
   transportToNext: string;
+  expenses: { id: string; amount: number }[];
+  photos: { id: string; storageKey: string }[];
 };
