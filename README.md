@@ -135,14 +135,14 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - 실제 카카오/Anthropic API 키를 `.env`에 설정 — 이후 세션은 이 세 키(`NEXT_PUBLIC_KAKAO_JS_KEY`/`KAKAO_REST_API_KEY`/`ANTHROPIC_API_KEY`)가 채워진 상태를 전제로 진행
 - 장소 간 교통수단이 "차/버스 토글"이던 걸 폐기하고, **자차(거리/시간) + 택시(카카오모빌리티 예상요금) + 대중교통(거리/시간)을 항상 동시에** 보여주도록 [RouteSegmentRow.tsx](apps/web/src/app/trips/[tripId]/RouteSegmentRow.tsx) 재작성. 대중교통은 ODsay `subPath`를 파싱해 실제 지하철 노선/버스 번호·정류장 구간까지 표시 — `RouteSegment.detail`(JSONB) 컬럼 추가(마이그레이션 `20260903140000_add_route_segment_detail`, DB가 꺼져 있어 손으로 작성 — Docker 켜지면 다음 `prisma migrate deploy`/`dev` 때 자동 적용됨)
 - 장소 추가 폼의 위도/경도 직접 입력을 폐지하고 **카카오 장소검색**(`GET /api/places/search`, 기존 AI 파싱용 `geocode.ts` 재사용)으로 교체 — 검색어 입력 → 결과 클릭 한 번으로 추가
-- `tsc --noEmit`, `eslint` 통과 확인(교통 UI 두 컴포넌트에 남은 `react-hooks/set-state-in-effect` 경고는 이전부터 있던 패턴과 동일해 그대로 둠). **실제 카카오 API 응답까지 직접 호출해서 확인**하다가 아래 콘솔 설정 문제 2개를 발견함 — 코드 문제 아님:
-  - `KAKAO_REST_API_KEY` 호출이 `403 App(map) disabled OPEN_MAP_AND_LOCAL service`로 실패 → 카카오 디벨로퍼스 콘솔 **제품 설정 → 카카오맵(Local/Map) 활성화 필요**(아직 미완료)
-  - `NEXT_PUBLIC_KAKAO_JS_KEY`로 지도 SDK 로드 시 `401` → 콘솔 **플랫폼 → Web에 `http://localhost:3000` 등록 필요**(아직 미완료)
+- `tsc --noEmit`, `eslint` 통과 확인(교통 UI 두 컴포넌트에 남은 `react-hooks/set-state-in-effect` 경고는 이전부터 있던 패턴과 동일해 그대로 둠). **실제 카카오 API 응답까지 직접 호출해서 확인**하다가 콘솔 설정 문제 2개를 발견 → 사용자가 카카오 디벨로퍼스 콘솔에서 조치 완료, 재확인함(2026-09-03):
+  - ~~`KAKAO_REST_API_KEY` 호출이 `403 App(map) disabled OPEN_MAP_AND_LOCAL service`로 실패~~ → 콘솔에서 카카오맵(Local/Map) 제품 활성화 후 **200 정상 확인**(장소검색 `경복궁`, 카카오모빌리티 경로조회 둘 다)
+  - ~~`NEXT_PUBLIC_KAKAO_JS_KEY`로 지도 SDK 로드 시 `401`~~ → 콘솔에서 Web 플랫폼에 `http://localhost:3000` 등록 후 **200 정상 확인**(`Referer: http://localhost:3000/`로 직접 호출)
   - ODsay는 `ODSAY_API_KEY` 자체가 아직 미발급이라 `subPath` 파싱 로직은 실제 응답으로 검증 못 함(ODsay 공식 문서 스펙 기준으로 작성)
 - 이 과정에서 DB 없이 프런트만 보려고 `trips/page.tsx`·`trips/[tripId]/page.tsx`에 임시로 넣었던 로그인 우회 mock 코드(`lib/devMock.ts`)는 **커밋 전에 전부 원래 코드로 되돌리고 삭제함** — 인증 우회 코드가 레포에 남지 않도록 확인 필요
 
 **다음 세션 할 일 (Docker를 쓸 수 있는 환경에서)**
-- 카카오 디벨로퍼스 콘솔에서 위 두 가지(카카오맵 제품 활성화, `localhost:3000` 플랫폼 등록) 켠 뒤 지도/장소검색/경로조회가 실제로 되는지 확인
+- ~~카카오 디벨로퍼스 콘솔 설정~~ 완료 — Docker로 앱을 직접 띄워서 지도/장소검색/경로조회가 화면에서도 실제로 되는지 최종 확인만 남음(API 자체는 직접 호출로 확인됨)
 - `ODSAY_API_KEY` 발급 후 대중교통 상세(`subPath` → 지하철/버스 구간 표시) 실제 응답으로 검증
 - Phase 3: 회원가입→여행 생성→`/trips/[tripId]/import`에서 텍스트 분석→후보 확인→일괄 추가까지 브라우저로 검증
 - Phase 4: 비용 탭 인라인 입력→탭 전환 후 총액/도넛 차트 반영, 사진 업로드/삭제(드래그앤드롭 포함), 타임라인 카드의 지출·사진 인라인 표시까지 브라우저로 검증
