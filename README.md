@@ -28,6 +28,8 @@ apps/
 
 모바일(Expo) 클라이언트는 F7 사진첩 자동연동, F8 만보기/GPS가 필요해지는 시점에 별도 앱으로 추가한다. 그전까지 web이 API 서버 역할까지 겸한다. `packages/shared`(공용 타입/zod 스키마)는 모바일 앱이 실제로 생기기 전까지는 만들지 않는다 — 지금은 소비할 곳이 없는 조기 추상화라서 보류.
 
+더 자세한 문서는 [`docs/`](./docs) 참고: [ARCHITECTURE.md](./docs/ARCHITECTURE.md)(설계 배경), [API.md](./docs/API.md)(엔드포인트), [DATABASE.md](./docs/DATABASE.md)(스키마), [AI.md](./docs/AI.md)(AI 자동생성 상세), [PUBLISHING.md](./docs/PUBLISHING.md)(외부 API 연동 패턴), [OAUTH.md](./docs/OAUTH.md)(인증 방식), [DESIGN_SYSTEM.md](./docs/DESIGN_SYSTEM.md)/[UI_RULES.md](./docs/UI_RULES.md)/[AI_CODING_RULES.md](./docs/AI_CODING_RULES.md)(디자인/UX/AI 코딩 규칙), [ROADMAP.md](./docs/ROADMAP.md)(단계별 구현 로그).
+
 ## 스택
 
 | 영역 | 선택 | 이유 |
