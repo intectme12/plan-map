@@ -2,3 +2,11 @@ node_modules/
 .env
 .env.*
 !.env.example
+
+# 레거시 CRA(client)+Express(server) — apps/web으로 완전히 대체됨, 참고용으로만 디스크에 보관
+/client/
+/server/
+
+# 로컬 dev 스크립트 산출물
+/.dev-server.pid
+/.dev-server.log

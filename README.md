@@ -2,6 +2,31 @@
 
 카카오맵 기반 여행 일정 관리 서비스. 장소를 검색/저장하고, 교통수단별 이동시간을 계산해 경로를 구성하며, AI가 여행 텍스트를 분석해 일정을 자동 생성해준다.
 
+## 실행 방법
+
+이 프로젝트는 프론트엔드와 백엔드가 분리된 별도 서버가 아니라, **`apps/web`(Next.js) 하나가 화면과 API(Route Handler)를 동시에 서빙한다.** "백엔드"는 별도로 띄우는 프로세스가 아니라 `apps/web/src/app/api/**/route.ts`들이다. 실제로 띄워야 하는 건 ①Postgres(Docker) ②Next.js dev 서버, 이 두 가지뿐이다. (레거시 `client/`(CRA)·`server/`(Express)는 완전히 대체되어 더 이상 실행하지 않는다 — 참고용으로만 디스크에 남아있고 git에서는 제외됨)
+
+### 한번에 올리고 내리기
+
+```bash
+./up.sh    # Postgres 기동 → 마이그레이션 적용 → Next.js dev 서버를 백그라운드로 기동
+./down.sh  # Next.js dev 서버 종료 → Postgres 정지
+```
+
+- 최초 1회는 `apps/web/.env`를 `apps/web/.env.example`을 복사해서 만들어둬야 한다(`cp apps/web/.env.example apps/web/.env`). 카카오/ODsay/Anthropic 키는 없어도 앱은 뜨고, 해당 기능만 "키 설정 필요" 안내로 대체된다.
+- `up.sh`가 띄운 dev 서버 로그: `tail -f .dev-server.log`
+- 접속: http://localhost:3000
+
+### 수동으로 띄우기 (스크립트 없이)
+
+```bash
+docker compose up -d db                 # Postgres
+cd apps/web
+npm install                             # 최초 1회
+npx prisma migrate deploy               # 스키마 변경이 있었다면
+npm run dev                             # http://localhost:3000, Ctrl+C로 종료
+```
+
 ## 리팩토링 배경
 
 기존 CRA + Express/Sequelize 구조에서 카카오 API 키 하드코딩(공개 커밋), 평문 비밀번호 저장, Redux 리듀서 내부 사이드이펙트, 지도 로직 3중 중복 등의 문제가 발견되어 아키텍처를 재설계한다. 기능 요구사항이 확장되면서(AI 자동생성, 사진첩 연동, 만보기) 웹 단독으로는 감당 안 되는 항목(사진첩 자동연동, 만보기/GPS)이 생겨, **모바일 전용 기능은 고도화 단계로 미루고 웹부터 작업**한다.
@@ -59,7 +84,7 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 
 ## 로드맵
 
-- [~] **Phase 0 — 긴급 보안 조치**: 새 코드는 시크릿을 전부 `.env`로 분리해 하드코딩 재발 방지 완료. **미완료(사용자 조치 필요): 카카오 API 키 재발급**, DB 비밀번호 변경, 기존 `client/`·`server/` 내 중첩 `.git` 정리
+- [~] **Phase 0 — 긴급 보안 조치**: 새 코드는 시크릿을 전부 `.env`로 분리해 하드코딩 재발 방지 완료. `client/`·`server/` 내 중첩 `.git` 정리 완료(2026-09-04, 아래 참고). **미완료(사용자 조치 필요): 유출됐던 카카오 API 키 재발급**, DB 비밀번호 변경
 - [x] **Phase 1 — 웹 MVP**: F1·F5 완료, F2는 수동 좌표 입력까지(자동완성은 카카오 키 필요)
 - [x] **Phase 2 — 경로/교통**: 코드·UI 완료, 실제 조회는 API 키 설정 후 활성화 (F3)
 - [x] **Phase 3 — AI 자동생성**: Claude API 파싱(구조화 출력) + 카카오 로컬 검색 지오코딩 매칭 + 사용자 확인 UI(`/trips/[tripId]/import`) (F4). 코드 완료 + 폴백 경로까지 브라우저로 검증됨. 실제 파싱 결과는 `ANTHROPIC_API_KEY`/`KAKAO_REST_API_KEY` 설정 후 최종 확인 필요
@@ -152,7 +177,13 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - 장소검색: `KAKAO_REST_API_KEY` 미설정 시 "장소 검색을 사용하려면 .env의 KAKAO_REST_API_KEY를 설정하세요" 메시지로 정상 폴백
 - **버그 발견 및 수정**: `PlaceList.tsx`의 `<DndContext>`가 `id`를 지정하지 않아 dnd-kit이 내부적으로 자동생성하는 `aria-describedby` ID가 서버 렌더링과 클라이언트 하이드레이션 사이에 달라져 React 하이드레이션 경고(`Console Error: A tree hydrated but some attributes...`)가 발생하고 있었음. `<DndContext id={\`place-list-${tripId}\`}>`로 안정적인 id를 지정해 수정, 재현 확인
 
+**완료 (2026-09-04, Phase 0 중첩 git 정리 + 실행 스크립트/문서화)**
+- `client/`(CRA) 안에 남아있던 별도 `.git`(origin: `react-practice` 레포, 커밋 4개)을 제거해 중첩 git 문제 해소. 커밋 이력 자체는 그 레포에 이미 푸시되어 있어 필요하면 거기서 복구 가능
+- `client/`·`server/`는 `apps/web`으로 완전히 대체된 레거시라 삭제하지 않고 루트 `.gitignore`에 추가만 함 — 디스크엔 참고용으로 남지만 `git status`에 더 이상 안 잡힘
+- 루트에 `up.sh`/`down.sh` 추가: Postgres 기동/마이그레이션/Next.js dev 서버 기동을 한 번에, 종료도 한 번에. 두 스크립트 모두 직접 실행해서 기동→응답 200→종료→재기동까지 확인
+- README에 "실행 방법" 섹션 추가 — 이 프로젝트는 프론트/백엔드가 물리적으로 분리되어 있지 않고 `apps/web` 하나가 화면+API를 겸한다는 점을 명시
+
 **다음 세션 할 일**
 - 실제 카카오/ODsay/Anthropic 키가 있는 머신에서: 지도 렌더링, 장소검색 자동완성, 경로조회(자차/택시/대중교통), AI 파싱까지 실제 응답으로 최종 확인
 - `ODSAY_API_KEY` 발급 후 대중교통 상세(`subPath` → 지하철/버스 구간 표시) 실제 응답으로 검증
-- Phase 0 잔여 작업: 유출됐던 카카오 키 재발급(재발급 후 신규 키로 각자 `.env` 갱신 필요), 중첩 `.git` 정리 — 둘 다 사용자 확인/조치가 필요해 자동 진행하지 않음
+- Phase 0 잔여 작업: 유출됐던 카카오 키 재발급(재발급 후 신규 키로 각자 `.env` 갱신 필요) — 사용자 확인/조치 필요해 자동 진행하지 않음
