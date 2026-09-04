@@ -19,7 +19,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useToast } from "@/components/toast/ToastProvider";
 import { RouteSegmentRow } from "./RouteSegmentRow";
 import { ExpenseButton } from "./ExpenseButton";
-import { PlacePhotos } from "./PlacePhotos";
+import { PlacePhotosInline } from "./PlacePhotosInline";
 import type { PlaceEntry } from "./types";
 
 function DragHandle(props: React.HTMLAttributes<HTMLButtonElement>) {
@@ -61,6 +61,7 @@ function SortablePlaceRow({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: place.id,
   });
+  const [photosOpen, setPhotosOpen] = useState(false);
 
   return (
     <li
@@ -88,6 +89,17 @@ function SortablePlaceRow({
           ) : null}
         </button>
         <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setPhotosOpen((v) => !v);
+          }}
+          aria-label="사진"
+          className="flex-none rounded px-1.5 py-0.5 text-xs text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600"
+        >
+          📷{place.photos.length > 0 ? ` ${place.photos.length}` : ""}
+        </button>
+        <button
           onClick={() => onDelete(place)}
           aria-label="삭제"
           className="flex-none rounded px-1.5 py-0.5 text-xs text-neutral-400 hover:bg-neutral-100 hover:text-red-600"
@@ -96,7 +108,12 @@ function SortablePlaceRow({
         </button>
       </div>
       <ExpenseButton tripId={tripId} placeId={place.id} expenses={place.expenses} />
-      <PlacePhotos tripId={tripId} placeId={place.id} initialPhotos={place.photos} compact />
+      <PlacePhotosInline
+        tripId={tripId}
+        placeId={place.id}
+        initialPhotos={place.photos}
+        open={photosOpen}
+      />
       {nextPlace ? (
         <RouteSegmentRow tripId={tripId} fromPlaceId={place.id} toPlaceId={nextPlace.id} />
       ) : null}

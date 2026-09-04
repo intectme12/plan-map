@@ -90,35 +90,33 @@ export function ExpenseButton({
             </ul>
           ) : null}
 
-          <form onSubmit={addExpense} className="flex flex-col gap-1">
-            <div className="flex items-center gap-1">
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value as (typeof expenseCategories)[number])}
-                className="rounded border border-neutral-300 bg-white px-1 py-1 text-[11px]"
-              >
-                {expenseCategories.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="submit"
-                disabled={saving}
-                className="ml-auto rounded bg-blue-600 px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-50"
-              >
-                추가
-              </button>
-            </div>
+          <form onSubmit={addExpense} className="flex items-center gap-1">
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value as (typeof expenseCategories)[number])}
+              className="flex-none rounded border border-neutral-300 bg-white px-1 py-1 text-[11px]"
+            >
+              {expenseCategories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
             <input
               type="number"
               min={1}
               placeholder="금액"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="w-full rounded border border-neutral-300 px-1.5 py-1 text-[11px]"
+              className="w-full min-w-0 flex-1 rounded border border-neutral-300 px-1.5 py-1 text-[11px]"
             />
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-none rounded bg-blue-600 px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-50"
+            >
+              추가
+            </button>
           </form>
         </div>
       ) : null}

@@ -8,12 +8,10 @@ export function PlacePhotos({
   tripId,
   placeId,
   initialPhotos,
-  compact = false,
 }: {
   tripId: string;
   placeId: string;
   initialPhotos: Photo[];
-  compact?: boolean;
 }) {
   const [photos, setPhotos] = useState(initialPhotos);
   const [open, setOpen] = useState(false);
@@ -48,44 +46,31 @@ export function PlacePhotos({
     await fetch(`/api/trips/${tripId}/places/${placeId}/photos/${photoId}`, { method: "DELETE" });
   }
 
-  const visiblePhotos = compact ? photos.slice(0, 3) : photos;
-  const hiddenCount = compact ? photos.length - visiblePhotos.length : 0;
-
   return (
     <>
-      <div className={compact ? "ml-7 mt-1 flex items-center gap-1" : "flex flex-wrap gap-2"}>
-        {visiblePhotos.map((photo) => (
+      <div className="flex flex-wrap gap-2">
+        {photos.map((photo) => (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             key={photo.id}
             src={photo.storageKey}
             alt=""
-            className={compact ? "h-7 w-7 rounded object-cover" : "h-20 w-20 rounded-md object-cover"}
+            className="h-20 w-20 rounded-md object-cover"
           />
         ))}
         <button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setOpen(true);
-          }}
-          className={
-            compact
-              ? "flex h-7 w-7 flex-none items-center justify-center rounded border border-dashed border-neutral-300 text-[10px] text-neutral-400 hover:bg-neutral-50"
-              : "flex h-20 w-20 flex-none items-center justify-center rounded-md border border-dashed border-neutral-300 text-xs text-neutral-400 hover:bg-neutral-50"
-          }
+          onClick={() => setOpen(true)}
+          className="flex h-20 w-20 flex-none items-center justify-center rounded-md border border-dashed border-neutral-300 text-xs text-neutral-400 hover:bg-neutral-50"
         >
-          {hiddenCount > 0 ? `+${hiddenCount}` : "+"}
+          +
         </button>
       </div>
 
       {open ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={(e) => {
-            e.stopPropagation();
-            setOpen(false);
-          }}
+          onClick={() => setOpen(false)}
         >
           <div
             className="flex max-h-[80vh] w-full max-w-lg flex-col gap-3 overflow-y-auto rounded-lg bg-white p-4 shadow-xl"
