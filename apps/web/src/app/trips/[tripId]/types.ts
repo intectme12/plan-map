@@ -9,7 +9,6 @@ export type PlaceEntry = {
   roadAddress: string | null;
   placeUrl: string | null;
   scheduledAt: string | Date | null;
-  transportToNext: string;
   expenses: { id: string; amount: number; category: string }[];
   photos: { id: string; storageKey: string }[];
 };

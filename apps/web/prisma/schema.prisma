@@ -48,7 +48,6 @@ model PlaceEntry {
   roadAddress      String?
   placeUrl         String?
   scheduledAt      DateTime?
-  transportToNext  String    @default("car") // "car" | "bus"
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -67,17 +66,16 @@ model RouteSegment {
   id          String   @id @default(cuid())
   fromPlaceId String
   toPlaceId   String
-  mode        String // "car" | "bus"
   distanceM   Int
   durationSec Int
-  fareWon     Int?
-  detail      Json? // 대중교통 구간별 상세(지하철/버스 노선, 정류장) — mode="bus"일 때만 채워짐
+  fareWon     Int? // 카카오모빌리티 예상 택시요금
+  path        Json? // 실제 도로 경로 좌표 [{lat,lng}, ...] — 카카오모빌리티 응답의 vertexes에서 추출
   computedAt  DateTime @default(now())
 
   fromPlace PlaceEntry @relation("RouteFrom", fields: [fromPlaceId], references: [id], onDelete: Cascade)
   toPlace   PlaceEntry @relation("RouteTo", fields: [toPlaceId], references: [id], onDelete: Cascade)
 
-  @@unique([fromPlaceId, toPlaceId, mode])
+  @@unique([fromPlaceId, toPlaceId])
   @@map("route_segments")
 }
 

@@ -53,5 +53,4 @@ export const updatePlaceSchema = z.object({
   placeUrl: z.string().url().optional(),
   scheduledAt: z.coerce.date().optional(),
   order: z.coerce.number().int().optional(),
-  transportToNext: z.enum(["car", "bus"]).optional(),
 });

@@ -13,7 +13,7 @@
 ./down.sh  # Next.js dev 서버 종료 → Postgres 정지
 ```
 
-- 최초 1회는 `apps/web/.env`를 `apps/web/.env.example`을 복사해서 만들어둬야 한다(`cp apps/web/.env.example apps/web/.env`). 카카오/ODsay/Anthropic 키는 없어도 앱은 뜨고, 해당 기능만 "키 설정 필요" 안내로 대체된다.
+- 최초 1회는 `apps/web/.env`를 `apps/web/.env.example`을 복사해서 만들어둬야 한다(`cp apps/web/.env.example apps/web/.env`). 카카오/Anthropic 키는 없어도 앱은 뜨고, 해당 기능만 "키 설정 필요" 안내로 대체된다.
 - `up.sh`가 띄운 dev 서버 로그: `tail -f .dev-server.log`
 - 접속: http://localhost:3000
 
@@ -37,7 +37,7 @@ npm run dev                             # http://localhost:3000, Ctrl+C로 종�
 |---|---|---|
 | F1 | 여행계획 생성/수정/삭제 | 웹 1차 |
 | F2 | 지도 API로 장소 검색·저장 | 웹 1차 |
-| F3 | 교통수단별(자동차/버스) 실시간 경로·소요시간 | 웹 1차 |
+| F3 | 자동차 실시간 경로·소요시간(실제 도로 경로 표시) | 웹 1차. 대중교통은 2026-09-04에 범위에서 제외(아래 로그 참고) |
 | F4 | AI가 여행 텍스트 분석 → 마커·경로 자동생성 | 웹 1차 |
 | F5 | 전체 CRUD | 웹 1차 |
 | F6 | 장소별 지출 기록 (추후 카드 자동연동) | 웹 1차: 수동입력, 카드연동은 별도 규제검토 필요해 후순위 |
@@ -67,7 +67,7 @@ apps/
 | 인증 | bcrypt 해싱 + JWT(httpOnly 쿠키) | 평문 비밀번호/파일세션 문제 해결 |
 | 검증 | zod | 요청 검증 + 타입 동시 확보 |
 | AI 파싱(F4) | Claude API (tool use) | 비정형 텍스트 → 구조화 일정 JSON 추출 (미착수) |
-| 대중교통 경로(F3) | 카카오모빌리티(자동차) + ODsay/Tmap(버스·지하철) | 카카오는 자동차 경로만 공개 API 제공 (미착수) |
+| 경로(F3) | 카카오모빌리티(자동차만) | 실제 도로 vertexes로 지도에 경로 표시. 대중교통(ODsay)은 2026-09-04에 제외 |
 | 스토리지 | Supabase Storage 또는 R2 | 사진 업로드, 운영 부담 최소화 (미착수) |
 
 ## 데이터 모델 (초안)
@@ -76,7 +76,7 @@ apps/
 User        — id, email, password_hash, nickname
 Trip        — id, user_id, name, date_range, personnel
 PlaceEntry  — id, trip_id, order, name, lat/lng, address, category, scheduled_time
-RouteSegment— from_place_id, to_place_id, mode(car|bus|walk), distance, duration, fare
+RouteSegment— from_place_id, to_place_id, distance, duration, fare, path(실제 도로 좌표)
 Expense     — id, place_entry_id, amount, category(음식|교통|입장권|숙소|기타), memo, source(manual|card_auto)
 Photo       — id, place_entry_id, storage_key, taken_at
 AIParseJob  — id, trip_id, raw_text, parsed_json, status
@@ -92,7 +92,7 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - [ ] **Phase 5 (고도화) — 모바일 앱**: Expo 앱, 사진첩 자동연동, 만보기/GPS (F7 완성, F8) — **웹 우선 진행이라는 기존 결정에 따라 이번 자동 진행 범위에서 제외**
 - [ ] **Phase 6 (장기) — 카드 자동연동**: 오픈뱅킹/코드에프 등 제휴 검토 (F6 고도화) — **실제 금융기관 제휴가 필요해 코드만으로는 완료 불가, 계정 생성 등 실제 사업자 절차는 사용자 본인이 진행해야 함**
 
-현재 단계: **Phase 1~4 완료** — 남은 건 실제 API 키로 최종 확인(카카오/ODsay/Anthropic)과 Phase 0 잔여 정리(키 재발급, 중첩 git 정리)
+현재 단계: **Phase 1~4 완료, 실제 카카오 키로 지도/경로/장소검색 확인 완료** — 대중교통은 범위 제외. 남은 건 Phase 0 잔여 정리(카카오 키 재발급)뿐
 
 ## ⚠️ 이 환경 관련 참고사항
 
@@ -197,7 +197,15 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - 브라우저로 전체 플로우 확인: 실제 지도 렌더링, 경로선 표시(버스=점선 실제 확인), 타임라인/비용/사진 탭에서 장소 클릭 시 지도 이동, 비용·사진 버튼 클릭 시 지도 고정, 카테고리별 지출 추가(음식 32,000 + 교통 15,000 = 47,000원 합산), 비용 탭 장소별 목록
 - 새로 작성한 `TripWorkspace.tsx`의 `useMemo`에서 `let total += ...` 패턴이 `react-hooks/immutability` 린트 에러를 내서 `reduce` 기반으로 다시 씀(기존 코드에 있던 다른 2건의 `set-state-in-effect` 경고는 그대로 둠 — 이전부터 있던 것)
 
+**완료 (2026-09-04, 대중교통 제거 + 실제 도로 경로 + 장소 선택 시 확대)**
+
+- **대중교통(버스/ODsay) 전면 제거**: 사용자 요청으로 자동차만 남김. `RouteSegment.mode`/`detail`(지하철·버스 상세) 컬럼, `PlaceEntry.transportToNext` 컬럼 전부 삭제. `RouteSegmentRow`는 이제 🚗자차 + 🚕택시 예상요금만 표시. `routes.ts`의 `fetchBusRoute`/ODsay 연동 코드 삭제 — 나중에 대중교통을 다시 붙이고 싶으면 이번에 지운 커밋을 참고
+- **이동경로를 실제 도로 지오메트리로 표시**: 카카오모빌리티 응답의 `routes[].sections[].roads[].vertexes`(도로를 따라가는 좌표 배열)를 추출해 `RouteSegment.path`(JSONB)에 저장. `KakaoMapCanvas`는 이 좌표가 있으면 실제 도로 모양대로 `Polyline`을 그리고, 없으면(키 미설정 등) 두 지점을 잇는 직선으로 폴백. `RouteSegmentRow`가 이미 같은 캐시(`RouteSegment`, 10분 TTL)를 쓰기 때문에 지도용으로 별도 호출해도 대부분 DB 캐시 히트라 비용이 크지 않음
+- **장소 클릭 시 50m 축척으로 확대**: `map.setLevel(3)` + `panTo()`를 함께 호출. 카카오맵 축척 표시가 정확히 "50m"로 뜨는 레벨을 브라우저에서 직접 확인해서 하드코딩(`SELECTED_PLACE_ZOOM_LEVEL = 3`)
+- 스키마 변경(컬럼 삭제 2개, 유니크 제약 변경) 마이그레이션은 `prisma migrate dev`가 이 환경(비대화형 셸)에서 데이터 손실 경고에 막혀 실행이 안 돼서, `prisma migrate diff`로 SQL을 뽑은 뒤 직접 마이그레이션 파일을 작성 — 기존 자동차/버스 두 행이 있던 `route_segments` 쌍은 새 유니크 제약과 충돌하니 버스 행을 먼저 지우는 `DELETE`를 마이그레이션 맨 앞에 추가해서 처리
+- **버그**: 마이그레이션 적용 후 `.next` 캐시가 이전 Prisma Client를 계속 참조해서 "column transportToNext does not exist" 500 에러가 재발 — dev 서버 재시작만으론 해결 안 됐고 `rm -rf apps/web/.next`까지 해야 완전히 해소됨. **스키마를 바꾸는 컬럼 삭제/이름변경이 있었다면 재시작뿐 아니라 `.next` 캐시도 지울 것**
+- 브라우저(실제 카카오 키)로 확인: 도로를 따라 굽어지는 실제 경로선, 장소 클릭 시 정확히 "50m" 눈금까지 확대되는 것, 버스 관련 UI/데이터가 전부 사라진 것까지 확인
+
 **다음 세션 할 일**
-- 이동경로를 실제 도로 지오메트리로 그릴지 여부 결정(현재는 직선 연결) — 필요하면 카카오모빌리티 응답의 `vertexes` 추출 작업 필요
-- `ODSAY_API_KEY` 발급 후 대중교통 상세(`subPath` → 지하철/버스 구간 표시) 실제 응답으로 검증
 - Phase 0 잔여 작업: 유출됐던 카카오 키 재발급(재발급 후 신규 키로 각자 `.env` 갱신 필요) — 사용자 확인/조치 필요해 자동 진행하지 않음
+- (참고, 지금 범위 아님) 나중에 대중교통을 다시 붙이고 싶으면 ODsay 키 발급 + 이번에 지운 코드 복원부터 시작

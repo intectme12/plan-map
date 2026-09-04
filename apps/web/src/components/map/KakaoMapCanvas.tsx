@@ -9,7 +9,7 @@ type MapSegment = {
   fromLng: number;
   toLat: number;
   toLng: number;
-  mode: "car" | "bus";
+  path?: { lat: number; lng: number }[];
 };
 
 declare global {
@@ -19,6 +19,9 @@ declare global {
 }
 
 const KAKAO_JS_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
+
+// 장소를 선택했을 때 확대할 레벨. 카카오맵 축척 표시가 "50m"로 뜨는 레벨.
+const SELECTED_PLACE_ZOOM_LEVEL = 3;
 
 export function KakaoMapCanvas({
   points,
@@ -61,17 +64,21 @@ export function KakaoMapCanvas({
       });
 
       segments.forEach((segment) => {
-        const path = [
-          new window.kakao.maps.LatLng(segment.fromLat, segment.fromLng),
-          new window.kakao.maps.LatLng(segment.toLat, segment.toLng),
-        ];
+        const path =
+          segment.path && segment.path.length > 1
+            ? segment.path.map((p) => new window.kakao.maps.LatLng(p.lat, p.lng))
+            : [
+                new window.kakao.maps.LatLng(segment.fromLat, segment.fromLng),
+                new window.kakao.maps.LatLng(segment.toLat, segment.toLng),
+              ];
+
         const polyline = new window.kakao.maps.Polyline({
           map,
           path,
           strokeWeight: 4,
-          strokeColor: segment.mode === "bus" ? "#FF7A45" : "#2F6FED",
+          strokeColor: "#2F6FED",
           strokeOpacity: 0.8,
-          strokeStyle: segment.mode === "bus" ? "shortdash" : "solid",
+          strokeStyle: "solid",
         });
         polylinesRef.current.push(polyline);
       });
@@ -81,11 +88,12 @@ export function KakaoMapCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sdkReady, points, segments]);
 
-  // 타임라인/비용/사진 탭에서 장소를 선택하면 지도만 이동(마커·경로는 다시 안 그림)
+  // 타임라인/비용/사진 탭에서 장소를 선택하면 지도만 이동+확대(마커·경로는 다시 안 그림)
   useEffect(() => {
     if (!selectedPlaceId || !mapRef.current) return;
     const marker = markersRef.current.get(selectedPlaceId);
     if (!marker) return;
+    mapRef.current.setLevel(SELECTED_PLACE_ZOOM_LEVEL);
     mapRef.current.panTo(marker.getPosition());
   }, [selectedPlaceId]);
 

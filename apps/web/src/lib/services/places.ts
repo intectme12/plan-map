@@ -42,7 +42,7 @@ export async function updatePlace(
   userId: string,
   tripId: string,
   placeId: string,
-  data: Partial<PlaceInput> & { order?: number; transportToNext?: string }
+  data: Partial<PlaceInput> & { order?: number }
 ) {
   await assertTripOwnership(userId, tripId);
   const result = await prisma.placeEntry.updateMany({ where: { id: placeId, tripId }, data });

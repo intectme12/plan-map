@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { KakaoMapCanvas } from "@/components/map/KakaoMapCanvas";
 import { TripMetaEditor } from "./TripMetaEditor";
@@ -40,13 +40,48 @@ export function TripWorkspace({
     [places]
   );
 
+  // 연속된 장소 쌍의 id만 뽑아서, 순서가 안 바뀌면 재조회하지 않도록 함
+  const pairKey = places.map((p) => p.id).join(",");
+  const [routePaths, setRoutePaths] = useState<Record<string, { lat: number; lng: number }[]>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRoutePaths() {
+      const pairs = places.slice(0, -1).map((place, i) => [place.id, places[i + 1].id] as const);
+      const results = await Promise.all(
+        pairs.map(([fromId, toId]) =>
+          fetch(`/api/trips/${trip.id}/routes?from=${fromId}&to=${toId}`)
+            .then((res) => res.json())
+            .catch(() => null)
+        )
+      );
+      if (cancelled) return;
+
+      const next: Record<string, { lat: number; lng: number }[]> = {};
+      pairs.forEach(([fromId, toId], i) => {
+        const path = results[i]?.path;
+        if (Array.isArray(path) && path.length > 1) {
+          next[`${fromId}-${toId}`] = path;
+        }
+      });
+      setRoutePaths(next);
+    }
+
+    loadRoutePaths();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip.id, pairKey]);
+
   const segments = useMemo(() => {
     const result: {
       fromLat: number;
       fromLng: number;
       toLat: number;
       toLng: number;
-      mode: "car" | "bus";
+      path?: { lat: number; lng: number }[];
     }[] = [];
     for (let i = 0; i < places.length - 1; i++) {
       const from = places[i];
@@ -56,11 +91,11 @@ export function TripWorkspace({
         fromLng: from.lng,
         toLat: to.lat,
         toLng: to.lng,
-        mode: from.transportToNext === "bus" ? "bus" : "car",
+        path: routePaths[`${from.id}-${to.id}`],
       });
     }
     return result;
-  }, [places]);
+  }, [places, routePaths]);
 
   const { expenseTotal, byCategory, placeTotals } = useMemo(() => {
     const totals = places.map((place) => ({

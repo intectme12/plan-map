@@ -13,13 +13,12 @@ export async function GET(request: NextRequest, { params }: Context) {
     const { tripId } = await params;
     const from = request.nextUrl.searchParams.get("from");
     const to = request.nextUrl.searchParams.get("to");
-    const mode = request.nextUrl.searchParams.get("mode") === "bus" ? "bus" : "car";
 
     if (!from || !to) {
       return NextResponse.json({ error: "from, to 쿼리 파라미터가 필요합니다." }, { status: 400 });
     }
 
-    const route = await getRoute(user.id, tripId, from, to, mode);
+    const route = await getRoute(user.id, tripId, from, to);
     return NextResponse.json(route);
   } catch (err) {
     return handleRouteError(err);
