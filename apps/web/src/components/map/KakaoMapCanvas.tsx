@@ -114,6 +114,12 @@ export function KakaoMapCanvas({
   const polylinesRef = useRef<any[]>([]);
   const infoOverlayRef = useRef<any>(null);
 
+  // 다른 화면(AI 가져오기 등)에서 이미 SDK를 로드해놓고 돌아온 경우, next/script의
+  // onLoad는 다시 안 불려서(onReady만 불림) sdkReady가 영영 안 켜질 수 있음 — 안전망으로 직접 확인.
+  useEffect(() => {
+    if (window.kakao?.maps) setSdkReady(true);
+  }, []);
+
   // 지도/마커/이동경로선 생성 (장소 목록이 바뀔 때만)
   useEffect(() => {
     if (!sdkReady || !containerRef.current || !window.kakao?.maps) return;
@@ -208,6 +214,7 @@ export function KakaoMapCanvas({
       <Script
         src={`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_JS_KEY}&autoload=false`}
         onLoad={() => setSdkReady(true)}
+        onReady={() => setSdkReady(true)}
       />
       <div ref={containerRef} className="h-full w-full" />
     </>
