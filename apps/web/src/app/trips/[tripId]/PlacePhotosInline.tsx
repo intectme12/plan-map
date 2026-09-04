@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { PhotoLightbox } from "./PhotoLightbox";
 
 type Photo = { id: string; storageKey: string };
@@ -22,6 +23,7 @@ export function PlacePhotosInline({
   const [dragOver, setDragOver] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
   async function upload(files: FileList | File[]) {
     setError(null);
@@ -42,11 +44,13 @@ export function PlacePhotosInline({
       }
     }
     setUploading(false);
+    router.refresh();
   }
 
   async function onDelete(photoId: string) {
     setPhotos((prev) => prev.filter((p) => p.id !== photoId));
     await fetch(`/api/trips/${tripId}/places/${placeId}/photos/${photoId}`, { method: "DELETE" });
+    router.refresh();
   }
 
   if (!open) return null;

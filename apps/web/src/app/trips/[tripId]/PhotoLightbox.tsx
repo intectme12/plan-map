@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 
 type Photo = { id: string; storageKey: string };
 
@@ -28,7 +29,7 @@ export function PhotoLightbox({
   const photo = photos[index];
   if (!photo) return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4"
       onClick={onClose}
@@ -86,6 +87,7 @@ export function PhotoLightbox({
           {index + 1} / {photos.length}
         </p>
       ) : null}
-    </div>
+    </div>,
+    document.body
   );
 }
