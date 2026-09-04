@@ -12,6 +12,7 @@ type GeocodeCandidate = {
   roadAddress: string | null;
   placeUrl: string | null;
   category: string | null;
+  phone: string | null;
 };
 
 type RawCandidate = {
@@ -104,6 +105,7 @@ export function ImportFlow({ tripId }: { tripId: string }) {
           address: candidate.address ?? undefined,
           roadAddress: candidate.roadAddress ?? undefined,
           placeUrl: candidate.placeUrl ?? undefined,
+          phone: candidate.phone ?? undefined,
         }),
       });
     }
@@ -117,7 +119,16 @@ export function ImportFlow({ tripId }: { tripId: string }) {
     .filter((item) => item.selectedIndex >= 0)
     .map((item, i) => {
       const c = item.candidates[item.selectedIndex];
-      return { id: `${item.name}-${i}`, name: item.name, lat: c.lat, lng: c.lng };
+      return {
+        id: `${item.name}-${i}`,
+        name: item.name,
+        lat: c.lat,
+        lng: c.lng,
+        category: item.category ?? c.category,
+        address: c.address ?? c.roadAddress,
+        phone: c.phone,
+        placeUrl: c.placeUrl,
+      };
     });
 
   if (stage === "idle" || stage === "loading" || stage === "error") {

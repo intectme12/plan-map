@@ -47,6 +47,7 @@ model PlaceEntry {
   address          String?
   roadAddress      String?
   placeUrl         String?
+  phone            String?
   scheduledAt      DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt

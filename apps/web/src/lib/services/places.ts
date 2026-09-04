@@ -23,6 +23,7 @@ type PlaceInput = {
   address?: string;
   roadAddress?: string;
   placeUrl?: string;
+  phone?: string;
   scheduledAt?: Date;
 };
 

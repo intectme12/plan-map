@@ -11,6 +11,7 @@ type SearchCandidate = {
   roadAddress: string | null;
   placeUrl: string | null;
   category: string | null;
+  phone: string | null;
 };
 
 export function PlaceForm({ tripId }: { tripId: string }) {
@@ -72,6 +73,7 @@ export function PlaceForm({ tripId }: { tripId: string }) {
         address: candidate.address ?? undefined,
         roadAddress: candidate.roadAddress ?? undefined,
         placeUrl: candidate.placeUrl ?? undefined,
+        phone: candidate.phone ?? undefined,
       }),
     });
 

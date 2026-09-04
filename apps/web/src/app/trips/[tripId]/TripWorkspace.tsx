@@ -37,7 +37,17 @@ export function TripWorkspace({
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const points = useMemo(
-    () => places.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng })),
+    () =>
+      places.map((p) => ({
+        id: p.id,
+        name: p.name,
+        lat: p.lat,
+        lng: p.lng,
+        category: p.category,
+        address: p.address ?? p.roadAddress,
+        phone: p.phone,
+        placeUrl: p.placeUrl,
+      })),
     [places]
   );
 

@@ -3,7 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import Script from "next/script";
 
-type MapPoint = { id: string; name: string; lat: number; lng: number };
+type MapPoint = {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  category?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  placeUrl?: string | null;
+};
 type MapSegment = {
   fromLat: number;
   fromLng: number;
@@ -23,6 +32,72 @@ const KAKAO_JS_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
 // 장소를 선택했을 때 확대할 레벨. 카카오맵 축척 표시가 "50m"로 뜨는 레벨.
 const SELECTED_PLACE_ZOOM_LEVEL = 3;
 
+function buildInfoCard(point: MapPoint, onClose: () => void): HTMLElement {
+  const card = document.createElement("div");
+  card.style.cssText =
+    "position:relative; min-width:200px; max-width:260px; padding:10px 12px; background:#fff; border-radius:10px; box-shadow:0 4px 16px rgba(15,23,42,0.2); font-family:inherit; font-size:12px; color:#334155; line-height:1.5;";
+
+  const closeBtn = document.createElement("button");
+  closeBtn.textContent = "✕";
+  closeBtn.setAttribute("aria-label", "닫기");
+  closeBtn.style.cssText =
+    "position:absolute; top:6px; right:8px; border:none; background:transparent; color:#94a3b8; cursor:pointer; font-size:12px; line-height:1; padding:2px;";
+  closeBtn.onclick = onClose;
+  card.appendChild(closeBtn);
+
+  const title = document.createElement("div");
+  title.textContent = point.name;
+  title.style.cssText = "font-weight:700; font-size:13px; padding-right:16px; margin-bottom:2px;";
+  card.appendChild(title);
+
+  if (point.category) {
+    const cat = document.createElement("div");
+    cat.textContent = point.category;
+    cat.style.cssText = "color:#64748b; font-size:11px; margin-bottom:4px;";
+    card.appendChild(cat);
+  }
+
+  if (point.address) {
+    const addr = document.createElement("div");
+    addr.textContent = point.address;
+    addr.style.cssText = "margin-bottom:2px;";
+    card.appendChild(addr);
+  }
+
+  if (point.phone) {
+    const phone = document.createElement("a");
+    phone.href = `tel:${point.phone}`;
+    phone.textContent = point.phone;
+    phone.style.cssText = "display:block; color:#2563eb; text-decoration:none; margin-bottom:4px;";
+    card.appendChild(phone);
+  }
+
+  const links = document.createElement("div");
+  links.style.cssText = "display:flex; gap:10px; margin-top:6px; padding-top:6px; border-top:1px solid #e2e8f0;";
+
+  if (point.placeUrl) {
+    const kakaoLink = document.createElement("a");
+    kakaoLink.href = point.placeUrl;
+    kakaoLink.target = "_blank";
+    kakaoLink.rel = "noopener noreferrer";
+    kakaoLink.textContent = "카카오맵에서 보기";
+    kakaoLink.style.cssText = "color:#b45309; font-weight:600; text-decoration:none; font-size:11px;";
+    links.appendChild(kakaoLink);
+  }
+
+  const naverLink = document.createElement("a");
+  naverLink.href = `https://map.naver.com/v5/search/${encodeURIComponent(point.name)}`;
+  naverLink.target = "_blank";
+  naverLink.rel = "noopener noreferrer";
+  naverLink.textContent = "네이버 지도";
+  naverLink.style.cssText = "color:#15803d; font-weight:600; text-decoration:none; font-size:11px;";
+  links.appendChild(naverLink);
+
+  card.appendChild(links);
+
+  return card;
+}
+
 export function KakaoMapCanvas({
   points,
   segments = [],
@@ -37,6 +112,7 @@ export function KakaoMapCanvas({
   const mapRef = useRef<any>(null);
   const markersRef = useRef<Map<string, any>>(new Map());
   const polylinesRef = useRef<any[]>([]);
+  const infoOverlayRef = useRef<any>(null);
 
   // 지도/마커/이동경로선 생성 (장소 목록이 바뀔 때만)
   useEffect(() => {
@@ -48,6 +124,13 @@ export function KakaoMapCanvas({
         level: 8,
       });
       mapRef.current = map;
+
+      function closeInfoOverlay() {
+        infoOverlayRef.current?.setMap(null);
+        infoOverlayRef.current = null;
+      }
+
+      window.kakao.maps.event.addListener(map, "click", closeInfoOverlay);
 
       polylinesRef.current.forEach((line) => line.setMap(null));
       polylinesRef.current = [];
@@ -61,6 +144,19 @@ export function KakaoMapCanvas({
         const marker = new window.kakao.maps.Marker({ map, position, title: point.name });
         markersRef.current.set(point.id, marker);
         bounds.extend(position);
+
+        window.kakao.maps.event.addListener(marker, "click", () => {
+          closeInfoOverlay();
+          const overlay = new window.kakao.maps.CustomOverlay({
+            position,
+            content: buildInfoCard(point, closeInfoOverlay),
+            xAnchor: 0.5,
+            yAnchor: 1.35,
+            zIndex: 10,
+          });
+          overlay.setMap(map);
+          infoOverlayRef.current = overlay;
+        });
       });
 
       segments.forEach((segment) => {

@@ -75,7 +75,7 @@ apps/
 ```
 User        — id, email, password_hash, nickname
 Trip        — id, user_id, name, date_range, personnel
-PlaceEntry  — id, trip_id, order, name, lat/lng, address, category, scheduled_time
+PlaceEntry  — id, trip_id, order, name, lat/lng, address, category, phone, place_url, scheduled_time
 RouteSegment— from_place_id, to_place_id, distance, duration, fare, path(실제 도로 좌표)
 Expense     — id, place_entry_id, amount, category(음식|교통|입장권|숙소|기타), memo, source(manual|card_auto)
 Photo       — id, place_entry_id, storage_key, taken_at
@@ -222,6 +222,13 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - `PlacePhotos`/`PlacePhotosInline`이 업로드·삭제 후 `router.refresh()`를 안 불러서, 방금 올린 사진 수가 타임라인 카드 상단의 📷 카운트 배지(부모 `PlaceList`가 받는 `place.photos` prop 기준)에는 반영이 안 되던 버그 수정 — 실사용자가 4장을 올렸는데 배지엔 3으로 남아있던 걸 재현·수정
 - **버그**: `PhotoLightbox`가 `position: fixed`인데도 화면 전체가 아니라 오른쪽 380px 패널 안에서만 뜨고 있었음. 원인은 `TripWorkspace`의 `aside`에 붙인 슬라이드 토글용 `translate-x-*`(CSS `transform`)가 `fixed` 자손의 기준점을 뷰포트가 아니라 그 `aside` 자신으로 바꿔버리는 CSS 스펙 동작 때문(transform이 걸린 조상은 fixed 자손의 containing block이 됨) — `PhotoLightbox`를 `createPortal`로 `document.body`에 직접 렌더링해서 그 조상을 완전히 우회하도록 수정
 - 브라우저로 카운트 배지가 실시간으로 정확히 반영되는 것, 라이트박스가 오른쪽 패널이 아니라 화면 전체 정가운데(왼쪽 지도 영역까지 어둡게 덮으며)에 뜨는 것까지 확인
+
+**완료 (2026-09-04, 마커 클릭 시 장소 정보 카드)**
+- `PlaceEntry.phone` 컬럼 추가 — 카카오 로컬 검색 응답의 `phone`을 그동안 안 받아오고 있었어서 `geocode.ts`에서 같이 추출하도록 수정. 장소검색으로 새로 추가하는 장소부터 전화번호가 저장됨(기존에 저장된 장소는 소급 적용 안 됨)
+- `KakaoMapCanvas`: 마커 클릭 시 그 위치에 `kakao.maps.CustomOverlay`로 정보 카드를 띄움 — 이름/카테고리/주소/전화(있으면 `tel:` 링크)와 "카카오맵에서 보기"(place_url, 실제 리뷰·사진이 있는 카카오 플레이스 페이지로 새 탭 연결) · "네이버 지도"(장소명으로 네이버 지도 검색 URL 생성) 링크. 카드는 순수 DOM 엘리먼트로 만들어서 닫기 버튼에 직접 이벤트 리스너를 붙임(React JSX가 아니라 vanilla kakao.maps 레이어라 이 방식이 맞음)
+- 리뷰/평점 자체는 카카오 공개 API가 제공하지 않아 우리 화면에 못 띄우고, 카카오/네이버 페이지로 링크 연결까지만 가능 — 사용자에게 미리 안내하고 진행
+- 다른 마커를 클릭하거나 지도 배경을 클릭하면 기존 카드를 닫고 새로 뜨거나 그냥 닫히도록 처리
+- 실제 카카오 키로 장소를 새로 검색·추가한 뒤 그 마커를 클릭해서 카드가 뜨는 것, 카카오맵/네이버 지도 링크가 실제 URL로 연결되는 것, 닫기 버튼 동작까지 브라우저로 확인
 
 **다음 세션 할 일**
 - Phase 0 잔여 작업: 유출됐던 카카오 키 재발급(재발급 후 신규 키로 각자 `.env` 갱신 필요) — 사용자 확인/조치 필요해 자동 진행하지 않음

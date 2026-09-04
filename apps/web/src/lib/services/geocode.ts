@@ -8,6 +8,7 @@ export type GeocodeCandidate = {
   roadAddress: string | null;
   placeUrl: string | null;
   category: string | null;
+  phone: string | null;
 };
 
 type KakaoKeywordDocument = {
@@ -16,6 +17,7 @@ type KakaoKeywordDocument = {
   road_address_name: string | null;
   place_url: string | null;
   category_group_name: string | null;
+  phone: string | null;
   x: string;
   y: string;
 };
@@ -44,5 +46,6 @@ export async function searchPlaceCandidates(query: string): Promise<GeocodeCandi
     roadAddress: d.road_address_name || null,
     placeUrl: d.place_url || null,
     category: d.category_group_name || null,
+    phone: d.phone || null,
   }));
 }

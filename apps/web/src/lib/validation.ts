@@ -28,6 +28,7 @@ export const createPlaceSchema = z.object({
   address: z.string().max(300).optional(),
   roadAddress: z.string().max(300).optional(),
   placeUrl: z.string().url().optional(),
+  phone: z.string().max(50).optional(),
   scheduledAt: z.coerce.date().optional(),
 });
 
@@ -51,6 +52,7 @@ export const updatePlaceSchema = z.object({
   address: z.string().max(300).optional(),
   roadAddress: z.string().max(300).optional(),
   placeUrl: z.string().url().optional(),
+  phone: z.string().max(50).optional(),
   scheduledAt: z.coerce.date().optional(),
   order: z.coerce.number().int().optional(),
 });
