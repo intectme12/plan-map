@@ -114,6 +114,7 @@ export function TripWorkspace({
       id: place.id,
       name: place.name,
       total: place.expenses.reduce((sum, e) => sum + e.amount, 0),
+      expenses: place.expenses,
     }));
 
     const categoryMap = new Map<string, number>();

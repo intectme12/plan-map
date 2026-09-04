@@ -1,5 +1,8 @@
+import { useState } from "react";
+
 type CategoryTotal = { category: string; amount: number };
-type PlaceTotal = { id: string; name: string; total: number };
+type PlaceExpense = { id: string; amount: number; category: string; memo: string | null };
+type PlaceTotal = { id: string; name: string; total: number; expenses: PlaceExpense[] };
 
 const CHART_COLORS = ["#2F6FED", "#FF7A45", "#16A34A", "#D97706", "#8B5CF6", "#DC2626"];
 
@@ -16,6 +19,13 @@ export function ExpenseSummary({
   selectedPlaceId: string | null;
   onSelectPlace: (placeId: string) => void;
 }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  function handleClickPlace(p: PlaceTotal) {
+    onSelectPlace(p.id);
+    setExpandedId((prev) => (prev === p.id ? null : p.id));
+  }
+
   const segments = byCategory.reduce<{ start: number; end: number }[]>((acc, c) => {
     const start = acc.length > 0 ? acc[acc.length - 1].end : 0;
     acc.push({ start, end: start + (c.amount / total) * 360 });
@@ -69,7 +79,7 @@ export function ExpenseSummary({
               <li key={p.id}>
                 <button
                   type="button"
-                  onClick={() => onSelectPlace(p.id)}
+                  onClick={() => handleClickPlace(p)}
                   className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-neutral-50 ${
                     selectedPlaceId === p.id ? "bg-blue-50" : ""
                   }`}
@@ -79,6 +89,26 @@ export function ExpenseSummary({
                     {p.total.toLocaleString()}원
                   </span>
                 </button>
+
+                {expandedId === p.id ? (
+                  <ul className="ml-2 mt-1 flex flex-col gap-1 border-l border-neutral-200 py-0.5 pl-2">
+                    {p.expenses.map((exp) => (
+                      <li key={exp.id} className="flex items-center justify-between gap-2 text-xs">
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className="flex-none rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] font-semibold text-neutral-600">
+                            {exp.category}
+                          </span>
+                          {exp.memo ? (
+                            <span className="truncate text-neutral-500">{exp.memo}</span>
+                          ) : null}
+                        </span>
+                        <span className="flex-none tabular-nums text-neutral-600">
+                          {exp.amount.toLocaleString()}원
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </li>
             ))}
           </ul>

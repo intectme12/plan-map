@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { expenseCategories } from "@/lib/validation";
 
-type Expense = { id: string; amount: number; category: string };
+type Expense = { id: string; amount: number; category: string; memo: string | null };
 
 export function ExpenseButton({
   tripId,
@@ -18,6 +18,7 @@ export function ExpenseButton({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState<(typeof expenseCategories)[number]>("음식");
+  const [memo, setMemo] = useState("");
   const [amount, setAmount] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -33,9 +34,10 @@ export function ExpenseButton({
     await fetch(`/api/trips/${tripId}/places/${placeId}/expenses`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ category, amount: value }),
+      body: JSON.stringify({ category, amount: value, memo: memo.trim() || undefined }),
     });
     setSaving(false);
+    setMemo("");
     setAmount("");
     router.refresh();
   }
@@ -72,16 +74,17 @@ export function ExpenseButton({
             <ul className="flex flex-col gap-1">
               {expenses.map((exp) => (
                 <li key={exp.id} className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5">
-                    <span className="rounded-full bg-white px-1.5 py-0.5 text-[10px] font-semibold text-neutral-600">
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="flex-none rounded-full bg-white px-1.5 py-0.5 text-[10px] font-semibold text-neutral-600">
                       {exp.category}
                     </span>
-                    <span className="tabular-nums">{exp.amount.toLocaleString()}원</span>
+                    {exp.memo ? <span className="truncate text-neutral-500">{exp.memo}</span> : null}
+                    <span className="flex-none tabular-nums">{exp.amount.toLocaleString()}원</span>
                   </span>
                   <button
                     type="button"
                     onClick={(e) => removeExpense(exp.id, e)}
-                    className="text-[10px] text-neutral-400 hover:text-red-600"
+                    className="flex-none text-[10px] text-neutral-400 hover:text-red-600"
                   >
                     삭제
                   </button>
@@ -103,12 +106,19 @@ export function ExpenseButton({
               ))}
             </select>
             <input
+              type="text"
+              placeholder="무엇에 지출했나요?"
+              value={memo}
+              onChange={(e) => setMemo(e.target.value)}
+              className="w-full min-w-0 flex-1 rounded border border-neutral-300 px-1.5 py-1 text-[11px]"
+            />
+            <input
               type="number"
               min={1}
               placeholder="금액"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="w-full min-w-0 flex-1 rounded border border-neutral-300 px-1.5 py-1 text-[11px]"
+              className="w-16 flex-none min-w-0 rounded border border-neutral-300 px-1.5 py-1 text-[11px]"
             />
             <button
               type="submit"
