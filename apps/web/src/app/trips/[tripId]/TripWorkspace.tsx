@@ -34,6 +34,7 @@ export function TripWorkspace({
   activeTab: (typeof TABS)[number]["key"];
 }) {
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const points = useMemo(
     () => places.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng })),
@@ -135,7 +136,21 @@ export function TripWorkspace({
         ← 내 여행계획
       </Link>
 
-      <aside className="absolute right-0 top-0 z-10 flex h-full w-[380px] flex-col border-l border-neutral-200 bg-white shadow-xl">
+      <button
+        onClick={() => setSidebarOpen((v) => !v)}
+        aria-label={sidebarOpen ? "패널 숨기기" : "패널 열기"}
+        className={`absolute top-1/2 z-20 flex h-12 w-6 -translate-y-1/2 items-center justify-center rounded-l-md border border-r-0 border-neutral-200 bg-white text-neutral-400 shadow transition-[right] duration-200 hover:bg-neutral-50 hover:text-neutral-600 ${
+          sidebarOpen ? "right-[380px]" : "right-0"
+        }`}
+      >
+        {sidebarOpen ? "›" : "‹"}
+      </button>
+
+      <aside
+        className={`absolute right-0 top-0 z-10 flex h-full w-[380px] flex-col border-l border-neutral-200 bg-white shadow-xl transition-transform duration-200 ${
+          sidebarOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
         <header className="border-b border-neutral-200 p-4">
           <TripMetaEditor trip={trip} />
         </header>
