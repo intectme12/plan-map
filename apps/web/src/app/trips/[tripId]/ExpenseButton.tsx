@@ -73,18 +73,18 @@ export function ExpenseButton({
           {expenses.length > 0 ? (
             <ul className="flex flex-col gap-1">
               {expenses.map((exp) => (
-                <li key={exp.id} className="flex items-center justify-between gap-2">
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="flex-none rounded-full bg-white px-1.5 py-0.5 text-[10px] font-semibold text-neutral-600">
-                      {exp.category}
-                    </span>
-                    {exp.memo ? <span className="truncate text-neutral-500">{exp.memo}</span> : null}
-                    <span className="flex-none tabular-nums">{exp.amount.toLocaleString()}원</span>
+                <li key={exp.id} className="flex items-center gap-1">
+                  <span className="w-16 flex-none truncate rounded-full bg-white px-1.5 py-0.5 text-[10px] font-semibold text-neutral-600">
+                    {exp.category}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-neutral-500">{exp.memo ?? ""}</span>
+                  <span className="w-16 flex-none text-right tabular-nums">
+                    {exp.amount.toLocaleString()}원
                   </span>
                   <button
                     type="button"
                     onClick={(e) => removeExpense(exp.id, e)}
-                    className="flex-none text-[10px] text-neutral-400 hover:text-red-600"
+                    className="w-10 flex-none text-center text-[10px] text-neutral-400 hover:text-red-600"
                   >
                     삭제
                   </button>
@@ -97,7 +97,7 @@ export function ExpenseButton({
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as (typeof expenseCategories)[number])}
-              className="flex-none rounded border border-neutral-300 bg-white px-1 py-1 text-[11px]"
+              className="w-16 flex-none rounded border border-neutral-300 bg-white px-1 py-1 text-[11px]"
             >
               {expenseCategories.map((c) => (
                 <option key={c} value={c}>
@@ -118,12 +118,12 @@ export function ExpenseButton({
               placeholder="금액"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="w-16 flex-none min-w-0 rounded border border-neutral-300 px-1.5 py-1 text-[11px]"
+              className="w-16 flex-none min-w-0 rounded border border-neutral-300 px-1.5 py-1 text-right text-[11px]"
             />
             <button
               type="submit"
               disabled={saving}
-              className="flex-none rounded bg-blue-600 px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-50"
+              className="w-10 flex-none rounded bg-blue-600 py-1 text-[11px] font-semibold text-white disabled:opacity-50"
             >
               추가
             </button>
