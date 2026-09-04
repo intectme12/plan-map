@@ -18,7 +18,7 @@ import { PlaceForm } from "./PlaceForm";
 import { getTripDays, groupByDay, formatDayLabel, dayColor } from "./days";
 import type { PlaceEntry } from "./types";
 
-function Chevron({ open }: { open: boolean }) {
+export function Chevron({ open }: { open: boolean }) {
   return (
     <svg
       width="14"

@@ -326,9 +326,12 @@ export function TripWorkspace({
           <div className="min-h-0 flex-1">
             <PhotoGallery
               tripId={trip.id}
-              places={places}
+              trip={{ startDate: trip.startDate, endDate: trip.endDate }}
+              places={items}
               selectedPlaceId={selectedPlaceId}
               onSelectPlace={setSelectedPlaceId}
+              expandedDays={expandedDays}
+              onToggleDay={toggleDay}
             />
           </div>
         )}
