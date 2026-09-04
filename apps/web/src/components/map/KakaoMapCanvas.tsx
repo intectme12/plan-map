@@ -10,6 +10,7 @@ type MapPoint = {
   lng: number;
   category?: string | null;
   address?: string | null;
+  roadAddress?: string | null;
   phone?: string | null;
   placeUrl?: string | null;
 };
@@ -35,7 +36,7 @@ const SELECTED_PLACE_ZOOM_LEVEL = 3;
 function buildInfoCard(point: MapPoint, onClose: () => void): HTMLElement {
   const card = document.createElement("div");
   card.style.cssText =
-    "position:relative; min-width:200px; max-width:260px; padding:10px 12px; background:#fff; border-radius:10px; box-shadow:0 4px 16px rgba(15,23,42,0.2); font-family:inherit; font-size:12px; color:#334155; line-height:1.5;";
+    "position:relative; min-width:210px; max-width:270px; padding:10px 12px; background:#fff; border-radius:10px; box-shadow:0 4px 16px rgba(15,23,42,0.2); font-family:inherit; font-size:12px; color:#334155; line-height:1.5;";
 
   const closeBtn = document.createElement("button");
   closeBtn.textContent = "✕";
@@ -59,9 +60,16 @@ function buildInfoCard(point: MapPoint, onClose: () => void): HTMLElement {
 
   if (point.address) {
     const addr = document.createElement("div");
-    addr.textContent = point.address;
-    addr.style.cssText = "margin-bottom:2px;";
+    addr.textContent = `지번 ${point.address}`;
+    addr.style.cssText = "margin-bottom:1px;";
     card.appendChild(addr);
+  }
+
+  if (point.roadAddress) {
+    const road = document.createElement("div");
+    road.textContent = `도로명 ${point.roadAddress}`;
+    road.style.cssText = "color:#64748b; margin-bottom:2px;";
+    card.appendChild(road);
   }
 
   if (point.phone) {
@@ -111,8 +119,30 @@ export function KakaoMapCanvas({
   const [sdkReady, setSdkReady] = useState(false);
   const mapRef = useRef<any>(null);
   const markersRef = useRef<Map<string, any>>(new Map());
+  const pointsRef = useRef<Map<string, MapPoint>>(new Map());
   const polylinesRef = useRef<any[]>([]);
   const infoOverlayRef = useRef<any>(null);
+
+  // 마커 클릭과 대시보드(타임라인/비용/사진) 클릭 양쪽에서 공유하는 정보 카드 열기 함수.
+  // effect 밖의 함수로 둬서 selectedPlaceId 변경 시에도 그대로 재사용한다.
+  function openInfoOverlay(pointId: string) {
+    const map = mapRef.current;
+    const marker = markersRef.current.get(pointId);
+    const point = pointsRef.current.get(pointId);
+    if (!map || !marker || !point) return;
+
+    infoOverlayRef.current?.setMap(null);
+
+    const overlay = new window.kakao.maps.CustomOverlay({
+      position: marker.getPosition(),
+      content: buildInfoCard(point, () => overlay.setMap(null)),
+      xAnchor: 0.5,
+      yAnchor: 1.35,
+      zIndex: 10,
+    });
+    overlay.setMap(map);
+    infoOverlayRef.current = overlay;
+  }
 
   // 다른 화면(AI 가져오기 등)에서 이미 SDK를 로드해놓고 돌아온 경우, next/script의
   // onLoad는 다시 안 불려서(onReady만 불림) sdkReady가 영영 안 켜질 수 있음 — 안전망으로 직접 확인.
@@ -131,16 +161,14 @@ export function KakaoMapCanvas({
       });
       mapRef.current = map;
 
-      function closeInfoOverlay() {
+      window.kakao.maps.event.addListener(map, "click", () => {
         infoOverlayRef.current?.setMap(null);
-        infoOverlayRef.current = null;
-      }
-
-      window.kakao.maps.event.addListener(map, "click", closeInfoOverlay);
+      });
 
       polylinesRef.current.forEach((line) => line.setMap(null));
       polylinesRef.current = [];
       markersRef.current.clear();
+      pointsRef.current.clear();
 
       if (points.length === 0) return;
 
@@ -149,20 +177,10 @@ export function KakaoMapCanvas({
         const position = new window.kakao.maps.LatLng(point.lat, point.lng);
         const marker = new window.kakao.maps.Marker({ map, position, title: point.name });
         markersRef.current.set(point.id, marker);
+        pointsRef.current.set(point.id, point);
         bounds.extend(position);
 
-        window.kakao.maps.event.addListener(marker, "click", () => {
-          closeInfoOverlay();
-          const overlay = new window.kakao.maps.CustomOverlay({
-            position,
-            content: buildInfoCard(point, closeInfoOverlay),
-            xAnchor: 0.5,
-            yAnchor: 1.35,
-            zIndex: 10,
-          });
-          overlay.setMap(map);
-          infoOverlayRef.current = overlay;
-        });
+        window.kakao.maps.event.addListener(marker, "click", () => openInfoOverlay(point.id));
       });
 
       segments.forEach((segment) => {
@@ -190,13 +208,15 @@ export function KakaoMapCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sdkReady, points, segments]);
 
-  // 타임라인/비용/사진 탭에서 장소를 선택하면 지도만 이동+확대(마커·경로는 다시 안 그림)
+  // 타임라인/비용/사진 탭에서 장소를 선택하면 지도를 이동+확대하고, 그 장소의 정보 카드도 띄운다.
   useEffect(() => {
     if (!selectedPlaceId || !mapRef.current) return;
     const marker = markersRef.current.get(selectedPlaceId);
     if (!marker) return;
     mapRef.current.setLevel(SELECTED_PLACE_ZOOM_LEVEL);
     mapRef.current.panTo(marker.getPosition());
+    openInfoOverlay(selectedPlaceId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPlaceId]);
 
   if (!KAKAO_JS_KEY) {

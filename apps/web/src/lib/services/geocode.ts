@@ -16,6 +16,7 @@ type KakaoKeywordDocument = {
   address_name: string | null;
   road_address_name: string | null;
   place_url: string | null;
+  category_name: string | null;
   category_group_name: string | null;
   phone: string | null;
   x: string;
@@ -45,7 +46,9 @@ export async function searchPlaceCandidates(query: string): Promise<GeocodeCandi
     address: d.address_name || null,
     roadAddress: d.road_address_name || null,
     placeUrl: d.place_url || null,
-    category: d.category_group_name || null,
+    // category_group_name은 정해진 대분류(음식점/카페/병원 등)에만 채워지고 나머지는 빈 문자열이라
+    // 항상 채워지는 category_name(전체 경로, 예: "여행 > 관광,명소 > 자연관광지")을 사용한다.
+    category: d.category_name || d.category_group_name || null,
     phone: d.phone || null,
   }));
 }

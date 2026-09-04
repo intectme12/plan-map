@@ -125,7 +125,8 @@ export function ImportFlow({ tripId }: { tripId: string }) {
         lat: c.lat,
         lng: c.lng,
         category: item.category ?? c.category,
-        address: c.address ?? c.roadAddress,
+        address: c.address,
+        roadAddress: c.roadAddress,
         phone: c.phone,
         placeUrl: c.placeUrl,
       };
