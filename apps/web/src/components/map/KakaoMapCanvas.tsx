@@ -4,6 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import Script from "next/script";
 
 type MapPoint = { id: string; name: string; lat: number; lng: number };
+type MapSegment = {
+  fromLat: number;
+  fromLng: number;
+  toLat: number;
+  toLng: number;
+  mode: "car" | "bus";
+};
 
 declare global {
   interface Window {
@@ -13,10 +20,22 @@ declare global {
 
 const KAKAO_JS_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
 
-export function KakaoMapCanvas({ points }: { points: MapPoint[] }) {
+export function KakaoMapCanvas({
+  points,
+  segments = [],
+  selectedPlaceId,
+}: {
+  points: MapPoint[];
+  segments?: MapSegment[];
+  selectedPlaceId?: string | null;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [sdkReady, setSdkReady] = useState(false);
+  const mapRef = useRef<any>(null);
+  const markersRef = useRef<Map<string, any>>(new Map());
+  const polylinesRef = useRef<any[]>([]);
 
+  // 지도/마커/이동경로선 생성 (장소 목록이 바뀔 때만)
   useEffect(() => {
     if (!sdkReady || !containerRef.current || !window.kakao?.maps) return;
 
@@ -25,18 +44,50 @@ export function KakaoMapCanvas({ points }: { points: MapPoint[] }) {
         center: new window.kakao.maps.LatLng(37.5665, 126.978),
         level: 8,
       });
+      mapRef.current = map;
+
+      polylinesRef.current.forEach((line) => line.setMap(null));
+      polylinesRef.current = [];
+      markersRef.current.clear();
 
       if (points.length === 0) return;
 
       const bounds = new window.kakao.maps.LatLngBounds();
       points.forEach((point) => {
         const position = new window.kakao.maps.LatLng(point.lat, point.lng);
-        new window.kakao.maps.Marker({ map, position, title: point.name });
+        const marker = new window.kakao.maps.Marker({ map, position, title: point.name });
+        markersRef.current.set(point.id, marker);
         bounds.extend(position);
       });
+
+      segments.forEach((segment) => {
+        const path = [
+          new window.kakao.maps.LatLng(segment.fromLat, segment.fromLng),
+          new window.kakao.maps.LatLng(segment.toLat, segment.toLng),
+        ];
+        const polyline = new window.kakao.maps.Polyline({
+          map,
+          path,
+          strokeWeight: 4,
+          strokeColor: segment.mode === "bus" ? "#FF7A45" : "#2F6FED",
+          strokeOpacity: 0.8,
+          strokeStyle: segment.mode === "bus" ? "shortdash" : "solid",
+        });
+        polylinesRef.current.push(polyline);
+      });
+
       map.setBounds(bounds);
     });
-  }, [sdkReady, points]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sdkReady, points, segments]);
+
+  // 타임라인/비용/사진 탭에서 장소를 선택하면 지도만 이동(마커·경로는 다시 안 그림)
+  useEffect(() => {
+    if (!selectedPlaceId || !mapRef.current) return;
+    const marker = markersRef.current.get(selectedPlaceId);
+    if (!marker) return;
+    mapRef.current.panTo(marker.getPosition());
+  }, [selectedPlaceId]);
 
   if (!KAKAO_JS_KEY) {
     return (

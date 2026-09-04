@@ -1,13 +1,20 @@
 type CategoryTotal = { category: string; amount: number };
+type PlaceTotal = { id: string; name: string; total: number };
 
 const CHART_COLORS = ["#2F6FED", "#FF7A45", "#16A34A", "#D97706", "#8B5CF6", "#DC2626"];
 
 export function ExpenseSummary({
   total,
   byCategory,
+  places,
+  selectedPlaceId,
+  onSelectPlace,
 }: {
   total: number;
   byCategory: CategoryTotal[];
+  places: PlaceTotal[];
+  selectedPlaceId: string | null;
+  onSelectPlace: (placeId: string) => void;
 }) {
   const segments = byCategory.reduce<{ start: number; end: number }[]>((acc, c) => {
     const start = acc.length > 0 ? acc[acc.length - 1].end : 0;
@@ -17,6 +24,8 @@ export function ExpenseSummary({
   const gradientStops = segments.map(
     (s, i) => `${CHART_COLORS[i % CHART_COLORS.length]} ${s.start}deg ${s.end}deg`
   );
+
+  const placesWithExpense = places.filter((p) => p.total > 0);
 
   return (
     <div className="flex flex-col gap-6 p-4">
@@ -51,6 +60,30 @@ export function ExpenseSummary({
           </ul>
         </div>
       )}
+
+      {placesWithExpense.length > 0 ? (
+        <div>
+          <p className="mb-2 text-xs font-semibold text-neutral-500">장소별 지출</p>
+          <ul className="flex flex-col gap-1">
+            {placesWithExpense.map((p) => (
+              <li key={p.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelectPlace(p.id)}
+                  className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-neutral-50 ${
+                    selectedPlaceId === p.id ? "bg-blue-50" : ""
+                  }`}
+                >
+                  <span className="truncate">{p.name}</span>
+                  <span className="flex-none tabular-nums text-neutral-600">
+                    {p.total.toLocaleString()}원
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }

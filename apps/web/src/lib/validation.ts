@@ -31,8 +31,12 @@ export const createPlaceSchema = z.object({
   scheduledAt: z.coerce.date().optional(),
 });
 
-export const expenseAmountSchema = z.object({
-  amount: z.coerce.number().int().min(0).max(100_000_000),
+export const expenseCategories = ["음식", "교통", "입장권", "숙소", "기타"] as const;
+
+export const createExpenseSchema = z.object({
+  category: z.enum(expenseCategories),
+  amount: z.coerce.number().int().min(1).max(100_000_000),
+  memo: z.string().max(200).optional(),
 });
 
 export const aiParseRequestSchema = z.object({

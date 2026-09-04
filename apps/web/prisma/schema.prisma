@@ -85,6 +85,7 @@ model Expense {
   id           String   @id @default(cuid())
   placeEntryId String
   amount       Int
+  category     String   @default("기타") // "음식" | "교통" | "입장권" | "숙소" | "기타"
   memo         String?
   source       String   @default("manual") // "manual" | "card_auto"
   createdAt    DateTime @default(now())

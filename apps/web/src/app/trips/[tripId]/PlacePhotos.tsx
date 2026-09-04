@@ -65,7 +65,10 @@ export function PlacePhotos({
         ))}
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(true);
+          }}
           className={
             compact
               ? "flex h-7 w-7 flex-none items-center justify-center rounded border border-dashed border-neutral-300 text-[10px] text-neutral-400 hover:bg-neutral-50"
@@ -79,7 +82,10 @@ export function PlacePhotos({
       {open ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => setOpen(false)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(false);
+          }}
         >
           <div
             className="flex max-h-[80vh] w-full max-w-lg flex-col gap-3 overflow-y-auto rounded-lg bg-white p-4 shadow-xl"

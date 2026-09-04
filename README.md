@@ -77,7 +77,7 @@ User        — id, email, password_hash, nickname
 Trip        — id, user_id, name, date_range, personnel
 PlaceEntry  — id, trip_id, order, name, lat/lng, address, category, scheduled_time
 RouteSegment— from_place_id, to_place_id, mode(car|bus|walk), distance, duration, fare
-Expense     — id, place_entry_id, amount, memo, source(manual|card_auto)
+Expense     — id, place_entry_id, amount, category(음식|교통|입장권|숙소|기타), memo, source(manual|card_auto)
 Photo       — id, place_entry_id, storage_key, taken_at
 AIParseJob  — id, trip_id, raw_text, parsed_json, status
 ```
@@ -183,7 +183,21 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - 루트에 `up.sh`/`down.sh` 추가: Postgres 기동/마이그레이션/Next.js dev 서버 기동을 한 번에, 종료도 한 번에. 두 스크립트 모두 직접 실행해서 기동→응답 200→종료→재기동까지 확인
 - README에 "실행 방법" 섹션 추가 — 이 프로젝트는 프론트/백엔드가 물리적으로 분리되어 있지 않고 `apps/web` 하나가 화면+API를 겸한다는 점을 명시
 
+**완료 (2026-09-04, 실제 카카오 키로 지도/경로 확인 + 지도-탭 연동 + 비용 카테고리화)**
+
+사용자가 카카오 디벨로퍼스에서 새 키를 발급받아 `.env`에 넣어줘서, 이번엔 지도가 실제로 렌더링되는 상태에서 작업/검증했다.
+
+- **장소 간 이동경로를 지도에 표시**: `KakaoMapCanvas`가 `segments` prop을 받아 연속된 장소 사이에 `Polyline`을 그림 — 자차 구간은 파란 실선, 버스 구간은 주황 점선(장소의 `transportToNext` 값 기준). 실제 도로를 따라가는 좌표가 아니라 두 지점을 잇는 직선이라는 점은 의도적 범위 설정(도로 지오메트리까지 그리려면 카카오모빌리티 응답에서 `vertexes`를 추출해야 해서 범위가 커짐 — 필요해지면 다음 단계로)
+- **타임라인/비용/사진 탭에서 장소 클릭 시 지도 이동**: 지도와 세 탭을 감싸는 클라이언트 컴포넌트 `TripWorkspace`를 새로 만들어 `selectedPlaceId` 상태를 하나로 공유. `KakaoMapCanvas`는 이 값이 바뀌면 `map.panTo()`로만 이동(마커·경로선은 다시 안 그림). 기존엔 `page.tsx`(서버 컴포넌트)가 지도와 탭 콘텐츠를 따로 렌더링해서 탭 간에 상태를 공유할 방법이 없었음 — `page.tsx`는 데이터 fetch만 하고 `TripWorkspace`에 넘기는 구조로 정리
+- **비용/사진을 눌러도 지도가 안 움직이게**: "장소 선택" 클릭 핸들러를 장소 이름 텍스트에만 달아서(카드 전체가 아니라), 비용 입력·사진 추가 버튼과 이름이 형제 요소로 분리되게 함. 추가로 지출 패널과 사진 모달 트리거에는 `e.stopPropagation()`도 걸어둠(이중 방어)
+- **비용 탭에 장소별 금액 표시**: `ExpenseSummary`가 `places: {id,name,total}[]`를 받아 카테고리 도넛차트 아래에 장소별 지출 목록을 렌더링, 클릭하면 지도 이동. 카테고리 집계도 기존엔 `PlaceEntry.category`(장소 종류)로 잘못 묶고 있던 걸 이번에 실제 `Expense.category`로 고쳐서 바로잡음
+- **타임라인 지출을 카테고리별 다건 입력으로 개편**: `Expense`에 `category`(음식/교통/입장권/숙소/기타) 필드 추가. 기존 "장소당 지출 1건 upsert" 방식(`setPlaceExpense`)을 폐기하고 `addPlaceExpense`/`deletePlaceExpense`로 교체 — 카드에는 총액만 보이고 "비용 입력" 버튼을 누르면 기존 항목 목록(카테고리 뱃지+금액+삭제) 아래 카테고리 선택+금액 입력 폼이 펼쳐짐. API도 `PATCH .../expense`(단수) → `POST/DELETE .../expenses(/[expenseId])`(복수)로 교체
+- 마이그레이션 두 개 적용(`add_expense_category` 등). 이 과정에서 로컬 Docker DB에 이전 세션에서 만들었다가 origin 리셋으로 파일만 사라진 `ai_parse_jobs` 테이블이 드리프트로 남아있던 걸 발견 — `prisma migrate reset`은 전체 데이터 삭제라 자동 차단돼서, `prisma db execute`로 그 테이블만 정확히 지우고 마이그레이션 기록만 정리하는 방식으로 기존 테스트 데이터 보존한 채 해결
+- **버그**: 스키마 변경(`prisma migrate dev`) 후 dev 서버를 안 그로 인해 "Unknown argument `category`"로 지출 추가가 500 에러 나는 걸 재현 — `./down.sh && ./up.sh`로 재시작하면 해결됨(README에 이미 있는 주의사항, 재확인)
+- 브라우저로 전체 플로우 확인: 실제 지도 렌더링, 경로선 표시(버스=점선 실제 확인), 타임라인/비용/사진 탭에서 장소 클릭 시 지도 이동, 비용·사진 버튼 클릭 시 지도 고정, 카테고리별 지출 추가(음식 32,000 + 교통 15,000 = 47,000원 합산), 비용 탭 장소별 목록
+- 새로 작성한 `TripWorkspace.tsx`의 `useMemo`에서 `let total += ...` 패턴이 `react-hooks/immutability` 린트 에러를 내서 `reduce` 기반으로 다시 씀(기존 코드에 있던 다른 2건의 `set-state-in-effect` 경고는 그대로 둠 — 이전부터 있던 것)
+
 **다음 세션 할 일**
-- 실제 카카오/ODsay/Anthropic 키가 있는 머신에서: 지도 렌더링, 장소검색 자동완성, 경로조회(자차/택시/대중교통), AI 파싱까지 실제 응답으로 최종 확인
+- 이동경로를 실제 도로 지오메트리로 그릴지 여부 결정(현재는 직선 연결) — 필요하면 카카오모빌리티 응답의 `vertexes` 추출 작업 필요
 - `ODSAY_API_KEY` 발급 후 대중교통 상세(`subPath` → 지하철/버스 구간 표시) 실제 응답으로 검증
 - Phase 0 잔여 작업: 유출됐던 카카오 키 재발급(재발급 후 신규 키로 각자 `.env` 갱신 필요) — 사용자 확인/조치 필요해 자동 진행하지 않음

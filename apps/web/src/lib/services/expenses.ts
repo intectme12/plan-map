@@ -9,13 +9,23 @@ async function assertPlaceOwnership(userId: string, tripId: string, placeId: str
   if (!place) throw new NotFoundError("장소를 찾을 수 없습니다.");
 }
 
-// 장소 카드에서 인라인으로 입력하는 대표 지출 1건을 즉시저장 방식(upsert)으로 관리한다.
-export async function setPlaceExpense(userId: string, tripId: string, placeId: string, amount: number) {
+export async function addPlaceExpense(
+  userId: string,
+  tripId: string,
+  placeId: string,
+  data: { category: string; amount: number; memo?: string }
+) {
   await assertPlaceOwnership(userId, tripId, placeId);
+  return prisma.expense.create({ data: { placeEntryId: placeId, source: "manual", ...data } });
+}
 
-  const existing = await prisma.expense.findFirst({ where: { placeEntryId: placeId } });
-  if (existing) {
-    return prisma.expense.update({ where: { id: existing.id }, data: { amount } });
-  }
-  return prisma.expense.create({ data: { placeEntryId: placeId, amount, source: "manual" } });
+export async function deletePlaceExpense(
+  userId: string,
+  tripId: string,
+  placeId: string,
+  expenseId: string
+) {
+  await assertPlaceOwnership(userId, tripId, placeId);
+  const result = await prisma.expense.deleteMany({ where: { id: expenseId, placeEntryId: placeId } });
+  if (result.count === 0) throw new NotFoundError("지출 내역을 찾을 수 없습니다.");
 }

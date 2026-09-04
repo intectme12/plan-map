@@ -18,7 +18,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useToast } from "@/components/toast/ToastProvider";
 import { RouteSegmentRow } from "./RouteSegmentRow";
-import { ExpenseInput } from "./ExpenseInput";
+import { ExpenseButton } from "./ExpenseButton";
 import { PlacePhotos } from "./PlacePhotos";
 import type { PlaceEntry } from "./types";
 
@@ -46,13 +46,17 @@ function SortablePlaceRow({
   place,
   index,
   nextPlace,
+  selected,
   onDelete,
+  onSelect,
 }: {
   tripId: string;
   place: PlaceEntry;
   index: number;
   nextPlace: PlaceEntry | null;
+  selected: boolean;
   onDelete: (place: PlaceEntry) => void;
+  onSelect: (placeId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: place.id,
@@ -64,17 +68,25 @@ function SortablePlaceRow({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={isDragging ? "bg-neutral-50 opacity-70" : ""}
     >
-      <div className="flex items-start gap-1 rounded-md px-1 py-2 hover:bg-neutral-50">
+      <div
+        className={`flex items-start gap-1 rounded-md px-1 py-2 hover:bg-neutral-50 ${
+          selected ? "bg-blue-50" : ""
+        }`}
+      >
         <DragHandle {...attributes} {...listeners} />
         <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full border border-neutral-300 text-[11px] font-semibold text-neutral-600">
           {index + 1}
         </span>
-        <div className="min-w-0 flex-1">
+        <button
+          type="button"
+          onClick={() => onSelect(place.id)}
+          className="min-w-0 flex-1 text-left"
+        >
           <p className="truncate text-sm font-semibold">{place.name}</p>
           {place.address ? (
             <p className="truncate text-xs text-neutral-400">{place.address}</p>
           ) : null}
-        </div>
+        </button>
         <button
           onClick={() => onDelete(place)}
           aria-label="삭제"
@@ -83,11 +95,7 @@ function SortablePlaceRow({
           삭제
         </button>
       </div>
-      <ExpenseInput
-        tripId={tripId}
-        placeId={place.id}
-        initialAmount={place.expenses[0]?.amount ?? null}
-      />
+      <ExpenseButton tripId={tripId} placeId={place.id} expenses={place.expenses} />
       <PlacePhotos tripId={tripId} placeId={place.id} initialPhotos={place.photos} compact />
       {nextPlace ? (
         <RouteSegmentRow tripId={tripId} fromPlaceId={place.id} toPlaceId={nextPlace.id} />
@@ -96,7 +104,17 @@ function SortablePlaceRow({
   );
 }
 
-export function PlaceList({ tripId, places }: { tripId: string; places: PlaceEntry[] }) {
+export function PlaceList({
+  tripId,
+  places,
+  selectedPlaceId,
+  onSelectPlace,
+}: {
+  tripId: string;
+  places: PlaceEntry[];
+  selectedPlaceId: string | null;
+  onSelectPlace: (placeId: string) => void;
+}) {
   const [items, setItems] = useState(places);
   const pendingDeletes = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const reorderTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -176,7 +194,9 @@ export function PlaceList({ tripId, places }: { tripId: string; places: PlaceEnt
               place={place}
               index={index}
               nextPlace={items[index + 1] ?? null}
+              selected={selectedPlaceId === place.id}
               onDelete={handleDelete}
+              onSelect={onSelectPlace}
             />
           ))}
         </ol>
