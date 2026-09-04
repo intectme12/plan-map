@@ -20,6 +20,7 @@ type MapSegment = {
   toLat: number;
   toLng: number;
   path?: { lat: number; lng: number }[];
+  color?: string;
 };
 
 declare global {
@@ -150,11 +151,23 @@ export function KakaoMapCanvas({
     if (window.kakao?.maps) setSdkReady(true);
   }, []);
 
-  // 지도/마커/이동경로선 생성 (장소 목록이 바뀔 때만)
+  // 지도/마커/이동경로선 생성 (장소 목록·이동경로가 바뀔 때마다 다시 만듦).
+  // 기존 지도 위에서 마커/선만 갈아끼우는 방식은, 직전 폴리라인을 지우고(setMap(null))
+  // 새로 만드는 두 호출이 카카오맵 내부 렌더링과 겹치면 옛 직선 경로가 화면에 남는 경우가
+  // 있어서(카카오맵 SDK 자체의 폴리라인 교체 타이밍 이슈로 추정), 매번 컨테이너를 비우고
+  // 지도를 통째로 새로 만드는 더 단순하고 안전한 방식으로 되돌림.
   useEffect(() => {
     if (!sdkReady || !containerRef.current || !window.kakao?.maps) return;
 
+    let torndown = false;
+
     window.kakao.maps.load(() => {
+      // React StrictMode(dev)는 effect를 마운트→클린업→재마운트로 두 번 실행하는데,
+      // cleanup 없이 그대로 두면 이전 인스턴스의 Map이 같은 컨테이너에 남아 있다가
+      // 나중에 만들어진(올바른) 지도 위/아래에 겹쳐서 옛 상태로 보일 수 있음.
+      if (torndown || !containerRef.current) return;
+
+      containerRef.current.innerHTML = "";
       const map = new window.kakao.maps.Map(containerRef.current, {
         center: new window.kakao.maps.LatLng(37.5665, 126.978),
         level: 8,
@@ -165,47 +178,61 @@ export function KakaoMapCanvas({
         infoOverlayRef.current?.setMap(null);
       });
 
-      polylinesRef.current.forEach((line) => line.setMap(null));
-      polylinesRef.current = [];
       markersRef.current.clear();
       pointsRef.current.clear();
+      polylinesRef.current = [];
 
-      if (points.length === 0) return;
+      if (points.length > 0) {
+        const bounds = new window.kakao.maps.LatLngBounds();
+        points.forEach((point) => {
+          const position = new window.kakao.maps.LatLng(point.lat, point.lng);
+          const marker = new window.kakao.maps.Marker({ map, position, title: point.name });
+          markersRef.current.set(point.id, marker);
+          pointsRef.current.set(point.id, point);
+          bounds.extend(position);
 
-      const bounds = new window.kakao.maps.LatLngBounds();
-      points.forEach((point) => {
-        const position = new window.kakao.maps.LatLng(point.lat, point.lng);
-        const marker = new window.kakao.maps.Marker({ map, position, title: point.name });
-        markersRef.current.set(point.id, marker);
-        pointsRef.current.set(point.id, point);
-        bounds.extend(position);
-
-        window.kakao.maps.event.addListener(marker, "click", () => openInfoOverlay(point.id));
-      });
-
-      segments.forEach((segment) => {
-        const path =
-          segment.path && segment.path.length > 1
-            ? segment.path.map((p) => new window.kakao.maps.LatLng(p.lat, p.lng))
-            : [
-                new window.kakao.maps.LatLng(segment.fromLat, segment.fromLng),
-                new window.kakao.maps.LatLng(segment.toLat, segment.toLng),
-              ];
-
-        const polyline = new window.kakao.maps.Polyline({
-          map,
-          path,
-          strokeWeight: 4,
-          strokeColor: "#2F6FED",
-          strokeOpacity: 0.8,
-          strokeStyle: "solid",
+          window.kakao.maps.event.addListener(marker, "click", () => openInfoOverlay(point.id));
         });
-        polylinesRef.current.push(polyline);
-      });
 
-      map.setBounds(bounds);
+        segments.forEach((segment) => {
+          const path =
+            segment.path && segment.path.length > 1
+              ? segment.path.map((p) => new window.kakao.maps.LatLng(p.lat, p.lng))
+              : [
+                  new window.kakao.maps.LatLng(segment.fromLat, segment.fromLng),
+                  new window.kakao.maps.LatLng(segment.toLat, segment.toLng),
+                ];
+
+          const polyline = new window.kakao.maps.Polyline({
+            map,
+            path,
+            strokeWeight: 4,
+            strokeColor: segment.color ?? "#2F6FED",
+            strokeOpacity: 0.8,
+            strokeStyle: "solid",
+          });
+          polylinesRef.current.push(polyline);
+        });
+
+        // 컨테이너가 아직 레이아웃/페인트되기 전에 Map을 생성하면 좌표 투영이 (0,0)
+        // 기준으로 깨진 채 굳어버리는 카카오맵 고질적 이슈 — 다음 프레임까지 미뤄서
+        // 실제 크기가 잡힌 뒤에 relayout+범위 맞춤이 이뤄지도록 함.
+        requestAnimationFrame(() => {
+          if (torndown) return;
+          map.relayout();
+          map.setBounds(bounds);
+        });
+      }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    return () => {
+      torndown = true;
+      mapRef.current = null;
+      markersRef.current.clear();
+      pointsRef.current.clear();
+      polylinesRef.current = [];
+      if (containerRef.current) containerRef.current.innerHTML = "";
+    };
   }, [sdkReady, points, segments]);
 
   // 타임라인/비용/사진 탭에서 장소를 선택하면 지도를 이동+확대하고, 그 장소의 정보 카드도 띄운다.
@@ -216,7 +243,6 @@ export function KakaoMapCanvas({
     mapRef.current.setLevel(SELECTED_PLACE_ZOOM_LEVEL);
     mapRef.current.panTo(marker.getPosition());
     openInfoOverlay(selectedPlaceId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPlaceId]);
 
   if (!KAKAO_JS_KEY) {

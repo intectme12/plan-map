@@ -7,6 +7,7 @@ import { TripMetaEditor } from "./TripMetaEditor";
 import { PlaceList } from "./PlaceList";
 import { ExpenseSummary } from "./ExpenseSummary";
 import { PhotoGallery } from "./PhotoGallery";
+import { getTripDays, groupByDay, dayColor } from "./days";
 import type { PlaceEntry } from "./types";
 
 const TABS = [
@@ -51,15 +52,43 @@ export function TripWorkspace({
     [places]
   );
 
-  // 연속된 장소 쌍의 id만 뽑아서, 순서가 안 바뀌면 재조회하지 않도록 함
-  const pairKey = places.map((p) => p.id).join(",");
+  // 여행 시작일~종료일 기준 날짜 목록과, 그 날짜별로 묶은 장소 그룹(지도 이동경로/아코디언이 공유)
+  const days = useMemo(
+    () => getTripDays(trip.startDate, trip.endDate),
+    [trip.startDate, trip.endDate]
+  );
+  const groups = useMemo(() => groupByDay(places, days), [places, days]);
+
+  const [expandedDays, setExpandedDays] = useState<Set<number>>(
+    () => new Set(days.map((_, i) => i).filter((i) => i === 0 || groups[i].length > 0))
+  );
+
+  function toggleDay(dayIndex: number) {
+    setExpandedDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(dayIndex)) next.delete(dayIndex);
+      else next.add(dayIndex);
+      return next;
+    });
+  }
+
+  // 같은 날짜 안에서 연속된 장소 쌍만 뽑아서, 순서가 안 바뀌면 재조회하지 않도록 함
+  const pairKey = groups
+    .flatMap((group, dayIndex) => group.slice(0, -1).map((p, i) => `${dayIndex}:${p.id}-${group[i + 1].id}`))
+    .join(",");
   const [routePaths, setRoutePaths] = useState<Record<string, { lat: number; lng: number }[]>>({});
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadRoutePaths() {
-      const pairs = places.slice(0, -1).map((place, i) => [place.id, places[i + 1].id] as const);
+      const pairs: (readonly [string, string])[] = [];
+      groups.forEach((group) => {
+        for (let i = 0; i < group.length - 1; i++) {
+          pairs.push([group[i].id, group[i + 1].id] as const);
+        }
+      });
+
       const results = await Promise.all(
         pairs.map(([fromId, toId]) =>
           fetch(`/api/trips/${trip.id}/routes?from=${fromId}&to=${toId}`)
@@ -86,6 +115,7 @@ export function TripWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip.id, pairKey]);
 
+  // 이동경로 선은 펼쳐진 날짜의 것만, 날짜별로 다른 색으로 표시
   const segments = useMemo(() => {
     const result: {
       fromLat: number;
@@ -93,20 +123,25 @@ export function TripWorkspace({
       toLat: number;
       toLng: number;
       path?: { lat: number; lng: number }[];
+      color: string;
     }[] = [];
-    for (let i = 0; i < places.length - 1; i++) {
-      const from = places[i];
-      const to = places[i + 1];
-      result.push({
-        fromLat: from.lat,
-        fromLng: from.lng,
-        toLat: to.lat,
-        toLng: to.lng,
-        path: routePaths[`${from.id}-${to.id}`],
-      });
-    }
+    groups.forEach((group, dayIndex) => {
+      if (!expandedDays.has(dayIndex)) return;
+      for (let i = 0; i < group.length - 1; i++) {
+        const from = group[i];
+        const to = group[i + 1];
+        result.push({
+          fromLat: from.lat,
+          fromLng: from.lng,
+          toLat: to.lat,
+          toLng: to.lng,
+          path: routePaths[`${from.id}-${to.id}`],
+          color: dayColor(dayIndex),
+        });
+      }
+    });
     return result;
-  }, [places, routePaths]);
+  }, [groups, expandedDays, routePaths]);
 
   const { expenseTotal, byCategory, placeTotals } = useMemo(() => {
     const totals = places.map((place) => ({
@@ -198,6 +233,8 @@ export function TripWorkspace({
                 places={places}
                 selectedPlaceId={selectedPlaceId}
                 onSelectPlace={setSelectedPlaceId}
+                expandedDays={expandedDays}
+                onToggleDay={toggleDay}
               />
             </div>
           </>

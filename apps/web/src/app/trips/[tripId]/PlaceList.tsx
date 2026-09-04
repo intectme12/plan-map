@@ -21,55 +21,8 @@ import { RouteSegmentRow } from "./RouteSegmentRow";
 import { ExpenseButton } from "./ExpenseButton";
 import { PlacePhotosInline } from "./PlacePhotosInline";
 import { PlaceForm } from "./PlaceForm";
+import { getTripDays, groupByDay, formatDayLabel, dayColor } from "./days";
 import type { PlaceEntry } from "./types";
-
-const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
-
-function startOfDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function isSameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
-  );
-}
-
-// 여행 시작일~종료일까지의 날짜 목록. 최소 1일(당일치기)은 항상 포함
-function getTripDays(startDate: string | Date, endDate: string | Date): Date[] {
-  const start = startOfDay(new Date(startDate));
-  const end = startOfDay(new Date(endDate));
-  const days: Date[] = [];
-  const cur = new Date(start);
-  while (cur <= end) {
-    days.push(new Date(cur));
-    cur.setDate(cur.getDate() + 1);
-  }
-  return days.length > 0 ? days : [start];
-}
-
-// scheduledAt이 여행 기간 중 어느 날짜와도 안 맞거나(미배정) 값이 없으면 1일차로 묶는다
-function dayIndexForPlace(place: PlaceEntry, days: Date[]): number {
-  if (place.scheduledAt) {
-    const scheduled = new Date(place.scheduledAt);
-    const idx = days.findIndex((day) => isSameDay(day, scheduled));
-    if (idx >= 0) return idx;
-  }
-  return 0;
-}
-
-function groupByDay(items: PlaceEntry[], days: Date[]): PlaceEntry[][] {
-  const groups: PlaceEntry[][] = days.map(() => []);
-  for (const place of items) {
-    const idx = dayIndexForPlace(place, days);
-    (groups[idx] ?? groups[0]).push(place);
-  }
-  return groups;
-}
-
-function formatDayLabel(date: Date, dayNumber: number): string {
-  return `${dayNumber}일차 · ${date.getMonth() + 1}/${date.getDate()} (${WEEKDAYS[date.getDay()]})`;
-}
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -221,6 +174,10 @@ function DaySection({
         className="flex w-full items-center gap-1.5 px-2.5 py-2 text-left text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
       >
         <Chevron open={open} />
+        <span
+          className="h-2 w-2 flex-none rounded-full"
+          style={{ background: dayColor(dayIndex) }}
+        />
         <span className="flex-1">{formatDayLabel(date, dayNumber)}</span>
         {places.length > 0 ? (
           <span className="flex-none text-xs font-normal text-neutral-400">{places.length}곳</span>
@@ -270,12 +227,16 @@ export function PlaceList({
   places,
   selectedPlaceId,
   onSelectPlace,
+  expandedDays,
+  onToggleDay,
 }: {
   tripId: string;
   trip: { startDate: string | Date; endDate: string | Date };
   places: PlaceEntry[];
   selectedPlaceId: string | null;
   onSelectPlace: (placeId: string) => void;
+  expandedDays: Set<number>;
+  onToggleDay: (dayIndex: number) => void;
 }) {
   const [items, setItems] = useState(places);
   const pendingDeletes = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -285,22 +246,9 @@ export function PlaceList({
   const days = getTripDays(trip.startDate, trip.endDate);
   const groups = groupByDay(items, days);
 
-  const [expandedDays, setExpandedDays] = useState<Set<number>>(
-    () => new Set(days.map((_, i) => i).filter((i) => i === 0 || groups[i].length > 0))
-  );
-
   useEffect(() => {
     setItems(places.filter((p) => !pendingDeletes.current.has(p.id)));
   }, [places]);
-
-  function toggleDay(dayIndex: number) {
-    setExpandedDays((prev) => {
-      const next = new Set(prev);
-      if (next.has(dayIndex)) next.delete(dayIndex);
-      else next.add(dayIndex);
-      return next;
-    });
-  }
 
   function handleDelete(place: PlaceEntry) {
     setItems((prev) => prev.filter((p) => p.id !== place.id));
@@ -375,7 +323,7 @@ export function PlaceList({
             places={groups[dayIndex]}
             nextAfterLast={nextGroup ? nextGroup[0] : null}
             open={expandedDays.has(dayIndex)}
-            onToggle={() => toggleDay(dayIndex)}
+            onToggle={() => onToggleDay(dayIndex)}
             selectedPlaceId={selectedPlaceId}
             onDelete={handleDelete}
             onSelect={onSelectPlace}
