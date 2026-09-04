@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { KakaoMapCanvas } from "@/components/map/KakaoMapCanvas";
 import { TripMetaEditor } from "./TripMetaEditor";
-import { PlaceForm } from "./PlaceForm";
 import { PlaceList } from "./PlaceList";
 import { ExpenseSummary } from "./ExpenseSummary";
 import { PhotoGallery } from "./PhotoGallery";
@@ -192,11 +191,10 @@ export function TripWorkspace({
               ✨ AI로 일정 가져오기
             </Link>
 
-            <PlaceForm tripId={trip.id} />
-
             <div className="min-h-0 flex-1">
               <PlaceList
                 tripId={trip.id}
+                trip={{ startDate: trip.startDate, endDate: trip.endDate }}
                 places={places}
                 selectedPlaceId={selectedPlaceId}
                 onSelectPlace={setSelectedPlaceId}

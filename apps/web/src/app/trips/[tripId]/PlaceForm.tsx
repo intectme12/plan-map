@@ -14,7 +14,7 @@ type SearchCandidate = {
   phone: string | null;
 };
 
-export function PlaceForm({ tripId }: { tripId: string }) {
+export function PlaceForm({ tripId, scheduledAt }: { tripId: string; scheduledAt?: Date }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchCandidate[]>([]);
@@ -74,6 +74,7 @@ export function PlaceForm({ tripId }: { tripId: string }) {
         roadAddress: candidate.roadAddress ?? undefined,
         placeUrl: candidate.placeUrl ?? undefined,
         phone: candidate.phone ?? undefined,
+        scheduledAt: scheduledAt ? scheduledAt.toISOString() : undefined,
       }),
     });
 
@@ -88,7 +89,7 @@ export function PlaceForm({ tripId }: { tripId: string }) {
   }
 
   return (
-    <div className="flex flex-col gap-2 border-b border-neutral-200 p-3">
+    <div className="flex flex-col gap-2 p-2">
       <input
         placeholder="장소 검색 (예: 경복궁, 강남역 스타벅스)"
         value={query}
