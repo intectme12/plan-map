@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import type { DragEndEvent } from "@dnd-kit/core";
+import { arrayMove } from "@dnd-kit/sortable";
 import { KakaoMapCanvas } from "@/components/map/KakaoMapCanvas";
 import { TripMetaEditor } from "./TripMetaEditor";
 import { PlaceList } from "./PlaceList";
 import { ExpenseSummary } from "./ExpenseSummary";
 import { PhotoGallery } from "./PhotoGallery";
 import { getTripDays, groupByDay, dayColor } from "./days";
+import { useToast } from "@/components/toast/ToastProvider";
 import type { PlaceEntry } from "./types";
 
 const TABS = [
@@ -35,10 +38,20 @@ export function TripWorkspace({
 }) {
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const toast = useToast();
+
+  // 타임라인(순서 변경/삭제)과 지도가 같은 장소 목록을 공유해야 드래그 정렬이 이동경로에 바로 반영된다
+  const [items, setItems] = useState(places);
+  const pendingDeletes = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const reorderTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+
+  useEffect(() => {
+    setItems(places.filter((p) => !pendingDeletes.current.has(p.id)));
+  }, [places]);
 
   const points = useMemo(
     () =>
-      places.map((p) => ({
+      items.map((p) => ({
         id: p.id,
         name: p.name,
         lat: p.lat,
@@ -49,7 +62,7 @@ export function TripWorkspace({
         phone: p.phone,
         placeUrl: p.placeUrl,
       })),
-    [places]
+    [items]
   );
 
   // 여행 시작일~종료일 기준 날짜 목록과, 그 날짜별로 묶은 장소 그룹(지도 이동경로/아코디언이 공유)
@@ -57,7 +70,7 @@ export function TripWorkspace({
     () => getTripDays(trip.startDate, trip.endDate),
     [trip.startDate, trip.endDate]
   );
-  const groups = useMemo(() => groupByDay(places, days), [places, days]);
+  const groups = useMemo(() => groupByDay(items, days), [items, days]);
 
   const [expandedDays, setExpandedDays] = useState<Set<number>>(
     () => new Set(days.map((_, i) => i).filter((i) => i === 0 || groups[i].length > 0))
@@ -144,7 +157,7 @@ export function TripWorkspace({
   }, [groups, expandedDays, routePaths]);
 
   const { expenseTotal, byCategory, placeTotals } = useMemo(() => {
-    const totals = places.map((place) => ({
+    const totals = items.map((place) => ({
       id: place.id,
       name: place.name,
       total: place.expenses.reduce((sum, e) => sum + e.amount, 0),
@@ -152,7 +165,7 @@ export function TripWorkspace({
     }));
 
     const categoryMap = new Map<string, number>();
-    for (const place of places) {
+    for (const place of items) {
       for (const e of place.expenses) {
         categoryMap.set(e.category, (categoryMap.get(e.category) ?? 0) + e.amount);
       }
@@ -166,7 +179,66 @@ export function TripWorkspace({
       })),
       placeTotals: totals,
     };
-  }, [places]);
+  }, [items]);
+
+  function handleDeletePlace(place: PlaceEntry) {
+    setItems((prev) => prev.filter((p) => p.id !== place.id));
+
+    const timer = setTimeout(async () => {
+      pendingDeletes.current.delete(place.id);
+      await fetch(`/api/trips/${trip.id}/places/${place.id}`, { method: "DELETE" });
+    }, 5000);
+    pendingDeletes.current.set(place.id, timer);
+
+    toast.show(`${place.name} 삭제됨`, {
+      actionLabel: "실행취소",
+      onAction: () => {
+        clearTimeout(timer);
+        pendingDeletes.current.delete(place.id);
+        setItems((prev) => {
+          if (prev.some((p) => p.id === place.id)) return prev;
+          const restored = [...prev, place];
+          restored.sort((a, b) => a.order - b.order);
+          return restored;
+        });
+      },
+    });
+  }
+
+  function handleDragEndForDay(dayIndex: number) {
+    return (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+
+      setItems((prev) => {
+        const group = groupByDay(prev, days)[dayIndex];
+        const oldIndex = group.findIndex((p) => p.id === active.id);
+        const newIndex = group.findIndex((p) => p.id === over.id);
+        if (oldIndex < 0 || newIndex < 0) return prev;
+
+        const reorderedGroup = arrayMove(group, oldIndex, newIndex);
+        const orderSlots = group.map((p) => p.order).sort((a, b) => a - b);
+        const orderById = new Map(reorderedGroup.map((p, i) => [p.id, orderSlots[i]]));
+
+        const next = prev.map((p) => (orderById.has(p.id) ? { ...p, order: orderById.get(p.id)! } : p));
+        next.sort((a, b) => a.order - b.order);
+
+        if (reorderTimers.current.has(dayIndex)) clearTimeout(reorderTimers.current.get(dayIndex));
+        const timer = setTimeout(() => {
+          reorderedGroup.forEach((p) => {
+            fetch(`/api/trips/${trip.id}/places/${p.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ order: orderById.get(p.id) }),
+            });
+          });
+        }, 500);
+        reorderTimers.current.set(dayIndex, timer);
+
+        return next;
+      });
+    };
+  }
 
   return (
     <main className="relative h-screen w-full overflow-hidden">
@@ -230,11 +302,13 @@ export function TripWorkspace({
               <PlaceList
                 tripId={trip.id}
                 trip={{ startDate: trip.startDate, endDate: trip.endDate }}
-                places={places}
+                places={items}
                 selectedPlaceId={selectedPlaceId}
                 onSelectPlace={setSelectedPlaceId}
                 expandedDays={expandedDays}
                 onToggleDay={toggleDay}
+                onDeletePlace={handleDeletePlace}
+                onDragEndForDay={handleDragEndForDay}
               />
             </div>
           </>

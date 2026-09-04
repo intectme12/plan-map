@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -9,14 +9,8 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import {
-  SortableContext,
-  arrayMove,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useToast } from "@/components/toast/ToastProvider";
 import { RouteSegmentRow } from "./RouteSegmentRow";
 import { ExpenseButton } from "./ExpenseButton";
 import { PlacePhotosInline } from "./PlacePhotosInline";
@@ -229,6 +223,8 @@ export function PlaceList({
   onSelectPlace,
   expandedDays,
   onToggleDay,
+  onDeletePlace,
+  onDragEndForDay,
 }: {
   tripId: string;
   trip: { startDate: string | Date; endDate: string | Date };
@@ -237,80 +233,14 @@ export function PlaceList({
   onSelectPlace: (placeId: string) => void;
   expandedDays: Set<number>;
   onToggleDay: (dayIndex: number) => void;
+  onDeletePlace: (place: PlaceEntry) => void;
+  onDragEndForDay: (dayIndex: number) => (event: DragEndEvent) => void;
 }) {
-  const [items, setItems] = useState(places);
-  const pendingDeletes = useRef(new Map<string, ReturnType<typeof setTimeout>>());
-  const reorderTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
-  const toast = useToast();
-
   const days = getTripDays(trip.startDate, trip.endDate);
-  const groups = groupByDay(items, days);
-
-  useEffect(() => {
-    setItems(places.filter((p) => !pendingDeletes.current.has(p.id)));
-  }, [places]);
-
-  function handleDelete(place: PlaceEntry) {
-    setItems((prev) => prev.filter((p) => p.id !== place.id));
-
-    const timer = setTimeout(async () => {
-      pendingDeletes.current.delete(place.id);
-      await fetch(`/api/trips/${tripId}/places/${place.id}`, { method: "DELETE" });
-    }, 5000);
-    pendingDeletes.current.set(place.id, timer);
-
-    toast.show(`${place.name} 삭제됨`, {
-      actionLabel: "실행취소",
-      onAction: () => {
-        clearTimeout(timer);
-        pendingDeletes.current.delete(place.id);
-        setItems((prev) => {
-          if (prev.some((p) => p.id === place.id)) return prev;
-          const restored = [...prev, place];
-          restored.sort((a, b) => a.order - b.order);
-          return restored;
-        });
-      },
-    });
-  }
-
-  function handleDragEnd(dayIndex: number) {
-    return (event: DragEndEvent) => {
-      const { active, over } = event;
-      if (!over || active.id === over.id) return;
-
-      setItems((prev) => {
-        const group = groupByDay(prev, days)[dayIndex];
-        const oldIndex = group.findIndex((p) => p.id === active.id);
-        const newIndex = group.findIndex((p) => p.id === over.id);
-        if (oldIndex < 0 || newIndex < 0) return prev;
-
-        const reorderedGroup = arrayMove(group, oldIndex, newIndex);
-        const orderSlots = group.map((p) => p.order).sort((a, b) => a - b);
-        const orderById = new Map(reorderedGroup.map((p, i) => [p.id, orderSlots[i]]));
-
-        const next = prev.map((p) => (orderById.has(p.id) ? { ...p, order: orderById.get(p.id)! } : p));
-        next.sort((a, b) => a.order - b.order);
-
-        if (reorderTimers.current.has(dayIndex)) clearTimeout(reorderTimers.current.get(dayIndex));
-        const timer = setTimeout(() => {
-          reorderedGroup.forEach((p) => {
-            fetch(`/api/trips/${tripId}/places/${p.id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ order: orderById.get(p.id) }),
-            });
-          });
-        }, 500);
-        reorderTimers.current.set(dayIndex, timer);
-
-        return next;
-      });
-    };
-  }
+  const groups = groupByDay(places, days);
 
   return (
-    <div className="flex flex-col gap-2 overflow-y-auto p-2">
+    <div className="flex h-full flex-col gap-2 overflow-y-auto p-2">
       {days.map((date, dayIndex) => {
         const nextGroup = groups.slice(dayIndex + 1).find((g) => g.length > 0);
         return (
@@ -325,9 +255,9 @@ export function PlaceList({
             open={expandedDays.has(dayIndex)}
             onToggle={() => onToggleDay(dayIndex)}
             selectedPlaceId={selectedPlaceId}
-            onDelete={handleDelete}
+            onDelete={onDeletePlace}
             onSelect={onSelectPlace}
-            onDragEnd={handleDragEnd}
+            onDragEnd={onDragEndForDay}
           />
         );
       })}

@@ -18,7 +18,7 @@ export function PhotoGallery({
   }
 
   return (
-    <div className="flex flex-col gap-5 overflow-y-auto p-4">
+    <div className="flex h-full flex-col gap-5 overflow-y-auto p-4">
       {places.map((place) => (
         <div key={place.id}>
           <button
