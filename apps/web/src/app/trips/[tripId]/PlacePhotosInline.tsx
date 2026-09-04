@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { PhotoLightbox } from "./PhotoLightbox";
 
 type Photo = { id: string; storageKey: string };
 
@@ -19,6 +20,7 @@ export function PlacePhotosInline({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function upload(files: FileList | File[]) {
@@ -56,10 +58,18 @@ export function PlacePhotosInline({
     >
       {photos.length > 0 ? (
         <div className="grid grid-cols-4 gap-1.5">
-          {photos.map((photo) => (
+          {photos.map((photo, i) => (
             <div key={photo.id} className="group relative">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photo.storageKey} alt="" className="h-14 w-full rounded object-cover" />
+              <img
+                src={photo.storageKey}
+                alt=""
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightboxIndex(i);
+                }}
+                className="h-14 w-full cursor-pointer rounded object-cover"
+              />
               <button
                 type="button"
                 onClick={(e) => {
@@ -106,6 +116,15 @@ export function PlacePhotosInline({
       </div>
 
       {error ? <p className="text-[10px] text-red-600">{error}</p> : null}
+
+      {lightboxIndex !== null ? (
+        <PhotoLightbox
+          photos={photos}
+          index={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onNavigate={setLightboxIndex}
+        />
+      ) : null}
     </div>
   );
 }

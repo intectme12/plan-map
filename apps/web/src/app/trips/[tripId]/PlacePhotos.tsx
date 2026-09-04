@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { PhotoLightbox } from "./PhotoLightbox";
 
 type Photo = { id: string; storageKey: string };
 
@@ -18,6 +19,7 @@ export function PlacePhotos({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function upload(files: FileList | File[]) {
@@ -49,13 +51,14 @@ export function PlacePhotos({
   return (
     <>
       <div className="flex flex-wrap gap-2">
-        {photos.map((photo) => (
+        {photos.map((photo, i) => (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             key={photo.id}
             src={photo.storageKey}
             alt=""
-            className="h-20 w-20 rounded-md object-cover"
+            onClick={() => setLightboxIndex(i)}
+            className="h-20 w-20 cursor-pointer rounded-md object-cover"
           />
         ))}
         <button
@@ -118,10 +121,15 @@ export function PlacePhotos({
 
             {photos.length > 0 ? (
               <div className="grid grid-cols-3 gap-2">
-                {photos.map((photo) => (
+                {photos.map((photo, i) => (
                   <div key={photo.id} className="group relative">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={photo.storageKey} alt="" className="h-24 w-full rounded-md object-cover" />
+                    <img
+                      src={photo.storageKey}
+                      alt=""
+                      onClick={() => setLightboxIndex(i)}
+                      className="h-24 w-full cursor-pointer rounded-md object-cover"
+                    />
                     <button
                       onClick={() => onDelete(photo.id)}
                       className="absolute right-1 top-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] text-white opacity-0 group-hover:opacity-100"
@@ -136,6 +144,15 @@ export function PlacePhotos({
             )}
           </div>
         </div>
+      ) : null}
+
+      {lightboxIndex !== null ? (
+        <PhotoLightbox
+          photos={photos}
+          index={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onNavigate={setLightboxIndex}
+        />
       ) : null}
     </>
   );
