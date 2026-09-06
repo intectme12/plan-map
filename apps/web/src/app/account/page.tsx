@@ -16,7 +16,11 @@ export default async function AccountPage() {
         </Link>
       </header>
       <p className="text-sm text-neutral-500">{user.email}</p>
-      <AccountForm initialNickname={user.nickname} />
+      <AccountForm
+        initialNickname={user.nickname}
+        initialBio={user.bio ?? ""}
+        initialAvatarUrl={user.avatarUrl}
+      />
     </main>
   );
 }

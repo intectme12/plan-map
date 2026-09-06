@@ -5,16 +5,19 @@ import { useSearchParams } from "next/navigation";
 import { TripCreateForm } from "./TripCreateForm";
 import { TripList, type Trip } from "./TripList";
 import { SharedTripBrowser } from "./SharedTripBrowser";
+import { UserSearchBrowser } from "./UserSearchBrowser";
 
 const TABS = [
   { key: "mine", label: "내 여행계획" },
   { key: "shared", label: "다른 사람 여행계획" },
+  { key: "users", label: "회원검색" },
 ] as const;
 
 export function TripsTabs({ trips }: { trips: Trip[] }) {
   const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab");
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>(
-    searchParams.get("tab") === "shared" ? "shared" : "mine"
+    initialTab === "shared" || initialTab === "users" ? initialTab : "mine"
   );
 
   return (
@@ -40,8 +43,10 @@ export function TripsTabs({ trips }: { trips: Trip[] }) {
           <TripCreateForm />
           <TripList trips={trips} />
         </>
-      ) : (
+      ) : tab === "shared" ? (
         <SharedTripBrowser />
+      ) : (
+        <UserSearchBrowser />
       )}
     </div>
   );

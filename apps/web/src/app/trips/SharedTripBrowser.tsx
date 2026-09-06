@@ -1,34 +1,20 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { SharedTripCard, type SharedTripCardData } from "./SharedTripCard";
 
 const PAGE_SIZE = 20;
 
-type SharedTrip = {
-  id: string;
-  name: string;
-  startDate: string;
-  endDate: string;
-  personnel: number;
-  user: { nickname: string };
-  _count: { places: number };
-};
-
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" });
-}
-
 export function SharedTripBrowser() {
   const [q, setQ] = useState("");
-  const [trips, setTrips] = useState<SharedTrip[]>([]);
+  const [trips, setTrips] = useState<SharedTripCardData[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
 
   async function load(cursor: number, query: string, replace: boolean) {
     setLoading(true);
     const res = await fetch(`/api/trips/shared?q=${encodeURIComponent(query)}&cursor=${cursor}`);
-    const data: SharedTrip[] = res.ok ? await res.json() : [];
+    const data: SharedTripCardData[] = res.ok ? await res.json() : [];
     setLoading(false);
     setHasMore(data.length === PAGE_SIZE);
     setTrips((prev) => (replace ? data : [...prev, ...data]));
@@ -68,19 +54,7 @@ export function SharedTripBrowser() {
       <ul className="flex flex-col gap-2">
         {trips.map((trip) => (
           <li key={trip.id}>
-            <Link
-              href={`/trips/shared/${trip.id}`}
-              className="flex items-center justify-between rounded-lg border border-neutral-200 px-4 py-3 hover:bg-neutral-50"
-            >
-              <div>
-                <p className="font-semibold">{trip.name}</p>
-                <p className="text-sm text-neutral-500">
-                  {formatDate(trip.startDate)} – {formatDate(trip.endDate)} · {trip.personnel}명 ·{" "}
-                  {trip.user.nickname}
-                </p>
-              </div>
-              <span className="text-sm text-neutral-400">장소 {trip._count.places}개</span>
-            </Link>
+            <SharedTripCard trip={trip} />
           </li>
         ))}
       </ul>

@@ -35,3 +35,42 @@ export async function changePassword(
   const passwordHash = await hashPassword(newPassword);
   await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
 }
+
+export function updateBio(userId: string, bio: string) {
+  return prisma.user.update({ where: { id: userId }, data: { bio } });
+}
+
+const SEARCH_PAGE_SIZE = 20;
+
+export function searchUsers(q: string | undefined, cursor: number) {
+  const term = q?.trim();
+  if (!term) return Promise.resolve([]);
+
+  return prisma.user.findMany({
+    where: { nickname: { contains: term, mode: "insensitive" } },
+    select: {
+      id: true,
+      nickname: true,
+      bio: true,
+      avatarUrl: true,
+      _count: { select: { trips: { where: { isPublic: true } } } },
+    },
+    orderBy: { nickname: "asc" },
+    skip: cursor,
+    take: SEARCH_PAGE_SIZE,
+  });
+}
+
+export function getPublicProfile(nickname: string) {
+  return prisma.user.findUnique({
+    where: { nickname },
+    select: {
+      id: true,
+      nickname: true,
+      bio: true,
+      avatarUrl: true,
+      createdAt: true,
+      _count: { select: { trips: { where: { isPublic: true } } } },
+    },
+  });
+}

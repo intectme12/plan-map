@@ -1,14 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/toast/ToastProvider";
+import { Avatar } from "@/components/Avatar";
 
 type NicknameCheckStatus = "idle" | "checking" | "available" | "taken";
 
-export function AccountForm({ initialNickname }: { initialNickname: string }) {
+export function AccountForm({
+  initialNickname,
+  initialBio,
+  initialAvatarUrl,
+}: {
+  initialNickname: string;
+  initialBio: string;
+  initialAvatarUrl: string | null;
+}) {
   const router = useRouter();
   const toast = useToast();
+
+  const [avatarUrl, setAvatarUrl] = useState(initialAvatarUrl);
+  const [avatarPending, setAvatarPending] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [bio, setBio] = useState(initialBio);
+  const [bioPending, setBioPending] = useState(false);
+  const [bioError, setBioError] = useState<string | null>(null);
 
   const [nickname, setNickname] = useState(initialNickname);
   const [nicknamePending, setNicknamePending] = useState(false);
@@ -20,6 +37,49 @@ export function AccountForm({ initialNickname }: { initialNickname: string }) {
   const [newPassword, setNewPassword] = useState("");
   const [passwordPending, setPasswordPending] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+
+  async function onAvatarChange(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    setAvatarPending(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch("/api/account/avatar", { method: "POST", body: formData });
+    setAvatarPending(false);
+    if (!res.ok) {
+      toast.show("프로필 사진을 저장하지 못했습니다.");
+      return;
+    }
+    const data = await res.json();
+    setAvatarUrl(data.avatarUrl);
+    router.refresh();
+  }
+
+  async function onRemoveAvatar() {
+    setAvatarPending(true);
+    await fetch("/api/account/avatar", { method: "DELETE" });
+    setAvatarPending(false);
+    setAvatarUrl(null);
+    router.refresh();
+  }
+
+  async function onSubmitBio(e: React.FormEvent) {
+    e.preventDefault();
+    setBioError(null);
+    setBioPending(true);
+    const res = await fetch("/api/account/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bio }),
+    });
+    setBioPending(false);
+    if (!res.ok) {
+      setBioError("자기소개를 저장하지 못했습니다.");
+      return;
+    }
+    toast.show("프로필을 저장했습니다.");
+    router.refresh();
+  }
 
   function onNicknameChange(value: string) {
     setNickname(value);
@@ -84,6 +144,59 @@ export function AccountForm({ initialNickname }: { initialNickname: string }) {
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3 rounded-lg border border-neutral-200 p-4">
+        <h2 className="text-sm font-semibold">프로필</h2>
+        <div className="flex items-center gap-3">
+          <Avatar url={avatarUrl} nickname={initialNickname} size={56} />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={avatarPending}
+              className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs disabled:opacity-50"
+            >
+              사진 변경
+            </button>
+            {avatarUrl ? (
+              <button
+                type="button"
+                onClick={onRemoveAvatar}
+                disabled={avatarPending}
+                className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs text-red-600 disabled:opacity-50"
+              >
+                삭제
+              </button>
+            ) : null}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => onAvatarChange(e.target.files)}
+            />
+          </div>
+        </div>
+
+        <form onSubmit={onSubmitBio} className="flex flex-col gap-2">
+          <textarea
+            maxLength={300}
+            rows={3}
+            placeholder="자기소개를 입력해보세요."
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
+          />
+          {bioError ? <p className="text-sm text-red-600">{bioError}</p> : null}
+          <button
+            type="submit"
+            disabled={bioPending}
+            className="self-start rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {bioPending ? "저장 중..." : "저장"}
+          </button>
+        </form>
+      </div>
+
       <form
         onSubmit={onSubmitNickname}
         className="flex flex-col gap-3 rounded-lg border border-neutral-200 p-4"

@@ -29,6 +29,16 @@ export const updateTripSchema = z.object({
 export const sharedTripsQuerySchema = z.object({
   q: z.string().max(100).optional(),
   cursor: z.coerce.number().int().min(0).default(0),
+  userId: z.string().optional(),
+});
+
+export const userSearchQuerySchema = z.object({
+  q: z.string().max(100).optional(),
+  cursor: z.coerce.number().int().min(0).default(0),
+});
+
+export const updateBioSchema = z.object({
+  bio: z.string().max(300),
 });
 
 export const createPlaceSchema = z.object({

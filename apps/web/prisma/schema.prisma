@@ -13,6 +13,8 @@ model User {
   passwordHash String
   nickname     String   @unique
   role         String   @default("USER") // "USER" | "ADMIN"
+  bio          String?
+  avatarUrl    String?
   createdAt    DateTime @default(now())
 
   trips   Trip[]

@@ -53,12 +53,13 @@ export async function deleteTrip(userId: string, tripId: string) {
   return result.count > 0;
 }
 
-export function listSharedTrips(q: string | undefined, cursor: number) {
+export function listSharedTrips(q: string | undefined, cursor: number, userId?: string) {
   const term = q?.trim();
 
   return prisma.trip.findMany({
     where: {
       isPublic: true,
+      ...(userId ? { userId } : {}),
       ...(term
         ? {
             OR: [
