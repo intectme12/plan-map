@@ -84,20 +84,20 @@ export function TripCreateForm() {
         className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
       />
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
-        >
-          {pending ? "만드는 중..." : "만들기"}
-        </button>
+      <div className="flex justify-end gap-2">
         <button
           type="button"
           onClick={() => setOpen(false)}
           className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
         >
           취소
+        </button>
+        <button
+          type="submit"
+          disabled={pending}
+          className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {pending ? "만드는 중..." : "만들기"}
         </button>
       </div>
     </form>

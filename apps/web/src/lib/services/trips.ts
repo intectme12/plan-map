@@ -83,7 +83,7 @@ export function listSharedTrips(q: string | undefined, cursor: number, userId?: 
     skip: cursor,
     take: SHARED_PAGE_SIZE,
     include: {
-      user: { select: { nickname: true } },
+      user: { select: { nickname: true, avatarUrl: true } },
       _count: { select: { places: true } },
     },
   });
