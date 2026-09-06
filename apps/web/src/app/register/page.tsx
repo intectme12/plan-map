@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
+type NicknameCheckStatus = "idle" | "checking" | "available" | "taken";
+
 export default function RegisterPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -11,6 +13,27 @@ export default function RegisterPage() {
   const [nickname, setNickname] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+
+  const [nicknameStatus, setNicknameStatus] = useState<NicknameCheckStatus>("idle");
+  const [checkedNickname, setCheckedNickname] = useState<string | null>(null);
+
+  function onNicknameChange(value: string) {
+    setNickname(value);
+    if (value !== checkedNickname) setNicknameStatus("idle");
+  }
+
+  async function onCheckNickname() {
+    if (!nickname.trim()) return;
+    setNicknameStatus("checking");
+    const res = await fetch(`/api/auth/nickname-check?nickname=${encodeURIComponent(nickname)}`);
+    if (!res.ok) {
+      setNicknameStatus("idle");
+      return;
+    }
+    const data = await res.json();
+    setCheckedNickname(nickname);
+    setNicknameStatus(data.available ? "available" : "taken");
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,14 +62,30 @@ export default function RegisterPage() {
     <main className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center gap-6 px-4">
       <h1 className="text-xl font-bold">회원가입</h1>
       <form onSubmit={onSubmit} className="flex flex-col gap-3">
-        <input
-          type="text"
-          required
-          placeholder="닉네임"
-          value={nickname}
-          onChange={(e) => setNickname(e.target.value)}
-          className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
-        />
+        <div className="flex gap-2">
+          <input
+            type="text"
+            required
+            placeholder="닉네임"
+            value={nickname}
+            onChange={(e) => onNicknameChange(e.target.value)}
+            className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm"
+          />
+          <button
+            type="button"
+            onClick={onCheckNickname}
+            disabled={nicknameStatus === "checking" || !nickname.trim()}
+            className="shrink-0 rounded-md border border-neutral-300 px-3 py-2 text-sm disabled:opacity-50"
+          >
+            중복확인
+          </button>
+        </div>
+        {nicknameStatus === "available" ? (
+          <p className="text-sm text-green-600">사용 가능한 닉네임입니다.</p>
+        ) : null}
+        {nicknameStatus === "taken" ? (
+          <p className="text-sm text-red-600">이미 사용 중인 닉네임입니다.</p>
+        ) : null}
         <input
           type="email"
           required

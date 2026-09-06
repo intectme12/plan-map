@@ -57,7 +57,10 @@ export async function getRoute(
   fromPlaceId: string,
   toPlaceId: string
 ) {
-  const trip = await prisma.trip.findFirst({ where: { id: tripId, userId }, select: { id: true } });
+  const trip = await prisma.trip.findFirst({
+    where: { id: tripId, OR: [{ userId }, { isPublic: true }] },
+    select: { id: true },
+  });
   if (!trip) throw new NotFoundError("여행을 찾을 수 없습니다.");
 
   const [fromPlace, toPlace] = await Promise.all([

@@ -42,3 +42,7 @@ export async function getCurrentUser() {
 
   return prisma.user.findUnique({ where: { id: userId } });
 }
+
+export function isAdmin(user: { role: string } | null | undefined) {
+  return user?.role === "ADMIN";
+}

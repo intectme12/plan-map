@@ -1,9 +1,9 @@
 import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { getTrip } from "@/lib/services/trips";
-import { TripWorkspace } from "./TripWorkspace";
+import { getSharedTrip } from "@/lib/services/trips";
+import { SharedTripView } from "./SharedTripView";
 
-export default async function TripDetailPage({
+export default async function SharedTripDetailPage({
   params,
   searchParams,
 }: {
@@ -17,21 +17,22 @@ export default async function TripDetailPage({
   const { tab } = await searchParams;
   const activeTab = tab === "expense" || tab === "photos" ? tab : "timeline";
 
-  const trip = await getTrip(user.id, tripId);
+  const trip = await getSharedTrip(tripId);
   if (!trip) notFound();
 
   return (
-    <TripWorkspace
+    <SharedTripView
       trip={{
         id: trip.id,
         name: trip.name,
         startDate: trip.startDate,
         endDate: trip.endDate,
         personnel: trip.personnel,
-        isPublic: trip.isPublic,
+        ownerNickname: trip.user.nickname,
       }}
       places={trip.places}
       activeTab={activeTab}
+      isOwnTrip={trip.userId === user.id}
     />
   );
 }

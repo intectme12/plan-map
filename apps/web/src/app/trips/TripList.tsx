@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/toast/ToastProvider";
 
-type Trip = {
+export type Trip = {
   id: string;
   name: string;
   startDate: string | Date;

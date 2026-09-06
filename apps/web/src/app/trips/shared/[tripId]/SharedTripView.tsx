@@ -1,18 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import type { DragEndEvent } from "@dnd-kit/core";
-import { arrayMove } from "@dnd-kit/sortable";
 import { KakaoMapCanvas } from "@/components/map/KakaoMapCanvas";
-import { TripMetaEditor } from "./TripMetaEditor";
-import { PlaceList } from "./PlaceList";
-import { ExpenseSummary } from "./ExpenseSummary";
-import { PhotoGallery } from "./PhotoGallery";
-import { getTripDays, groupByDay, dayColor } from "./days";
-import { useToast } from "@/components/toast/ToastProvider";
-import { SharedTripsModal } from "./SharedTripsModal";
-import type { PlaceEntry } from "./types";
+import { ExpenseSummary } from "@/app/trips/[tripId]/ExpenseSummary";
+import { getTripDays, groupByDay, dayColor } from "@/app/trips/[tripId]/days";
+import type { PlaceEntry } from "@/app/trips/[tripId]/types";
+import { SharedPlaceList } from "./SharedPlaceList";
+import { SharedPhotoGrid } from "./SharedPhotoGrid";
+import { CopyTripButton } from "./CopyTripButton";
 
 const TABS = [
   { key: "timeline", label: "타임라인" },
@@ -26,35 +22,26 @@ type TripMeta = {
   startDate: string | Date;
   endDate: string | Date;
   personnel: number;
-  isPublic: boolean;
+  ownerNickname: string;
 };
 
-export function TripWorkspace({
+export function SharedTripView({
   trip,
   places,
   activeTab,
+  isOwnTrip,
 }: {
   trip: TripMeta;
   places: PlaceEntry[];
   activeTab: (typeof TABS)[number]["key"];
+  isOwnTrip: boolean;
 }) {
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [sharedModalOpen, setSharedModalOpen] = useState(false);
-  const toast = useToast();
-
-  // 타임라인(순서 변경/삭제)과 지도가 같은 장소 목록을 공유해야 드래그 정렬이 이동경로에 바로 반영된다
-  const [items, setItems] = useState(places);
-  const pendingDeletes = useRef(new Map<string, ReturnType<typeof setTimeout>>());
-  const reorderTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
-
-  useEffect(() => {
-    setItems(places.filter((p) => !pendingDeletes.current.has(p.id)));
-  }, [places]);
 
   const points = useMemo(
     () =>
-      items.map((p) => ({
+      places.map((p) => ({
         id: p.id,
         name: p.name,
         lat: p.lat,
@@ -65,15 +52,14 @@ export function TripWorkspace({
         phone: p.phone,
         placeUrl: p.placeUrl,
       })),
-    [items]
+    [places]
   );
 
-  // 여행 시작일~종료일 기준 날짜 목록과, 그 날짜별로 묶은 장소 그룹(지도 이동경로/아코디언이 공유)
   const days = useMemo(
     () => getTripDays(trip.startDate, trip.endDate),
     [trip.startDate, trip.endDate]
   );
-  const groups = useMemo(() => groupByDay(items, days), [items, days]);
+  const groups = useMemo(() => groupByDay(places, days), [places, days]);
 
   const [expandedDays, setExpandedDays] = useState<Set<number>>(
     () => new Set(days.map((_, i) => i).filter((i) => i === 0 || groups[i].length > 0))
@@ -88,7 +74,6 @@ export function TripWorkspace({
     });
   }
 
-  // 같은 날짜 안에서 연속된 장소 쌍만 뽑아서, 순서가 안 바뀌면 재조회하지 않도록 함
   const pairKey = groups
     .flatMap((group, dayIndex) => group.slice(0, -1).map((p, i) => `${dayIndex}:${p.id}-${group[i + 1].id}`))
     .join(",");
@@ -131,7 +116,6 @@ export function TripWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip.id, pairKey]);
 
-  // 이동경로 선은 펼쳐진 날짜의 것만, 날짜별로 다른 색으로 표시
   const segments = useMemo(() => {
     const result: {
       fromLat: number;
@@ -160,7 +144,7 @@ export function TripWorkspace({
   }, [groups, expandedDays, routePaths]);
 
   const { expenseTotal, byCategory, placeTotals } = useMemo(() => {
-    const totals = items.map((place) => ({
+    const totals = places.map((place) => ({
       id: place.id,
       name: place.name,
       total: place.expenses.reduce((sum, e) => sum + e.amount, 0),
@@ -168,7 +152,7 @@ export function TripWorkspace({
     }));
 
     const categoryMap = new Map<string, number>();
-    for (const place of items) {
+    for (const place of places) {
       for (const e of place.expenses) {
         categoryMap.set(e.category, (categoryMap.get(e.category) ?? 0) + e.amount);
       }
@@ -182,92 +166,20 @@ export function TripWorkspace({
       })),
       placeTotals: totals,
     };
-  }, [items]);
-
-  function handleDeletePlace(place: PlaceEntry) {
-    setItems((prev) => prev.filter((p) => p.id !== place.id));
-
-    const timer = setTimeout(async () => {
-      pendingDeletes.current.delete(place.id);
-      await fetch(`/api/trips/${trip.id}/places/${place.id}`, { method: "DELETE" });
-    }, 5000);
-    pendingDeletes.current.set(place.id, timer);
-
-    toast.show(`${place.name} 삭제됨`, {
-      actionLabel: "실행취소",
-      onAction: () => {
-        clearTimeout(timer);
-        pendingDeletes.current.delete(place.id);
-        setItems((prev) => {
-          if (prev.some((p) => p.id === place.id)) return prev;
-          const restored = [...prev, place];
-          restored.sort((a, b) => a.order - b.order);
-          return restored;
-        });
-      },
-    });
-  }
-
-  function handleDragEndForDay(dayIndex: number) {
-    return (event: DragEndEvent) => {
-      const { active, over } = event;
-      if (!over || active.id === over.id) return;
-
-      setItems((prev) => {
-        const group = groupByDay(prev, days)[dayIndex];
-        const oldIndex = group.findIndex((p) => p.id === active.id);
-        const newIndex = group.findIndex((p) => p.id === over.id);
-        if (oldIndex < 0 || newIndex < 0) return prev;
-
-        const reorderedGroup = arrayMove(group, oldIndex, newIndex);
-        const orderSlots = group.map((p) => p.order).sort((a, b) => a - b);
-        const orderById = new Map(reorderedGroup.map((p, i) => [p.id, orderSlots[i]]));
-
-        const next = prev.map((p) => (orderById.has(p.id) ? { ...p, order: orderById.get(p.id)! } : p));
-        next.sort((a, b) => a.order - b.order);
-
-        if (reorderTimers.current.has(dayIndex)) clearTimeout(reorderTimers.current.get(dayIndex));
-        const timer = setTimeout(() => {
-          reorderedGroup.forEach((p) => {
-            fetch(`/api/trips/${trip.id}/places/${p.id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ order: orderById.get(p.id) }),
-            });
-          });
-        }, 500);
-        reorderTimers.current.set(dayIndex, timer);
-
-        return next;
-      });
-    };
-  }
+  }, [places]);
 
   return (
     <main className="relative h-screen w-full overflow-hidden">
-      {/* 지도가 바탕: 화면 전체를 채우고, 타임라인 패널이 그 위 오른쪽에 붙는다 */}
       <div className="absolute inset-0">
         <KakaoMapCanvas points={points} segments={segments} selectedPlaceId={selectedPlaceId} />
       </div>
 
-      <div className="absolute left-4 top-4 z-10 flex gap-2">
-        <Link
-          href="/trips"
-          className="rounded-md bg-white px-3 py-1.5 text-sm font-semibold shadow"
-        >
-          ← 내 여행계획
-        </Link>
-        <button
-          onClick={() => setSharedModalOpen(true)}
-          className="rounded-md bg-white px-3 py-1.5 text-sm font-semibold shadow hover:bg-neutral-50"
-        >
-          다른 사람 여행계획
-        </button>
-      </div>
-
-      {sharedModalOpen ? (
-        <SharedTripsModal onClose={() => setSharedModalOpen(false)} />
-      ) : null}
+      <Link
+        href="/trips?tab=shared"
+        className="absolute left-4 top-4 z-10 rounded-md bg-white px-3 py-1.5 text-sm font-semibold shadow"
+      >
+        ← 다른 사람 여행계획
+      </Link>
 
       <button
         onClick={() => setSidebarOpen((v) => !v)}
@@ -284,15 +196,29 @@ export function TripWorkspace({
           sidebarOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <header className="border-b border-neutral-200 p-4">
-          <TripMetaEditor trip={trip} />
+        <header className="flex flex-col gap-2 border-b border-neutral-200 p-4">
+          <div>
+            <h1 className="text-lg font-bold">{trip.name}</h1>
+            <p className="text-sm text-neutral-500">
+              {new Date(trip.startDate).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })}{" "}
+              – {new Date(trip.endDate).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })} ·{" "}
+              {trip.personnel}명 · {trip.ownerNickname}
+            </p>
+          </div>
+          {isOwnTrip ? (
+            <span className="self-start rounded-md bg-neutral-100 px-2 py-1 text-xs text-neutral-500">
+              내가 만든 여행입니다
+            </span>
+          ) : (
+            <CopyTripButton tripId={trip.id} />
+          )}
         </header>
 
         <nav className="flex gap-1 border-b border-neutral-200 px-3">
           {TABS.map((t) => (
             <Link
               key={t.key}
-              href={t.key === "timeline" ? `/trips/${trip.id}` : `/trips/${trip.id}?tab=${t.key}`}
+              href={t.key === "timeline" ? `/trips/shared/${trip.id}` : `/trips/shared/${trip.id}?tab=${t.key}`}
               className={`border-b-2 px-3 py-2 text-sm font-semibold ${
                 activeTab === t.key
                   ? "border-blue-600 text-blue-600"
@@ -305,28 +231,17 @@ export function TripWorkspace({
         </nav>
 
         {activeTab === "timeline" ? (
-          <>
-            <Link
-              href={`/trips/${trip.id}/import`}
-              className="mx-3 mt-3 rounded-md border border-dashed border-blue-300 px-3 py-2 text-center text-sm font-semibold text-blue-600 hover:bg-blue-50"
-            >
-              ✨ AI로 일정 가져오기
-            </Link>
-
-            <div className="min-h-0 flex-1">
-              <PlaceList
-                tripId={trip.id}
-                trip={{ startDate: trip.startDate, endDate: trip.endDate }}
-                places={items}
-                selectedPlaceId={selectedPlaceId}
-                onSelectPlace={setSelectedPlaceId}
-                expandedDays={expandedDays}
-                onToggleDay={toggleDay}
-                onDeletePlace={handleDeletePlace}
-                onDragEndForDay={handleDragEndForDay}
-              />
-            </div>
-          </>
+          <div className="min-h-0 flex-1">
+            <SharedPlaceList
+              tripId={trip.id}
+              trip={{ startDate: trip.startDate, endDate: trip.endDate }}
+              places={places}
+              selectedPlaceId={selectedPlaceId}
+              onSelectPlace={setSelectedPlaceId}
+              expandedDays={expandedDays}
+              onToggleDay={toggleDay}
+            />
+          </div>
         ) : activeTab === "expense" ? (
           <div className="min-h-0 flex-1 overflow-y-auto">
             <ExpenseSummary
@@ -339,10 +254,9 @@ export function TripWorkspace({
           </div>
         ) : (
           <div className="min-h-0 flex-1">
-            <PhotoGallery
-              tripId={trip.id}
+            <SharedPhotoGrid
               trip={{ startDate: trip.startDate, endDate: trip.endDate }}
-              places={items}
+              places={places}
               selectedPlaceId={selectedPlaceId}
               onSelectPlace={setSelectedPlaceId}
               expandedDays={expandedDays}

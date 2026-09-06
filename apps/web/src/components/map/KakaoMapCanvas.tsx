@@ -195,13 +195,10 @@ export function KakaoMapCanvas({
         });
 
         segments.forEach((segment) => {
-          const path =
-            segment.path && segment.path.length > 1
-              ? segment.path.map((p) => new window.kakao.maps.LatLng(p.lat, p.lng))
-              : [
-                  new window.kakao.maps.LatLng(segment.fromLat, segment.fromLng),
-                  new window.kakao.maps.LatLng(segment.toLat, segment.toLng),
-                ];
+          // 실제 도로 경로가 로딩되기 전에는 출발-도착을 잇는 직선으로 대체 표시하지 않고,
+          // path가 준비된 뒤에만 선을 그린다.
+          if (!segment.path || segment.path.length < 2) return;
+          const path = segment.path.map((p) => new window.kakao.maps.LatLng(p.lat, p.lng));
 
           const polyline = new window.kakao.maps.Polyline({
             map,

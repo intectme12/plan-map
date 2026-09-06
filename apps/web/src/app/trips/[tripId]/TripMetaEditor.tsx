@@ -9,6 +9,7 @@ type TripMeta = {
   startDate: string | Date;
   endDate: string | Date;
   personnel: number;
+  isPublic: boolean;
 };
 
 function toDateInputValue(d: string | Date) {
@@ -28,6 +29,18 @@ export function TripMetaEditor({ trip }: { trip: TripMeta }) {
   const [personnel, setPersonnel] = useState(trip.personnel);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sharePending, setSharePending] = useState(false);
+
+  async function onToggleShare() {
+    setSharePending(true);
+    await fetch(`/api/trips/${trip.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isPublic: !trip.isPublic }),
+    });
+    setSharePending(false);
+    router.refresh();
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -49,20 +62,45 @@ export function TripMetaEditor({ trip }: { trip: TripMeta }) {
 
   if (!editing) {
     return (
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h1 className="text-lg font-bold">{trip.name}</h1>
-          <p className="text-sm text-neutral-500">
-            {formatDate(trip.startDate)} – {formatDate(trip.endDate)} · {trip.personnel}명
-          </p>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h1 className="text-lg font-bold">{trip.name}</h1>
+            <p className="text-sm text-neutral-500">
+              {formatDate(trip.startDate)} – {formatDate(trip.endDate)} · {trip.personnel}명
+            </p>
+          </div>
+          <button
+            onClick={() => setEditing(true)}
+            aria-label="여행 정보 수정"
+            className="flex-none rounded-md border border-neutral-200 px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-50"
+          >
+            수정
+          </button>
         </div>
-        <button
-          onClick={() => setEditing(true)}
-          aria-label="여행 정보 수정"
-          className="flex-none rounded-md border border-neutral-200 px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-50"
-        >
-          수정
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onToggleShare}
+            disabled={sharePending}
+            className={`rounded-md border px-2 py-1 text-xs font-semibold disabled:opacity-50 ${
+              trip.isPublic
+                ? "border-blue-200 bg-blue-50 text-blue-600"
+                : "border-neutral-200 text-neutral-500 hover:bg-neutral-50"
+            }`}
+          >
+            {trip.isPublic ? "공유 중" : "공유하기"}
+          </button>
+          {trip.isPublic ? (
+            <a
+              href={`/trips/shared/${trip.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-neutral-400 hover:underline"
+            >
+              공유 페이지 보기 ↗
+            </a>
+          ) : null}
+        </div>
       </div>
     );
   }
