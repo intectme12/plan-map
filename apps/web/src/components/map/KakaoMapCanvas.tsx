@@ -31,8 +31,8 @@ declare global {
 
 const KAKAO_JS_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
 
-// 장소를 선택했을 때 확대할 레벨. 카카오맵 축척 표시가 "50m"로 뜨는 레벨.
-const SELECTED_PLACE_ZOOM_LEVEL = 3;
+// 장소를 선택했을 때 확대할 레벨. 카카오맵 축척 표시가 "100m"로 뜨는 레벨.
+const SELECTED_PLACE_ZOOM_LEVEL = 4;
 
 function buildInfoCard(point: MapPoint, onClose: () => void): HTMLElement {
   const card = document.createElement("div");
