@@ -12,6 +12,7 @@ type TripMeta = {
   endDate: string | Date;
   personnel: number;
   visibility: string;
+  ownerNickname: string;
 };
 
 const VISIBILITY_OPTIONS = [
@@ -27,7 +28,7 @@ function formatDate(d: string | Date) {
   return new Date(d).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" });
 }
 
-export function TripMetaEditor({ trip }: { trip: TripMeta }) {
+export function TripMetaEditor({ trip, isOwner }: { trip: TripMeta; isOwner: boolean }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(trip.name);
@@ -77,20 +78,23 @@ export function TripMetaEditor({ trip }: { trip: TripMeta }) {
             <h1 className="text-lg font-bold">{trip.name}</h1>
             <p className="text-sm text-neutral-500">
               {formatDate(trip.startDate)} – {formatDate(trip.endDate)} · {trip.personnel}명
+              {!isOwner ? ` · ${trip.ownerNickname}님의 여행` : ""}
             </p>
           </div>
           <div className="flex flex-none items-center gap-1.5">
-            <button
-              onClick={() => {
-                // 링크 공개(UNLISTED)로 전환하면서 동시에 링크/닉네임 공유 팝업을 띄운다
-                if (trip.visibility !== "UNLISTED") onSetVisibility("UNLISTED");
-                setShareModalOpen(true);
-              }}
-              disabled={sharePending}
-              className="rounded-md border border-neutral-200 px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-50 disabled:opacity-50"
-            >
-              공유
-            </button>
+            {isOwner ? (
+              <button
+                onClick={() => {
+                  // 링크 공개(UNLISTED)로 전환하면서 동시에 링크/닉네임 공유 팝업을 띄운다
+                  if (trip.visibility !== "UNLISTED") onSetVisibility("UNLISTED");
+                  setShareModalOpen(true);
+                }}
+                disabled={sharePending}
+                className="rounded-md border border-neutral-200 px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-50 disabled:opacity-50"
+              >
+                공유
+              </button>
+            ) : null}
             <button
               onClick={() => setEditing(true)}
               aria-label="여행 정보 수정"
@@ -100,24 +104,26 @@ export function TripMetaEditor({ trip }: { trip: TripMeta }) {
             </button>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="inline-flex rounded-md border border-neutral-200 p-0.5">
-            {VISIBILITY_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => onSetVisibility(opt.value)}
-                disabled={sharePending}
-                className={`rounded px-2 py-1 text-xs font-semibold disabled:opacity-50 ${
-                  trip.visibility === opt.value
-                    ? "bg-blue-50 text-blue-600"
-                    : "text-neutral-500 hover:bg-neutral-50"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
+        {isOwner ? (
+          <div className="flex items-center gap-2">
+            <div className="inline-flex rounded-md border border-neutral-200 p-0.5">
+              {VISIBILITY_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => onSetVisibility(opt.value)}
+                  disabled={sharePending}
+                  className={`rounded px-2 py-1 text-xs font-semibold disabled:opacity-50 ${
+                    trip.visibility === opt.value
+                      ? "bg-blue-50 text-blue-600"
+                      : "text-neutral-500 hover:bg-neutral-50"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        ) : null}
         {shareModalOpen ? (
           <ShareLinkModal tripId={trip.id} onClose={() => setShareModalOpen(false)} />
         ) : null}

@@ -40,7 +40,7 @@ export function SharedWithMeBrowser() {
       <ul className="flex flex-col gap-2">
         {trips.map((trip) => (
           <li key={trip.id}>
-            <SharedTripCard trip={trip} />
+            <SharedTripCard trip={trip} href={`/trips/${trip.id}`} />
           </li>
         ))}
       </ul>

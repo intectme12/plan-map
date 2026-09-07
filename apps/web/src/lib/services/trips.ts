@@ -1,5 +1,10 @@
 import { prisma } from "../db";
-import { NotFoundError } from "../errors";
+import { NotFoundError, ForbiddenError } from "../errors";
+
+const reviewsInclude = {
+  include: { author: { select: { nickname: true } } },
+  orderBy: { createdAt: "desc" },
+} as const;
 
 const SHARED_PAGE_SIZE = 20;
 
@@ -47,13 +52,15 @@ export async function createTrip(
   });
 }
 
+// 오너 본인이거나, 오너가 닉네임으로 공유(TripShare)한 회원이면 전체 수정 화면(TripWorkspace)에 들어올 수 있다
 export function getTrip(userId: string, tripId: string) {
   return prisma.trip.findFirst({
-    where: { id: tripId, userId },
+    where: { id: tripId, OR: [{ userId }, { shares: { some: { userId } } }] },
     include: {
+      user: { select: { nickname: true } },
       places: {
         orderBy: { order: "asc" },
-        include: { expenses: true, photos: true, reviews: true },
+        include: { expenses: true, photos: true, reviews: reviewsInclude },
       },
     },
   });
@@ -70,10 +77,21 @@ export async function updateTrip(
     visibility: string;
   }>
 ) {
+  const trip = await prisma.trip.findFirst({
+    where: { id: tripId, OR: [{ userId }, { shares: { some: { userId } } }] },
+    select: { userId: true },
+  });
+  if (!trip) return false;
+
+  // 공개 범위(공유) 설정은 오너만 바꿀 수 있다 — 공유받은 회원은 내용은 전부 수정해도 접근 권한 자체는 못 건드린다
+  if (data.visibility !== undefined && trip.userId !== userId) {
+    throw new ForbiddenError("공개 범위는 여행 소유자만 변경할 수 있습니다.");
+  }
+
   const payload: typeof data & { sharedAt?: Date } = { ...data };
   if (data.visibility && data.visibility !== "PRIVATE") payload.sharedAt = new Date();
 
-  const result = await prisma.trip.updateMany({ where: { id: tripId, userId }, data: payload });
+  const result = await prisma.trip.updateMany({ where: { id: tripId }, data: payload });
   return result.count > 0;
 }
 
@@ -149,7 +167,7 @@ export function getSharedTrip(tripId: string, viewerUserId: string) {
       user: { select: { nickname: true } },
       places: {
         orderBy: { order: "asc" },
-        include: { expenses: true, photos: true, reviews: true },
+        include: { expenses: true, photos: true, reviews: reviewsInclude },
       },
     },
   });

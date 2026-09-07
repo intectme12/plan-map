@@ -8,12 +8,14 @@ import { getTripDays, groupByDay, dayColor } from "@/app/trips/[tripId]/days";
 import type { PlaceEntry } from "@/app/trips/[tripId]/types";
 import { SharedPlaceList } from "./SharedPlaceList";
 import { SharedPhotoGrid } from "./SharedPhotoGrid";
+import { SharedReviewGallery } from "./SharedReviewGallery";
 import { CopyTripButton } from "./CopyTripButton";
 
 const TABS = [
   { key: "timeline", label: "타임라인" },
   { key: "expense", label: "비용" },
   { key: "photos", label: "사진" },
+  { key: "reviews", label: "후기" },
 ] as const;
 
 type TripMeta = {
@@ -253,9 +255,20 @@ export function SharedTripView({
               onSelectPlace={setSelectedPlaceId}
             />
           </div>
-        ) : (
+        ) : activeTab === "photos" ? (
           <div className="min-h-0 flex-1">
             <SharedPhotoGrid
+              trip={{ startDate: trip.startDate, endDate: trip.endDate }}
+              places={places}
+              selectedPlaceId={selectedPlaceId}
+              onSelectPlace={setSelectedPlaceId}
+              expandedDays={expandedDays}
+              onToggleDay={toggleDay}
+            />
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1">
+            <SharedReviewGallery
               trip={{ startDate: trip.startDate, endDate: trip.endDate }}
               places={places}
               selectedPlaceId={selectedPlaceId}

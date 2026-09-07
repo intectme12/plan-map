@@ -22,9 +22,11 @@ function formatDate(d: string | Date) {
 export function SharedTripCard({
   trip,
   showOwner = true,
+  href,
 }: {
   trip: SharedTripCardData;
   showOwner?: boolean;
+  href?: string;
 }) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
@@ -41,7 +43,10 @@ export function SharedTripCard({
         </button>
       ) : null}
 
-      <Link href={`/trips/shared/${trip.id}`} className="flex min-w-0 flex-1 items-center justify-between">
+      <Link
+        href={href ?? `/trips/shared/${trip.id}`}
+        className="flex min-w-0 flex-1 items-center justify-between"
+      >
         <div className="min-w-0">
           <p className="truncate font-semibold">{trip.name}</p>
           <p className="truncate text-sm text-neutral-500">

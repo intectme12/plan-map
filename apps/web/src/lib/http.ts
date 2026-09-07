@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import {
   NotFoundError,
+  ForbiddenError,
   ServiceUnavailableError,
   InvalidFileError,
   InvalidCredentialsError,
@@ -22,6 +23,9 @@ export function handleRouteError(err: unknown) {
   }
   if (err instanceof NotFoundError) {
     return notFound(err.message);
+  }
+  if (err instanceof ForbiddenError) {
+    return NextResponse.json({ error: err.message }, { status: 403 });
   }
   if (err instanceof ServiceUnavailableError) {
     return NextResponse.json({ error: err.message }, { status: 503 });

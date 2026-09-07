@@ -1,17 +1,17 @@
 import { prisma } from "../db";
 import { NotFoundError } from "../errors";
-
-async function assertTripOwnership(userId: string, tripId: string) {
-  const trip = await prisma.trip.findFirst({ where: { id: tripId, userId }, select: { id: true } });
-  if (!trip) throw new NotFoundError("여행을 찾을 수 없습니다.");
-}
+import { assertTripEditAccess } from "./tripAccess";
 
 export async function listPlaces(userId: string, tripId: string) {
-  await assertTripOwnership(userId, tripId);
+  await assertTripEditAccess(userId, tripId);
   return prisma.placeEntry.findMany({
     where: { tripId },
     orderBy: { order: "asc" },
-    include: { expenses: true, photos: true, reviews: true },
+    include: {
+      expenses: true,
+      photos: true,
+      reviews: { include: { author: { select: { nickname: true } } }, orderBy: { createdAt: "desc" } },
+    },
   });
 }
 
@@ -29,7 +29,7 @@ type PlaceInput = {
 };
 
 export async function createPlace(userId: string, tripId: string, data: PlaceInput) {
-  await assertTripOwnership(userId, tripId);
+  await assertTripEditAccess(userId, tripId);
   const last = await prisma.placeEntry.findFirst({
     where: { tripId },
     orderBy: { order: "desc" },
@@ -46,13 +46,13 @@ export async function updatePlace(
   placeId: string,
   data: Partial<PlaceInput> & { order?: number }
 ) {
-  await assertTripOwnership(userId, tripId);
+  await assertTripEditAccess(userId, tripId);
   const result = await prisma.placeEntry.updateMany({ where: { id: placeId, tripId }, data });
   if (result.count === 0) throw new NotFoundError("장소를 찾을 수 없습니다.");
 }
 
 export async function deletePlace(userId: string, tripId: string, placeId: string) {
-  await assertTripOwnership(userId, tripId);
+  await assertTripEditAccess(userId, tripId);
   const result = await prisma.placeEntry.deleteMany({ where: { id: placeId, tripId } });
   if (result.count === 0) throw new NotFoundError("장소를 찾을 수 없습니다.");
 }

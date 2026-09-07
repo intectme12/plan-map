@@ -29,16 +29,19 @@ type TripMeta = {
   endDate: string | Date;
   personnel: number;
   visibility: string;
+  ownerNickname: string;
 };
 
 export function TripWorkspace({
   trip,
   places,
   activeTab,
+  isOwner,
 }: {
   trip: TripMeta;
   places: PlaceEntry[];
   activeTab: (typeof TABS)[number]["key"];
+  isOwner: boolean;
 }) {
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -349,7 +352,7 @@ export function TripWorkspace({
         }`}
       >
         <header className="border-b border-neutral-200 p-4">
-          <TripMetaEditor trip={trip} />
+          <TripMetaEditor trip={trip} isOwner={isOwner} />
         </header>
 
         <nav className="flex gap-1 border-b border-neutral-200 px-3">

@@ -1,12 +1,7 @@
-import { prisma } from "../db";
-import { NotFoundError, ServiceUnavailableError } from "../errors";
+import { ServiceUnavailableError } from "../errors";
+import { assertTripEditAccess } from "./tripAccess";
 import { extractPlacesFromText } from "./aiParse";
 import { searchPlaceCandidates, type GeocodeCandidate } from "./geocode";
-
-async function assertTripOwnership(userId: string, tripId: string) {
-  const trip = await prisma.trip.findFirst({ where: { id: tripId, userId }, select: { id: true } });
-  if (!trip) throw new NotFoundError("여행을 찾을 수 없습니다.");
-}
 
 export type ImportCandidate = {
   name: string;
@@ -20,7 +15,7 @@ export async function parseTripText(
   tripId: string,
   rawText: string
 ): Promise<ImportCandidate[]> {
-  await assertTripOwnership(userId, tripId);
+  await assertTripEditAccess(userId, tripId);
 
   const extracted = await extractPlacesFromText(rawText);
   if (extracted === null) {

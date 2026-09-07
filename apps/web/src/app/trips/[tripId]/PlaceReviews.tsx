@@ -3,7 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Review = { id: string; content: string; createdAt: string | Date };
+type Review = {
+  id: string;
+  content: string;
+  createdAt: string | Date;
+  author: { nickname: string };
+};
 
 function formatDateTime(d: string | Date) {
   return new Date(d).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" });
@@ -81,7 +86,9 @@ export function PlaceReviews({
             >
               <div className="min-w-0 flex-1">
                 <p className="whitespace-pre-wrap text-xs text-neutral-700">{review.content}</p>
-                <p className="mt-1 text-[11px] text-neutral-400">{formatDateTime(review.createdAt)}</p>
+                <p className="mt-1 text-[11px] text-neutral-400">
+                  {review.author.nickname} · {formatDateTime(review.createdAt)}
+                </p>
               </div>
               <button
                 onClick={() => onDelete(review.id)}

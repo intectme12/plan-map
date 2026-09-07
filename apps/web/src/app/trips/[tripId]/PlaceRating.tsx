@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-function Star({ filled }: { filled: boolean }) {
+export function Star({ filled }: { filled: boolean }) {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" className="flex-none">
       <path
@@ -13,6 +13,17 @@ function Star({ filled }: { filled: boolean }) {
         strokeLinejoin="round"
       />
     </svg>
+  );
+}
+
+// 공유 열람(읽기 전용) 화면에서 클릭 없이 별점만 보여줄 때 쓴다
+export function StaticStars({ rating }: { rating: number }) {
+  return (
+    <div className="flex flex-none items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((value) => (
+        <Star key={value} filled={value <= rating} />
+      ))}
+    </div>
   );
 }
 

@@ -13,5 +13,10 @@ export type PlaceEntry = {
   rating: number;
   expenses: { id: string; amount: number; category: string; memo: string | null }[];
   photos: { id: string; storageKey: string }[];
-  reviews: { id: string; content: string; createdAt: string | Date }[];
+  reviews: {
+    id: string;
+    content: string;
+    createdAt: string | Date;
+    author: { nickname: string };
+  }[];
 };

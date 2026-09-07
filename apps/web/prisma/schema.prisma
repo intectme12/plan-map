@@ -22,6 +22,7 @@ model User {
   notices          Notice[]
   tripShares       TripShare[]
   tripParticipants TripParticipant[]
+  reviews          Review[]
 
   @@map("users")
 }
@@ -62,7 +63,8 @@ model Trip {
   @@map("trips")
 }
 
-// 오너가 특정 회원에게 명시적으로 공유함 — visibility와 무관하게 항상 열람을 허용한다
+// 오너가 특정 회원에게 명시적으로 공유함 — visibility와 무관하게 항상 열람을 허용하고,
+// 여행 내용(장소/지출/사진/후기/별점) 전체 수정도 허용한다. 공개범위 변경과 공유 대상 관리만 오너 전용.
 model TripShare {
   id        String   @id @default(cuid())
   tripId    String
@@ -171,11 +173,14 @@ model Photo {
 model Review {
   id           String   @id @default(cuid())
   placeEntryId String
+  authorId     String
   content      String
   createdAt    DateTime @default(now())
 
   placeEntry PlaceEntry @relation(fields: [placeEntryId], references: [id], onDelete: Cascade)
+  author     User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   @@index([placeEntryId])
+  @@index([authorId])
   @@map("reviews")
 }
