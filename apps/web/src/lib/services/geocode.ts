@@ -31,9 +31,15 @@ export async function searchPlaceCandidates(query: string): Promise<GeocodeCandi
   url.searchParams.set("query", query);
   url.searchParams.set("size", "5");
 
-  const res = await fetch(url, {
-    headers: { Authorization: `KakaoAK ${KAKAO_REST_API_KEY}` },
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `KakaoAK ${KAKAO_REST_API_KEY}` },
+    });
+  } catch {
+    // 네트워크/TLS 오류 등으로 fetch 자체가 실패한 경우도 "호출 실패"로 취급해 null 반환
+    return null;
+  }
   if (!res.ok) return null;
 
   const data = await res.json();

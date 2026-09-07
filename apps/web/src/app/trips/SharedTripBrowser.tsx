@@ -38,7 +38,7 @@ export function SharedTripBrowser() {
   return (
     <div className="flex flex-col gap-3">
       <input
-        placeholder="지역, 장소, 여행 이름으로 검색"
+        placeholder="지역, 장소, 여행 이름, 닉네임으로 검색"
         value={q}
         onChange={(e) => setQ(e.target.value)}
         className="rounded-md border border-neutral-300 px-3 py-2 text-sm"

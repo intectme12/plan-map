@@ -27,10 +27,10 @@ export function RouteSegmentRow({
     setState("loading");
 
     fetch(`/api/trips/${tripId}/routes?from=${fromPlaceId}&to=${toPlaceId}`)
-      .then((res) => res.json())
+      .then((res) => (res.ok ? res.json() : null))
       .then((result) => {
         if (cancelled) return;
-        if (!result) {
+        if (!result || result.distanceM == null || result.durationSec == null) {
           setState("unavailable");
           setData(null);
         } else {
@@ -54,7 +54,7 @@ export function RouteSegmentRow({
         {state === "loading" ? (
           "조회 중..."
         ) : state === "unavailable" ? (
-          <span className="text-neutral-400">교통 API 키 설정 필요</span>
+          <span className="text-neutral-400">이동정보를 불러올 수 없음</span>
         ) : (
           `${Math.round(data!.durationSec / 60)}분 · ${(data!.distanceM / 1000).toFixed(1)}km`
         )}

@@ -22,9 +22,15 @@ async function fetchCarRoute(from: LatLng, to: LatLng): Promise<RouteResult | nu
   url.searchParams.set("destination", `${to.lng},${to.lat}`);
   url.searchParams.set("priority", "RECOMMEND");
 
-  const res = await fetch(url, {
-    headers: { Authorization: `KakaoAK ${KAKAO_REST_API_KEY}` },
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `KakaoAK ${KAKAO_REST_API_KEY}` },
+    });
+  } catch {
+    // 네트워크/TLS 오류 등으로 fetch 자체가 실패한 경우도 "호출 실패"로 취급해 null 반환
+    return null;
+  }
   if (!res.ok) return null;
 
   const data = await res.json();

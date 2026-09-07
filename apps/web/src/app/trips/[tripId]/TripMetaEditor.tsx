@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { TripShareManager } from "./TripShareManager";
 import { ShareLinkModal } from "./ShareLinkModal";
 
 type TripMeta = {
@@ -17,7 +16,6 @@ type TripMeta = {
 const VISIBILITY_OPTIONS = [
   { value: "PRIVATE", label: "비공개" },
   { value: "PUBLIC", label: "전체 공개" },
-  { value: "UNLISTED", label: "공유" },
 ] as const;
 
 function toDateInputValue(d: string | Date) {
@@ -80,24 +78,33 @@ export function TripMetaEditor({ trip }: { trip: TripMeta }) {
               {formatDate(trip.startDate)} – {formatDate(trip.endDate)} · {trip.personnel}명
             </p>
           </div>
-          <button
-            onClick={() => setEditing(true)}
-            aria-label="여행 정보 수정"
-            className="flex-none rounded-md border border-neutral-200 px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-50"
-          >
-            수정
-          </button>
+          <div className="flex flex-none items-center gap-1.5">
+            <button
+              onClick={() => {
+                // 링크 공개(UNLISTED)로 전환하면서 동시에 링크/닉네임 공유 팝업을 띄운다
+                if (trip.visibility !== "UNLISTED") onSetVisibility("UNLISTED");
+                setShareModalOpen(true);
+              }}
+              disabled={sharePending}
+              className="rounded-md border border-neutral-200 px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-50 disabled:opacity-50"
+            >
+              공유
+            </button>
+            <button
+              onClick={() => setEditing(true)}
+              aria-label="여행 정보 수정"
+              className="rounded-md border border-neutral-200 px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-50"
+            >
+              수정
+            </button>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <div className="inline-flex rounded-md border border-neutral-200 p-0.5">
             {VISIBILITY_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
-                onClick={() => {
-                  onSetVisibility(opt.value);
-                  // "공유"(링크 공개) 버튼은 상태 전환과 동시에 복사용 링크 팝업도 띄운다
-                  if (opt.value === "UNLISTED") setShareModalOpen(true);
-                }}
+                onClick={() => onSetVisibility(opt.value)}
                 disabled={sharePending}
                 className={`rounded px-2 py-1 text-xs font-semibold disabled:opacity-50 ${
                   trip.visibility === opt.value
@@ -110,7 +117,6 @@ export function TripMetaEditor({ trip }: { trip: TripMeta }) {
             ))}
           </div>
         </div>
-        <TripShareManager tripId={trip.id} />
         {shareModalOpen ? (
           <ShareLinkModal tripId={trip.id} onClose={() => setShareModalOpen(false)} />
         ) : null}

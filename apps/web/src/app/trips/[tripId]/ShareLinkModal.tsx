@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { TripShareManager } from "./TripShareManager";
 
 export function ShareLinkModal({ tripId, onClose }: { tripId: string; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
@@ -72,6 +73,10 @@ export function ShareLinkModal({ tripId, onClose }: { tripId: string; onClose: (
         >
           새 탭에서 열기 ↗
         </a>
+
+        <div className="border-t border-neutral-200 pt-3">
+          <TripShareManager tripId={tripId} />
+        </div>
       </div>
     </div>,
     document.body

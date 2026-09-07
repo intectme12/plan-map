@@ -18,9 +18,10 @@ model User {
   showTripsOnProfile Boolean  @default(true)
   createdAt          DateTime @default(now())
 
-  trips      Trip[]
-  notices    Notice[]
-  tripShares TripShare[]
+  trips            Trip[]
+  notices          Notice[]
+  tripShares       TripShare[]
+  tripParticipants TripParticipant[]
 
   @@map("users")
 }
@@ -51,9 +52,10 @@ model Trip {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  places PlaceEntry[]
-  shares TripShare[]
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  places       PlaceEntry[]
+  shares       TripShare[]
+  participants TripParticipant[]
 
   @@index([userId])
   @@index([visibility, sharedAt])
@@ -75,6 +77,23 @@ model TripShare {
   @@map("trip_shares")
 }
 
+// 여행 생성 시 등록하는 동행자 — 가입 회원(userId 있음)은 등록과 동시에 TripShare로 열람 권한도 갖고,
+// 미가입자는 userId 없이 이름만 기록한다 (계정이 없어 공유 권한을 줄 수 없음).
+model TripParticipant {
+  id        String   @id @default(cuid())
+  tripId    String
+  userId    String?
+  name      String
+  createdAt DateTime @default(now())
+
+  trip Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+  @@index([userId])
+  @@map("trip_participants")
+}
+
 model PlaceEntry {
   id          String    @id @default(cuid())
   tripId      String
@@ -94,6 +113,7 @@ model PlaceEntry {
   trip     Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
   expenses Expense[]
   photos   Photo[]
+  reviews  Review[]
 
   routesFrom RouteSegment[] @relation("RouteFrom")
   routesTo   RouteSegment[] @relation("RouteTo")
@@ -145,4 +165,16 @@ model Photo {
 
   @@index([placeEntryId])
   @@map("photos")
+}
+
+model Review {
+  id           String   @id @default(cuid())
+  placeEntryId String
+  content      String
+  createdAt    DateTime @default(now())
+
+  placeEntry PlaceEntry @relation(fields: [placeEntryId], references: [id], onDelete: Cascade)
+
+  @@index([placeEntryId])
+  @@map("reviews")
 }

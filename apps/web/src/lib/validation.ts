@@ -11,11 +11,17 @@ export const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+export const tripParticipantInputSchema = z.object({
+  name: z.string().min(1).max(50),
+  userId: z.string().optional(),
+});
+
 export const createTripSchema = z.object({
   name: z.string().min(1).max(100),
   startDate: z.coerce.date(),
   endDate: z.coerce.date(),
   personnel: z.coerce.number().int().min(1).max(50).default(1),
+  participants: z.array(tripParticipantInputSchema).max(50).optional(),
 });
 
 export const tripVisibilities = ["PRIVATE", "UNLISTED", "PUBLIC"] as const;
@@ -66,6 +72,10 @@ export const createExpenseSchema = z.object({
   category: z.enum(expenseCategories),
   amount: z.coerce.number().int().min(1).max(100_000_000),
   memo: z.string().max(200).optional(),
+});
+
+export const createReviewSchema = z.object({
+  content: z.string().min(1).max(2000),
 });
 
 export const aiParseRequestSchema = z.object({

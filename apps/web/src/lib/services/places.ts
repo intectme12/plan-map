@@ -11,7 +11,7 @@ export async function listPlaces(userId: string, tripId: string) {
   return prisma.placeEntry.findMany({
     where: { tripId },
     orderBy: { order: "asc" },
-    include: { expenses: true, photos: true },
+    include: { expenses: true, photos: true, reviews: true },
   });
 }
 

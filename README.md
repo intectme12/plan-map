@@ -348,6 +348,25 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - **"이동경로 NaN분/NaNkm" 버그 조사 — 코드가 아니라 서버 재시작 문제였음**: 사용자가 캡처를 보내 지적. 재현해보니 라우트 계산 로직 자체는 정상(직접 스크립트로 호출하면 성공)인데 실제 떠 있던 dev 서버(HTTP)로는 새 경로 쌍마다 500이 남 — 이 세션 중 여러 번 `prisma generate`/스키마 마이그레이션을 하는 동안 그 서버 프로세스가 재시작 안 된 채 계속 떠 있어서 오래된 Prisma Client를 붙들고 있었던 것. `.next` 캐시 삭제 + 서버 재시작으로 동일 요청이 정상 200이 되는 것까지 확인 — README에 이미 있던 "스키마 변경 후 재시작 필요" 주의사항이 이번에도 재현된 사례
 - 위 전체 `tsc --noEmit`/`eslint` 통과(기존에 있던 무관한 경고 15개 외 신규 없음), 실제 브라우저(테스터A/B 계정)로 검색→공유 추가/제거, 팝업 열기/복사/닫기까지 확인. 다만 ShareLinkModal의 화면 정중앙 정렬은 마지막에 브라우저 패널이 숨김 상태라 스크린샷으로 최종 확인은 못 하고 구조적 수정(portal 대상이 `document.body`인 것)만 확인함 — PhotoLightbox와 동일 패턴이라 신뢰도는 높지만, 다음에 화면 보이면 한 번 더 확인 권장
 
+**완료 (2026-09-07, 공유 UI 재배치 + 동행자 등록 + 후기 탭 + 이동경로 NaN/500 버그 수정)**
+
+- **공유 버튼 위치 정리**: `TripMetaEditor`의 3단 세그먼트(비공개/전체공개/공유)에서 "공유"를 분리 — 비공개/전체공개 2단 토글만 남기고, "공유" 버튼은 우측 상단 "수정" 버튼 왼쪽으로 독립 배치. 클릭하면 여전히 `visibility`를 `UNLISTED`로 바꾸면서 [ShareLinkModal.tsx](apps/web/src/app/trips/[tripId]/ShareLinkModal.tsx)를 띄움
+- **닉네임 공유 UI를 공유 팝업 안으로 통합**: 그동안 사이드바에 항상 노출돼 있던 [TripShareManager.tsx](apps/web/src/app/trips/[tripId]/TripShareManager.tsx)(닉네임 검색+추가/제거)를 `ShareLinkModal` 내부로 이동 — "공유" 버튼 한 번으로 링크 복사와 닉네임 지정 공유를 한 팝업에서 처리
+- **여행 생성 시 동행자 등록**: `TripParticipant` 모델 신규(트립당 여러 명, 가입 회원은 `userId` 연결·미가입자는 이름만). [TripCreateForm.tsx](apps/web/src/app/trips/TripCreateForm.tsx)에 "함께할 사람" 입력을 추가해 닉네임 검색으로 가입 회원을 추가하거나(검색 결과 없으면 이름만으로 미가입자 등록) 여러 명을 등록 후 한 번에 여행을 생성 — 가입 회원으로 등록된 동행자는 생성 트랜잭션 안에서 `TripShare`도 함께 만들어져 바로 열람 권한을 가짐(공유 팝업 목록에도 즉시 노출)
+- **공유 여행 검색에 닉네임 조건 추가**: `listSharedTrips`(다른 사람 여행계획 검색)의 OR 조건에 `user.nickname` 매칭을 추가 — 여행 이름/장소 이름·주소에 이어 작성자 닉네임으로도 검색 가능. 검색창 placeholder도 "지역, 장소, 여행 이름, 닉네임으로 검색"으로 갱신
+- **후기 탭 신설**: `Review` 모델(placeEntryId+content, Photo와 동일한 구조) 추가. 사진 탭과 완전히 같은 로직(날짜별 아코디언 → 장소별 목록)으로 [ReviewGallery.tsx](apps/web/src/app/trips/[tripId]/ReviewGallery.tsx)/[PlaceReviews.tsx](apps/web/src/app/trips/[tripId]/PlaceReviews.tsx) 작성, 타임라인/비용/사진 옆에 "후기" 탭으로 노출. 마이그레이션 1건(`20260907150000_add_trip_participants_and_reviews`)에 `TripParticipant`/`Review` 두 테이블을 함께 추가
+- 위 5개 항목 전부 `tsc --noEmit`/`eslint` 통과 확인 후 브라우저로 실제 계정(테스터A)으로 여행 생성(가입 회원+미가입자 동행자 등록) → 공유 팝업에서 `TripShare` 자동 반영 확인 → 후기 작성/삭제 → "다른 사람 여행계획"에서 닉네임 검색까지 E2E 확인. 테스트로 만든 여행/장소/후기는 확인 후 정리함
+- **버그 발견/수정: 이동경로 "NaN분·NaNkm" + 서버 500**: 사용자 요청으로 등록된 장소의 이동선/거리/금액을 점검하다가 재현. 근본 원인은 두 가지가 겹쳐 있었음
+  1. [routes.ts](apps/web/src/lib/services/routes.ts)의 `fetchCarRoute`가 카카오모빌리티 Directions API를 호출하는 `fetch()`를 try/catch 없이 그대로 두고 있어서, 이 환경에서 그 호출이 `TypeError: fetch failed`(원인: `self-signed certificate in certificate chain` — 로컬 백신/사내망의 TLS 검사로 추정, 코드 버그 아님)로 실패하면 예외가 그대로 API 라우트까지 전파되어 500을 반환하고 있었음
+  2. [RouteSegmentRow.tsx](apps/web/src/app/trips/[tripId]/RouteSegmentRow.tsx)가 응답 HTTP 상태를 확인하지 않고 `res.json()` 결과를 무조건 유효한 데이터로 취급해서, 500 응답의 `{error: "..."}` 본문에서 존재하지 않는 `distanceM`/`durationSec`를 나눗셈해 "NaN분 · NaNkm"으로 표시하고 있었음
+  - 수정: `routes.ts`/`geocode.ts`(동일한 사각지대가 있어 같이 처리) 양쪽에서 `fetch` 호출을 try/catch로 감싸 네트워크/TLS 실패도 "호출 실패"(`null` 반환)로 통일 처리. `RouteSegmentRow.tsx`는 `res.ok`와 `distanceM`/`durationSec` 존재 여부를 함께 확인해서 실패 시 "이동정보를 불러올 수 없음"으로만 표시하도록 수정(문구도 "교통 API 키 설정 필요"에서 일반화)
+  - 실제 여행에 장소 2개를 등록해 재현(수정 전 NaN 노출 + 서버 500 로그 확인) → 수정 후 같은 요청이 200과 `null` 본문을 반환하고 화면엔 "이동정보를 불러올 수 없음"만 뜨는 것까지 확인. **다만 이 TLS 문제 자체(카카오모빌리티로 나가는 HTTPS가 이 로컬 환경에서 막혀 있는 것)는 코드로 고칠 수 있는 성격이 아니라 이번엔 안전한 폴백까지만 처리함** — 아래 "실서버 환경 확인" 참고
+
+**실서버 환경 확인 (2026-09-07)**
+- 이 리포에는 아직 실제 배포(Vercel/Docker prod/CI 등) 설정이 전혀 없음(`vercel.json`·`Dockerfile`·`.github/workflows` 전부 부재, `git log`에도 배포 관련 커밋 없음) — 즉 지금 단계에선 "실서버"가 별도로 존재하지 않고, 이 로컬 dev 서버(Neon DB에 붙어 있음)가 유일한 실행 환경이다
+- 위에서 발견한 `self-signed certificate in certificate chain` 에러는 Node의 `fetch`가 외부 HTTPS(카카오모빌리티)로 나갈 때 인증서 체인에서 검증되지 않은 자체서명 인증서를 만났다는 뜻으로, 전형적으로 **로컬 백신(HTTPS 검사 기능)이나 사내망 프록시가 TLS를 가로채면서 자체 root CA로 재서명**할 때 발생한다 — Node가 그 프록시의 root CA를 신뢰하지 않아서 생기는 것이라 카카오 서버 문제도 아니고, 이번에 수정한 라우트 코드 문제도 아니다. 실제 클라우드 서버(Vercel 등)는 이런 로컬 네트워크 개입이 없는 게 일반적이라 같은 문제가 재현될 가능성은 낮지만, 이 리포에 배포 대상이 없어 **직접 실서버에 붙여서 확인은 못 했다**
+- 나중에 실제로 배포하게 되면: 배포 환경에서 "이동정보를 불러올 수 없음"이 계속 뜨는지 확인 → 뜬다면 (a) `KAKAO_REST_API_KEY`가 배포 환경 변수에 설정됐는지, (b) 배포 플랫폼이 아웃바운드 HTTPS를 프록시/방화벽으로 가로채는 설정인지(사내 폐쇄망 서버 등이면 가능) 순서로 확인하면 됨. 일반적인 Vercel/Node 클라우드 배포라면 이 로컬 환경 특유의 TLS 가로채기가 없어서 정상적으로 실제 거리/시간/택시요금이 표시될 것으로 예상됨
+
 **다음 세션 할 일**
 - Phase 0 잔여 작업: 유출됐던 카카오 키 재발급(재발급 후 신규 키로 각자 `.env` 갱신 필요) — 사용자 확인/조치 필요해 자동 진행하지 않음
 - (참고) ShareLinkModal이 실제로 화면 정중앙에 뜨는지 스크린샷으로 최종 확인 — 구조적 수정(createPortal)은 완료했지만 마지막에 브라우저 패널이 숨겨져 있어 눈으로 못 봄
@@ -355,3 +374,5 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - (참고) 일차 드래그 이동은 펼쳐진 날짜끼리만 가능 — 접힌 날짜 헤더 자체를 드롭존으로 만들면(자동 펼침) 한 단계 더 편해질 수 있음
 - (참고) 특정 회원 지정 공유(`TripShare`)로만 공유된(PRIVATE) 트립은 복사를 막아뒀는데, 필요해지면 완화 검토
 - (참고) shadcn/ui는 지금 비용입력/사진추가 두 곳에만 적용됨 — 나머지 화면의 네이티브 폼 요소(날짜 입력, 인원수 등)도 점진적으로 옮기면 일관성이 더 좋아질 것
+- (신규) 이 환경의 `self-signed certificate in certificate chain` 문제로 카카오모빌리티 경로조회를 로컬에서 끝까지 실동작 검증하지 못함 — 이 백신/네트워크 설정을 우회할 수 있게 되거나 실제 배포 환경이 생기면 실제 거리/시간/택시요금 숫자가 정상 표시되는지 마지막으로 한 번 더 확인 필요
+- (신규) 여행 생성 시 등록한 미가입 동행자(`TripParticipant`, `userId` 없음)는 현재 생성 화면에만 노출되고 트립 상세에는 별도로 보여주는 화면이 없음 — 필요해지면 공유 팝업이나 트립 정보 영역에 동행자 목록을 추가하는 것 검토

@@ -9,6 +9,7 @@ import { TripMetaEditor } from "./TripMetaEditor";
 import { PlaceList, parseDayContainerId } from "./PlaceList";
 import { ExpenseSummary } from "./ExpenseSummary";
 import { PhotoGallery } from "./PhotoGallery";
+import { ReviewGallery } from "./ReviewGallery";
 import { getTripDays, groupByDay, dayColor, dayIndexForPlace } from "./days";
 import { useToast } from "@/components/toast/ToastProvider";
 import { SharedTripsModal } from "./SharedTripsModal";
@@ -18,6 +19,7 @@ const TABS = [
   { key: "timeline", label: "타임라인" },
   { key: "expense", label: "비용" },
   { key: "photos", label: "사진" },
+  { key: "reviews", label: "후기" },
 ] as const;
 
 type TripMeta = {
@@ -399,9 +401,21 @@ export function TripWorkspace({
               onSelectPlace={setSelectedPlaceId}
             />
           </div>
-        ) : (
+        ) : activeTab === "photos" ? (
           <div className="min-h-0 flex-1">
             <PhotoGallery
+              tripId={trip.id}
+              trip={{ startDate: trip.startDate, endDate: trip.endDate }}
+              places={items}
+              selectedPlaceId={selectedPlaceId}
+              onSelectPlace={setSelectedPlaceId}
+              expandedDays={expandedDays}
+              onToggleDay={toggleDay}
+            />
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1">
+            <ReviewGallery
               tripId={trip.id}
               trip={{ startDate: trip.startDate, endDate: trip.endDate }}
               places={items}

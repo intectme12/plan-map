@@ -11,11 +11,40 @@ export function listTrips(userId: string) {
   });
 }
 
-export function createTrip(
+export async function createTrip(
   userId: string,
-  data: { name: string; startDate: Date; endDate: Date; personnel: number }
+  data: {
+    name: string;
+    startDate: Date;
+    endDate: Date;
+    personnel: number;
+    participants?: { name: string; userId?: string }[];
+  }
 ) {
-  return prisma.trip.create({ data: { ...data, userId } });
+  const { participants, ...tripData } = data;
+
+  return prisma.$transaction(async (tx) => {
+    const trip = await tx.trip.create({ data: { ...tripData, userId } });
+
+    if (participants && participants.length > 0) {
+      await tx.tripParticipant.createMany({
+        data: participants.map((p) => ({ tripId: trip.id, name: p.name, userId: p.userId })),
+      });
+
+      // 가입 회원으로 등록된 동행자는 TripShare도 함께 만들어 바로 열람 권한을 준다
+      const registeredIds = [...new Set(participants.map((p) => p.userId))].filter(
+        (id): id is string => !!id && id !== userId
+      );
+      if (registeredIds.length > 0) {
+        await tx.tripShare.createMany({
+          data: registeredIds.map((id) => ({ tripId: trip.id, userId: id })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
+    return trip;
+  });
 }
 
 export function getTrip(userId: string, tripId: string) {
@@ -24,7 +53,7 @@ export function getTrip(userId: string, tripId: string) {
     include: {
       places: {
         orderBy: { order: "asc" },
-        include: { expenses: true, photos: true },
+        include: { expenses: true, photos: true, reviews: true },
       },
     },
   });
@@ -79,6 +108,7 @@ export async function listSharedTrips(
         ? {
             OR: [
               { name: { contains: term, mode: "insensitive" } },
+              { user: { nickname: { contains: term, mode: "insensitive" } } },
               {
                 places: {
                   some: {
@@ -119,7 +149,7 @@ export function getSharedTrip(tripId: string, viewerUserId: string) {
       user: { select: { nickname: true } },
       places: {
         orderBy: { order: "asc" },
-        include: { expenses: true, photos: true },
+        include: { expenses: true, photos: true, reviews: true },
       },
     },
   });

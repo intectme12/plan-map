@@ -15,7 +15,8 @@ export default async function TripDetailPage({
 
   const { tripId } = await params;
   const { tab } = await searchParams;
-  const activeTab = tab === "expense" || tab === "photos" ? tab : "timeline";
+  const activeTab =
+    tab === "expense" || tab === "photos" || tab === "reviews" ? tab : "timeline";
 
   const trip = await getTrip(user.id, tripId);
   if (!trip) notFound();

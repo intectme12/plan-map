@@ -12,4 +12,5 @@ export type PlaceEntry = {
   scheduledAt: string | Date | null;
   expenses: { id: string; amount: number; category: string; memo: string | null }[];
   photos: { id: string; storageKey: string }[];
+  reviews: { id: string; content: string; createdAt: string | Date }[];
 };
