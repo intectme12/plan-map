@@ -4,7 +4,7 @@
 
 ## 실행 방법
 
-이 프로젝트는 프론트엔드와 백엔드가 분리된 별도 서버가 아니라, **`apps/web`(Next.js) 하나가 화면과 API(Route Handler)를 동시에 서빙한다.** "백엔드"는 별도로 띄우는 프로세스가 아니라 `apps/web/src/app/api/**/route.ts`들이다. 실제로 띄워야 하는 건 ①Postgres(Docker) ②Next.js dev 서버, 이 두 가지뿐이다. (레거시 `client/`(CRA)·`server/`(Express)는 완전히 대체되어 더 이상 실행하지 않는다 — 참고용으로만 디스크에 남아있고 git에서는 제외됨)
+이 프로젝트는 프론트엔드와 백엔드가 분리된 별도 서버가 아니라, **`apps/web`(Next.js) 하나가 화면과 API(Route Handler)를 동시에 서빙한다.** "백엔드"는 별도로 띄우는 프로세스가 아니라 `apps/web/src/app/api/**/route.ts`들이다. 실제로 띄워야 하는 건 ①Postgres(Docker) ②Next.js dev 서버, 이 두 가지뿐이다. (레거시 `client/`(CRA)·`server/`(Express)는 `apps/web`으로 완전히 대체되어 더 이상 실행하지 않으며, 2026-09-07에 디스크에서도 삭제함 — 아래 "진행 상황" 참고)
 
 ### 한번에 올리고 내리기
 
@@ -21,8 +21,8 @@
 
 ```bash
 docker compose up -d db                 # Postgres
+npm install                             # 최초 1회, 반드시 루트에서 실행(npm workspaces) — apps/web 안에서 실행하면 안 됨, 아래 "이 환경 관련 참고사항" 참고
 cd apps/web
-npm install                             # 최초 1회
 npx prisma migrate deploy               # 스키마 변경이 있었다면
 npm run dev                             # http://localhost:3000, Ctrl+C로 종료
 ```
@@ -115,6 +115,7 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
   ```
   (`@tailwindcss/oxide-win32-x64-msvc`는 npm workspaces 호이스팅으로 루트 `node_modules`에 설치될 수 있음 — 그 경우 첫 번째 `cp`의 소스 경로를 `../../node_modules/...`로 바꿀 것.)
 - **DB 없이 프런트만 확인하려면**: `cd apps/web && npm run dev` → `http://localhost:3000` — `/`는 미인증 시 `/login`으로 리다이렉트되는데, `getCurrentUser()`가 쿠키 없으면 DB 조회 자체를 안 해서 `/login`·`/register` 화면은 정상 렌더링된다(2026-09-03 확인). 폼 **제출**과 `/trips` 이후는 DB가 필요해 실패한다.
+- **`apps/web` 안에 `package-lock.json`이 다시 생기면 절대 커밋하지 말 것**: 이 프로젝트는 npm workspaces라 lock 파일은 루트 하나(`/package-lock.json`)여야 한다. `apps/web` 안에 별도 lock 파일이 있으면 Next.js 16(Turbopack)이 "가장 가까운 lock 파일이 있는 폴더"를 프로젝트 루트로 자동 추론해 `apps/web`을 루트로 오인하고, 그 바깥(진짜 루트) `node_modules`의 패키지(`tw-animate-css`, `shadcn` 등)를 전혀 resolve하지 못해 `globals.css`가 `CssSyntaxError: Can't resolve '...'`로 500 에러를 낸다(`apps/web/node_modules/next/dist/docs/.../turbopack.md`의 "Root directory" 항목 참고). 2026-09-07에 실제로 이 문제가 발생해 `apps/web/package-lock.json`(2026-09-03에 실수로 커밋된 것)을 제거해 해결함. `npm install`은 항상 루트에서만 실행할 것 — `apps/web`에서 직접 실행하면 이 lock 파일이 다시 생길 수 있다.
 
 ## 진행 상황
 
@@ -381,6 +382,17 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - **어두운 배경 라이트박스 닫기 버튼 공용화**: `PhotoLightbox.tsx`/`AvatarLightbox.tsx`에 완전히 동일하게 있던 닫기 버튼을 새 [LightboxCloseButton.tsx](apps/web/src/components/LightboxCloseButton.tsx)로 추출(밝은 배경 Modal 헤더의 닫기 버튼과는 스타일이 달라 별도 컴포넌트로 분리)
 - **기본/보조 버튼을 shadcn `Button`으로 전환**: TripCreateForm/TripMetaEditor/AccountForm/CopyTripButton/ImportFlow/register·login 페이지/admin 공지사항 목록·폼, 총 9개 파일의 원시 `<button className="rounded-md bg-blue-600...">`(기본)/`border border-neutral-300`(보조/취소) 버튼 20개를 `@/components/ui/button`의 `Button`(`variant="outline"`/`"default"`)으로 교체 — 지난 세션에 남겨뒀던 "shadcn은 비용입력/사진추가 두 곳에만 적용됨" 할 일을 마무리. 기존 padding/text 크기는 `className`으로 그대로 유지(`cn()`이 tailwind-merge 기반이라 뒤에 오는 className이 올바르게 우선 적용되는 것을 `ExpenseButton.tsx`의 기존 사용례로 먼저 확인). `admin/notices/page.tsx`의 `<Link>` 버튼은 `Button asChild`(Radix Slot)로 전환
 - `tsc --noEmit` 전체 통과, `eslint` 검사 결과 새로 만든/수정한 파일에서는 0건(기존에 있던 무관한 경고·에러 15건은 이번 세션에서 손대지 않은 파일들로 그대로 남아있음 확인). 브라우저로 실제 계정(테스터A)으로 트립을 새로 만들어 날짜 아코디언(타임라인/사진/후기 탭 펼침·접힘), 공유 링크 팝업, "다른 사람 여행계획" 팝업, 사진 업로드 팝업이 전부 화면 정중앙에 정상 렌더링되는 것을 확인했고, 공개 전환 후 `/trips/shared/[id]`(SharedPlaceList/SharedPhotoGrid)도 동일하게 확인. 버튼 전환은 `/account`, `/login`, `/register`, 트립 생성/수정 폼에서 레이아웃 변화 없이 렌더링되는 것을 확인(단, `/admin/notices`는 관리자 계정이 없어 코드 검토 + 컴파일 통과로만 확인). 테스트로 만든 트립은 삭제해 정리함
+
+**완료 (2026-09-07, 레거시 client/·server/ 디스크에서 삭제)**
+- 그동안 `.gitignore`에만 넣고 "참고용"으로 디스크에 남겨뒀던 레거시 `client/`(CRA, 687M)·`server/`(Express, 42M)를 사용자 요청으로 완전히 삭제(`rm -rf`). git이 애초에 추적하지 않던 폴더라 `git status`/커밋 이력에는 영향 없음 — 삭제 전 `git status --porcelain`으로 미커밋 변경 없음을 확인 후 진행
+
+**완료 (2026-09-07, globals.css "Can't resolve 'tw-animate-css'" 빌드 에러 수정)**
+- 사용자가 로컬 dev 서버(`localhost:3000`)에서 `apps/web/src/app/globals.css`의 `CssSyntaxError: Can't resolve 'tw-animate-css'`로 빈 화면을 보고했음
+- **원인 1(진짜 원인)**: `apps/web` 안에 별도 `package-lock.json`이 있었음(2026-09-03에 실수로 커밋된 것으로 추정). 이 프로젝트는 npm workspaces라 lock 파일은 루트 하나여야 하는데, Next.js 16 Turbopack이 "가장 가까운 lock 파일"로 프로젝트 루트를 자동 추론하면서 `apps/web`을 루트로 오인 → Turbopack이 프로젝트 루트 바깥은 resolve하지 않는다는 정책(`node_modules/next/dist/docs/.../turbopack.md` "Root directory" 항목) 때문에, 루트 `node_modules`에만 있던 `tw-animate-css`/`shadcn` 패키지를 전혀 찾지 못하고 있었음. `apps/web/package-lock.json`을 삭제해 해결(루트 `package-lock.json`이 이미 `apps/web`의 의존성을 전부 포함하므로 별도 lock 파일 자체가 불필요했음)
+- **원인 2(수정 중 함께 발견)**: 원인 1을 고치려고 루트에서 `npm install`을 재실행했더니, README에 이미 있던 주의사항대로 Prisma Client가 재생성되지 않아 `trips.isPublic does not exist`(스키마엔 `visibility`로 이미 리네임된 상태) 500 에러가 새로 발생 — `npx prisma generate`로 해결
+- **버그 발견(부수적)**: 사용자가 "서버 기동했다"고 한 dev 서버가 `up.sh`/`down.sh`의 PID 추적 밖에서 수동으로 떠 있던 프로세스(PID 52908)였어서, `./down.sh && ./up.sh`로는 실제로 재시작되지 않고 있었음(포트 3000을 점유한 좀비 프로세스에 계속 요청이 가고 있었음) — `kill`로 직접 정리 후 `up.sh`로 재기동해서야 수정사항이 반영됨. `up.sh`/`down.sh` 자체의 버그는 아니고, 스크립트 밖에서 뜬 서버는 추적할 방법이 없다는 한계
+- 위 두 원인 모두 해결 후 `./down.sh && rm -rf apps/web/.next && ./up.sh`로 완전 재기동, 브라우저로 `/login` 화면이 CSS 정상 적용된 채(파란 로그인 버튼 등) 렌더링되는 것과 `.dev-server.log`에 `globals.css`/`isPublic` 관련 에러가 더 이상 없는 것까지 확인
+- 재발 방지로 README "수동으로 띄우기" 섹션의 `npm install`을 `apps/web` 안이 아니라 루트에서 실행하도록 수정, "이 환경 관련 참고사항"에 이 lock 파일 문제 새 항목 추가
 
 **다음 세션 할 일**
 - Phase 0 잔여 작업: 유출됐던 카카오 키 재발급(재발급 후 신규 키로 각자 `.env` 갱신 필요) — 사용자 확인/조치 필요해 자동 진행하지 않음
