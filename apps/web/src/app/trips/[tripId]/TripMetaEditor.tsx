@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { TripShareManager } from "./TripShareManager";
+import { ShareLinkModal } from "./ShareLinkModal";
 
 type TripMeta = {
   id: string;
@@ -15,8 +16,8 @@ type TripMeta = {
 
 const VISIBILITY_OPTIONS = [
   { value: "PRIVATE", label: "비공개" },
-  { value: "UNLISTED", label: "링크 공개" },
   { value: "PUBLIC", label: "전체 공개" },
+  { value: "UNLISTED", label: "공유" },
 ] as const;
 
 function toDateInputValue(d: string | Date) {
@@ -37,6 +38,7 @@ export function TripMetaEditor({ trip }: { trip: TripMeta }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sharePending, setSharePending] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
 
   async function onSetVisibility(visibility: string) {
     if (visibility === trip.visibility) return;
@@ -91,7 +93,11 @@ export function TripMetaEditor({ trip }: { trip: TripMeta }) {
             {VISIBILITY_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
-                onClick={() => onSetVisibility(opt.value)}
+                onClick={() => {
+                  onSetVisibility(opt.value);
+                  // "공유"(링크 공개) 버튼은 상태 전환과 동시에 복사용 링크 팝업도 띄운다
+                  if (opt.value === "UNLISTED") setShareModalOpen(true);
+                }}
                 disabled={sharePending}
                 className={`rounded px-2 py-1 text-xs font-semibold disabled:opacity-50 ${
                   trip.visibility === opt.value
@@ -103,18 +109,11 @@ export function TripMetaEditor({ trip }: { trip: TripMeta }) {
               </button>
             ))}
           </div>
-          {trip.visibility !== "PRIVATE" ? (
-            <a
-              href={`/trips/shared/${trip.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-neutral-400 hover:underline"
-            >
-              공유 페이지 보기 ↗
-            </a>
-          ) : null}
         </div>
         <TripShareManager tripId={trip.id} />
+        {shareModalOpen ? (
+          <ShareLinkModal tripId={trip.id} onClose={() => setShareModalOpen(false)} />
+        ) : null}
       </div>
     );
   }

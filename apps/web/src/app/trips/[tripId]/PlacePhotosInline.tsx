@@ -80,7 +80,7 @@ export function PlacePhotosInline({
                   e.stopPropagation();
                   onDelete(photo.id);
                 }}
-                className="absolute right-0.5 top-0.5 rounded-full bg-black/60 px-1 text-[9px] leading-4 text-white opacity-0 group-hover:opacity-100"
+                className="absolute right-0.5 top-0.5 rounded-full bg-destructive px-1 text-[9px] leading-4 text-white opacity-0 group-hover:opacity-100"
               >
                 ✕
               </button>
@@ -104,8 +104,8 @@ export function PlacePhotosInline({
           e.stopPropagation();
           fileInputRef.current?.click();
         }}
-        className={`cursor-pointer rounded border border-dashed py-1.5 text-center text-[11px] text-neutral-400 hover:bg-white ${
-          dragOver ? "border-blue-400 bg-blue-50" : "border-neutral-300"
+        className={`cursor-pointer rounded-lg border border-dashed bg-background py-1.5 text-center text-[11px] text-muted-foreground ${
+          dragOver ? "border-primary bg-primary/5" : "border-input"
         }`}
       >
         {uploading ? "업로드 중..." : "+ 사진 추가"}
@@ -119,7 +119,7 @@ export function PlacePhotosInline({
         />
       </div>
 
-      {error ? <p className="text-[10px] text-red-600">{error}</p> : null}
+      {error ? <p className="text-[10px] text-destructive">{error}</p> : null}
 
       {lightboxIndex !== null ? (
         <PhotoLightbox

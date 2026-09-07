@@ -335,8 +335,23 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - **타임라인 일차 드래그 이동 브라우저 확인**: 2박 3일 트립에서 1일차에 넣은 장소를 dnd-kit 포인터 이벤트를 직접 dispatch해(자동화 도구의 `left_click_drag`이 dnd-kit의 포인터 센서를 못 잡아 타임아웃 나서, `pointerdown`→여러 단계 `pointermove`→`pointerup`을 스크립트로 재현) 2일차 드롭존으로 옮기자 dnd-kit 자체 접근성 안내("dropped over droppable area day-container-1")까지 뜨며 즉시 이동, 새로고침 후에도 2일차에 남아있는 것(서버 PATCH로 scheduledAt까지 저장됨) 확인
 - `npx prisma generate`/`npx next typegen`이 세션 시작 시 둘 다 갱신 안 된 상태였음(README에 이미 있는 주의사항) — 재실행해서 해결, 이후 `tsc --noEmit` 전체 통과 확인.
 
+**완료 (2026-09-07, shadcn/ui 도입 + 공유 UI 개선 + 버그 3건 수정)**
+
+- **shadcn/ui 도입**: `docs/DESIGN_SYSTEM.md`가 처음부터 목표로 명시했지만 미도입 상태였던 shadcn/ui(Radix 기반)를 실제로 세팅. `npx shadcn@latest init -b radix -p nova -y`로 초기화(`components.json`, `src/lib/utils.ts`, `globals.css` 테마 변수), `button`/`input`/`select`/`label` 4개만 설치. 사용자가 맥/윈도우 간 비용입력·사진추가 영역 CSS가 다르게 보인다고 지적한 게 계기 — `<select>`/`<input type=file>` 같은 네이티브 폼 요소가 OS별로 다르게 렌더링되는 문제라 shadcn으로 교체하면 해결된다고 판단
+  - **버그 발견/수정**: shadcn init이 `globals.css`를 덮어쓰며 기존 Geist 폰트 연결(`--font-sans: var(--font-geist-sans)`)을 `--font-sans: var(--font-sans)`(자기 자신 참조, 사실상 미정의)로 끊어놨음 — 그대로 뒀으면 사이트 전체 폰트가 조용히 깨졌을 것. 원래대로 복구
+  - `docs/DESIGN_SYSTEM.md`의 목표 팔레트(`primary #2F6FED`, `danger #DC2626`)를 shadcn `--primary`/`--destructive` 변수에 적용 — 새로 만드는 shadcn 컴포넌트에만 적용되고 기존 `blue-600` 등 다른 화면은 안 건드림(전면 마이그레이션은 별도 작업)
+  - [ExpenseButton.tsx](apps/web/src/app/trips/[tripId]/ExpenseButton.tsx)/[PlacePhotosInline.tsx](apps/web/src/app/trips/[tripId]/PlacePhotosInline.tsx)의 select/input/button을 shadcn 컴포넌트로 교체하면서 기존 픽셀 단위 열 정렬(w-16/w-24/w-10 등)은 `className`으로 그대로 유지 — 실제 지출 추가/삭제로 4열 정렬이 좌표 단위까지 안 틀어지는 것 확인
+  - **사용자 재검수로 발견된 버그 2건 추가 수정**: (1) select/input이 `bg-transparent`라 패널 배경이 비쳐 사진 드롭존과 미묘하게 다르게 보이던 것 — 네 요소 모두 `bg-background`(순백)로 명시해 통일. (2) 지출 목록 행(카테고리 10px/메모·금액 12px/삭제 10px로 제각각이던, 사실 shadcn 이전부터 있던 값)을 콤보박스 기준 11px로 통일
+- **트립 공유 UI 개선**: `TripShareManager.tsx`에서 "닉네임 정확히 입력→추가" 방식 대신 `/api/users/search`를 재사용한 실시간 검색+클릭 추가 UI로 교체했다가, 사용자 피드백으로 한 번 더 정리 — 별도 입력창/추가버튼 없애고 "공유 대상" 라벨 옆에 검색 입력창+"검색" 버튼 한 줄로 축약. 공유 페이지 링크는 새 [ShareLinkModal.tsx](apps/web/src/app/trips/[tripId]/ShareLinkModal.tsx) 팝업(URL 표시+복사 버튼, 클립보드 API 실패 시 텍스트 자동 선택 폴백)으로 교체, 공개범위 세그먼트 순서를 비공개/전체공개/공유로 바꾸고 "링크 공개"를 "공유"로 개명, 그 버튼을 누르면 상태 전환과 동시에 팝업이 뜨도록 통합
+  - **버그 발견/수정(재발)**: `ShareLinkModal`이 처음엔 `TripWorkspace`의 사이드바(`aside`) 안에 중첩 렌더링되고 있었는데, 그 사이드바에 걸린 슬라이드용 CSS `transform`이 `position: fixed` 자손의 기준점을 뷰포트가 아니라 그 `aside` 자신으로 바꿔버려서 팝업이 화면 가운데가 아니라 사이드바 안에 갇혀 보였음 — `PhotoLightbox`에서 이미 한 번 겪고 고쳤던 것과 동일한 원인. 같은 해법(`createPortal`로 `document.body`에 직접 렌더링)을 적용해 해결
+- **`up.sh`/`down.sh`의 실제 프로세스 종료 실패 버그 발견/수정**: PowerShell에서 `.\up.sh`를 실행하면 "앱 선택" 창이 뜨는 문제(`.sh` 확장자를 Windows가 실행 파일로 인식 못 함 — Git Bash를 통해 실행해야 함을 안내)를 처리하다가, `down.sh`가 실제로는 서버를 못 내리고 있다는 걸 발견. 원인: Git Bash에서 `nohup npm run dev &` 뒤의 `$!`가 MSYS 내부 PID라 실제 Windows PID와 안 맞아서(`tasklist`로 확인하면 존재하지 않는 PID) `kill`/`taskkill` 모두 엉뚱한 대상을 향하고 있었음. `netstat -ano`로 포트 3000을 실제 점유 중인 프로세스를 찾아 `taskkill /T /F`(자식 프로세스까지)로 종료하는 방식으로 교체, `up.sh` → `curl 200` → `down.sh` → `curl 연결거부` 두 번 연속 재현 확인. `up.sh`도 Docker 유무를 `DATABASE_URL`(localhost 여부)로 자동 판단하도록 수정(Neon처럼 원격 DB면 Docker 단계 스킵)
+- **"이동경로 NaN분/NaNkm" 버그 조사 — 코드가 아니라 서버 재시작 문제였음**: 사용자가 캡처를 보내 지적. 재현해보니 라우트 계산 로직 자체는 정상(직접 스크립트로 호출하면 성공)인데 실제 떠 있던 dev 서버(HTTP)로는 새 경로 쌍마다 500이 남 — 이 세션 중 여러 번 `prisma generate`/스키마 마이그레이션을 하는 동안 그 서버 프로세스가 재시작 안 된 채 계속 떠 있어서 오래된 Prisma Client를 붙들고 있었던 것. `.next` 캐시 삭제 + 서버 재시작으로 동일 요청이 정상 200이 되는 것까지 확인 — README에 이미 있던 "스키마 변경 후 재시작 필요" 주의사항이 이번에도 재현된 사례
+- 위 전체 `tsc --noEmit`/`eslint` 통과(기존에 있던 무관한 경고 15개 외 신규 없음), 실제 브라우저(테스터A/B 계정)로 검색→공유 추가/제거, 팝업 열기/복사/닫기까지 확인. 다만 ShareLinkModal의 화면 정중앙 정렬은 마지막에 브라우저 패널이 숨김 상태라 스크린샷으로 최종 확인은 못 하고 구조적 수정(portal 대상이 `document.body`인 것)만 확인함 — PhotoLightbox와 동일 패턴이라 신뢰도는 높지만, 다음에 화면 보이면 한 번 더 확인 권장
+
 **다음 세션 할 일**
 - Phase 0 잔여 작업: 유출됐던 카카오 키 재발급(재발급 후 신규 키로 각자 `.env` 갱신 필요) — 사용자 확인/조치 필요해 자동 진행하지 않음
+- (참고) ShareLinkModal이 실제로 화면 정중앙에 뜨는지 스크린샷으로 최종 확인 — 구조적 수정(createPortal)은 완료했지만 마지막에 브라우저 패널이 숨겨져 있어 눈으로 못 봄
 - (참고, 지금 범위 아님) 나중에 대중교통을 다시 붙이고 싶으면 ODsay 키 발급 + 이번에 지운 코드 복원부터 시작
 - (참고) 일차 드래그 이동은 펼쳐진 날짜끼리만 가능 — 접힌 날짜 헤더 자체를 드롭존으로 만들면(자동 펼침) 한 단계 더 편해질 수 있음
 - (참고) 특정 회원 지정 공유(`TripShare`)로만 공유된(PRIVATE) 트립은 복사를 막아뒀는데, 필요해지면 완화 검토
+- (참고) shadcn/ui는 지금 비용입력/사진추가 두 곳에만 적용됨 — 나머지 화면의 네이티브 폼 요소(날짜 입력, 인원수 등)도 점진적으로 옮기면 일관성이 더 좋아질 것
