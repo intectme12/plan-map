@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 type NicknameCheckStatus = "idle" | "checking" | "available" | "taken";
 
@@ -71,14 +72,15 @@ export default function RegisterPage() {
             onChange={(e) => onNicknameChange(e.target.value)}
             className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm"
           />
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={onCheckNickname}
             disabled={nicknameStatus === "checking" || !nickname.trim()}
-            className="shrink-0 rounded-md border border-neutral-300 px-3 py-2 text-sm disabled:opacity-50"
+            className="h-auto shrink-0 rounded-md px-3 py-2 text-sm"
           >
             중복확인
-          </button>
+          </Button>
         </div>
         {nicknameStatus === "available" ? (
           <p className="text-sm text-green-600">사용 가능한 닉네임입니다.</p>
@@ -103,13 +105,9 @@ export default function RegisterPage() {
           className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
         />
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
-        >
+        <Button type="submit" disabled={pending} className="h-auto rounded-md px-3 py-2 text-sm font-semibold">
           {pending ? "가입 중..." : "가입하기"}
-        </button>
+        </Button>
       </form>
       <p className="text-sm text-neutral-500">
         이미 계정이 있으신가요?{" "}

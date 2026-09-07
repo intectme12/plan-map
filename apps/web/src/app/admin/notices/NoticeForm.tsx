@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/toast/ToastProvider";
+import { Button } from "@/components/ui/button";
 
 export function NoticeForm({
   noticeId,
@@ -58,20 +59,17 @@ export function NoticeForm({
       />
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
       <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
-        >
+        <Button type="submit" disabled={pending} className="h-auto rounded-md px-3 py-2 text-sm font-semibold">
           {pending ? "저장 중..." : "저장"}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="outline"
           onClick={() => router.push("/admin/notices")}
-          className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
+          className="h-auto rounded-md px-3 py-2 text-sm"
         >
           취소
-        </button>
+        </Button>
       </div>
     </form>
   );

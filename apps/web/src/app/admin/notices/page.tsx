@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listNotices } from "@/lib/services/admin/notices";
+import { Button } from "@/components/ui/button";
 import { NoticeDeleteButton } from "./NoticeDeleteButton";
 
 export default async function AdminNoticesPage() {
@@ -9,12 +10,9 @@ export default async function AdminNoticesPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold">공지사항</h1>
-        <Link
-          href="/admin/notices/new"
-          className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white"
-        >
-          새 공지 작성
-        </Link>
+        <Button asChild className="h-auto rounded-md px-3 py-1.5 text-sm font-semibold">
+          <Link href="/admin/notices/new">새 공지 작성</Link>
+        </Button>
       </div>
 
       <ul className="flex flex-col gap-2">

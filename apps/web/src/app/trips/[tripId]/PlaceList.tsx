@@ -18,7 +18,8 @@ import { RouteSegmentRow } from "./RouteSegmentRow";
 import { ExpenseButton } from "./ExpenseButton";
 import { PlacePhotosInline } from "./PlacePhotosInline";
 import { PlaceForm } from "./PlaceForm";
-import { getTripDays, groupByDay, formatDayLabel, dayColor } from "./days";
+import { DayAccordionSection } from "./DayAccordionSection";
+import { getTripDays, groupByDay } from "./days";
 import type { PlaceEntry } from "./types";
 
 export const DAY_CONTAINER_PREFIX = "day-container-";
@@ -40,20 +41,6 @@ function DayDropZone({ dayIndex, children }: { dayIndex: number; children: React
     <div ref={setNodeRef} className="min-h-[2.5rem]">
       {children}
     </div>
-  );
-}
-
-export function Chevron({ open }: { open: boolean }) {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      className={`flex-none text-neutral-400 transition-transform ${open ? "rotate-90" : ""}`}
-    >
-      <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }
 
@@ -182,52 +169,41 @@ function DaySection({
   onSelect: (placeId: string) => void;
 }) {
   return (
-    <div className="rounded-md border border-neutral-200">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center gap-1.5 px-2.5 py-2 text-left text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
-      >
-        <Chevron open={open} />
-        <span
-          className="h-2 w-2 flex-none rounded-full"
-          style={{ background: dayColor(dayIndex) }}
-        />
-        <span className="flex-1">{formatDayLabel(date, dayNumber)}</span>
-        {places.length > 0 ? (
-          <span className="flex-none text-xs font-normal text-neutral-400">{places.length}곳</span>
-        ) : null}
-      </button>
+    <DayAccordionSection
+      dayIndex={dayIndex}
+      date={date}
+      dayNumber={dayNumber}
+      count={places.length}
+      open={open}
+      onToggle={onToggle}
+    >
+      <div className="border-t border-neutral-200 p-2">
+        <DayDropZone dayIndex={dayIndex}>
+          {places.length === 0 ? (
+            <p className="px-1 py-2 text-xs text-neutral-400">등록된 장소가 없습니다. 다른 날짜의 장소를 여기로 끌어다 놓을 수 있습니다.</p>
+          ) : (
+            <SortableContext items={places.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+              <ol className="flex flex-col gap-1">
+                {places.map((place, index) => (
+                  <SortablePlaceRow
+                    key={place.id}
+                    tripId={tripId}
+                    place={place}
+                    index={index}
+                    nextPlace={places[index + 1] ?? nextAfterLast}
+                    selected={selectedPlaceId === place.id}
+                    onDelete={onDelete}
+                    onSelect={onSelect}
+                  />
+                ))}
+              </ol>
+            </SortableContext>
+          )}
+        </DayDropZone>
 
-      {open ? (
-        <div className="border-t border-neutral-200 p-2">
-          <DayDropZone dayIndex={dayIndex}>
-            {places.length === 0 ? (
-              <p className="px-1 py-2 text-xs text-neutral-400">등록된 장소가 없습니다. 다른 날짜의 장소를 여기로 끌어다 놓을 수 있습니다.</p>
-            ) : (
-              <SortableContext items={places.map((p) => p.id)} strategy={verticalListSortingStrategy}>
-                <ol className="flex flex-col gap-1">
-                  {places.map((place, index) => (
-                    <SortablePlaceRow
-                      key={place.id}
-                      tripId={tripId}
-                      place={place}
-                      index={index}
-                      nextPlace={places[index + 1] ?? nextAfterLast}
-                      selected={selectedPlaceId === place.id}
-                      onDelete={onDelete}
-                      onSelect={onSelect}
-                    />
-                  ))}
-                </ol>
-              </SortableContext>
-            )}
-          </DayDropZone>
-
-          <PlaceForm tripId={tripId} scheduledAt={date} />
-        </div>
-      ) : null}
-    </div>
+        <PlaceForm tripId={tripId} scheduledAt={date} />
+      </div>
+    </DayAccordionSection>
   );
 }
 

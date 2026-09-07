@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -51,13 +52,9 @@ export default function LoginPage() {
           className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
         />
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
-        >
+        <Button type="submit" disabled={pending} className="h-auto rounded-md px-3 py-2 text-sm font-semibold">
           {pending ? "로그인 중..." : "로그인"}
-        </button>
+        </Button>
       </form>
       <p className="text-sm text-neutral-500">
         계정이 없으신가요?{" "}

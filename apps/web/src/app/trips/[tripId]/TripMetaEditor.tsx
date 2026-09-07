@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import { ShareLinkModal } from "./ShareLinkModal";
 
 type TripMeta = {
@@ -158,20 +159,17 @@ export function TripMetaEditor({ trip }: { trip: TripMeta }) {
       />
       {error ? <p className="text-xs text-red-600">{error}</p> : null}
       <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-        >
+        <Button type="submit" disabled={pending} className="h-auto rounded-md px-3 py-1.5 text-xs font-semibold">
           {pending ? "저장 중..." : "저장"}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="outline"
           onClick={() => setEditing(false)}
-          className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs"
+          className="h-auto rounded-md px-3 py-1.5 text-xs"
         >
           취소
-        </button>
+        </Button>
       </div>
     </form>
   );

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/Avatar";
+import { Button } from "@/components/ui/button";
 
 type UserResult = { id: string; nickname: string; bio: string | null; avatarUrl: string | null };
 type Participant = { key: string; name: string; userId?: string };
@@ -95,12 +96,9 @@ export function TripCreateForm() {
 
   if (!open) {
     return (
-      <button
-        onClick={() => setOpen(true)}
-        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
-      >
+      <Button onClick={() => setOpen(true)} className="h-auto rounded-md px-4 py-2 text-sm font-semibold">
         새 여행 만들기
-      </button>
+      </Button>
     );
   }
 
@@ -226,20 +224,17 @@ export function TripCreateForm() {
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
       <div className="flex justify-end gap-2">
-        <button
+        <Button
           type="button"
+          variant="outline"
           onClick={() => setOpen(false)}
-          className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
+          className="h-auto rounded-md px-3 py-2 text-sm"
         >
           취소
-        </button>
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
-        >
+        </Button>
+        <Button type="submit" disabled={pending} className="h-auto rounded-md px-3 py-2 text-sm font-semibold">
           {pending ? "만드는 중..." : "만들기"}
-        </button>
+        </Button>
       </div>
     </form>
   );

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Modal } from "@/components/Modal";
 import { PhotoLightbox } from "./PhotoLightbox";
 
 type Photo = { id: string; storageKey: string };
@@ -75,79 +76,60 @@ export function PlacePhotos({
       </div>
 
       {open ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => setOpen(false)}
-        >
+        <Modal onClose={() => setOpen(false)} title="사진" maxWidth="lg" scrollable>
           <div
-            className="flex max-h-[80vh] w-full max-w-lg flex-col gap-3 overflow-y-auto rounded-lg bg-white p-4 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              if (e.dataTransfer.files.length) upload(e.dataTransfer.files);
+            }}
+            onClick={() => fileInputRef.current?.click()}
+            className={`flex cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed p-6 text-center text-sm text-neutral-500 ${
+              dragOver ? "border-blue-400 bg-blue-50" : "border-neutral-300"
+            }`}
           >
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold">사진</h2>
-              <button
-                onClick={() => setOpen(false)}
-                aria-label="닫기"
-                className="text-neutral-400 hover:text-neutral-600"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOver(true);
-              }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragOver(false);
-                if (e.dataTransfer.files.length) upload(e.dataTransfer.files);
-              }}
-              onClick={() => fileInputRef.current?.click()}
-              className={`flex cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed p-6 text-center text-sm text-neutral-500 ${
-                dragOver ? "border-blue-400 bg-blue-50" : "border-neutral-300"
-              }`}
-            >
-              {uploading ? "업로드 중..." : "드래그하거나 클릭해서 사진 추가"}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={(e) => e.target.files && upload(e.target.files)}
-              />
-            </div>
-
-            {error ? <p className="text-xs text-red-600">{error}</p> : null}
-
-            {photos.length > 0 ? (
-              <div className="grid grid-cols-3 gap-2">
-                {photos.map((photo, i) => (
-                  <div key={photo.id} className="group relative">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={photo.storageKey}
-                      alt=""
-                      onClick={() => setLightboxIndex(i)}
-                      className="h-24 w-full cursor-pointer rounded-md object-cover"
-                    />
-                    <button
-                      onClick={() => onDelete(photo.id)}
-                      className="absolute right-1 top-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] text-white opacity-0 group-hover:opacity-100"
-                    >
-                      삭제
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-neutral-400">아직 사진이 없습니다.</p>
-            )}
+            {uploading ? "업로드 중..." : "드래그하거나 클릭해서 사진 추가"}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => e.target.files && upload(e.target.files)}
+            />
           </div>
-        </div>
+
+          {error ? <p className="text-xs text-red-600">{error}</p> : null}
+
+          {photos.length > 0 ? (
+            <div className="grid grid-cols-3 gap-2">
+              {photos.map((photo, i) => (
+                <div key={photo.id} className="group relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={photo.storageKey}
+                    alt=""
+                    onClick={() => setLightboxIndex(i)}
+                    className="h-24 w-full cursor-pointer rounded-md object-cover"
+                  />
+                  <button
+                    onClick={() => onDelete(photo.id)}
+                    className="absolute right-1 top-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] text-white opacity-0 group-hover:opacity-100"
+                  >
+                    삭제
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-neutral-400">아직 사진이 없습니다.</p>
+          )}
+        </Modal>
       ) : null}
 
       {lightboxIndex !== null ? (

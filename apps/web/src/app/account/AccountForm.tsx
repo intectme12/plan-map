@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/toast/ToastProvider";
 import { Avatar } from "@/components/Avatar";
+import { Button } from "@/components/ui/button";
 
 type NicknameCheckStatus = "idle" | "checking" | "available" | "taken";
 
@@ -152,23 +153,25 @@ export function AccountForm({
         <div className="flex items-center gap-3">
           <Avatar url={avatarUrl} nickname={initialNickname} size={56} />
           <div className="flex gap-2">
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={() => fileInputRef.current?.click()}
               disabled={avatarPending}
-              className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs disabled:opacity-50"
+              className="h-auto rounded-md px-3 py-1.5 text-xs"
             >
               사진 변경
-            </button>
+            </Button>
             {avatarUrl ? (
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 onClick={onRemoveAvatar}
                 disabled={avatarPending}
-                className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs text-red-600 disabled:opacity-50"
+                className="h-auto rounded-md px-3 py-1.5 text-xs text-destructive hover:text-destructive"
               >
                 삭제
-              </button>
+              </Button>
             ) : null}
             <input
               ref={fileInputRef}
@@ -199,13 +202,13 @@ export function AccountForm({
             다른 사람에게 내 여행 목록 보이기
           </label>
           {bioError ? <p className="text-sm text-red-600">{bioError}</p> : null}
-          <button
+          <Button
             type="submit"
             disabled={bioPending}
-            className="self-start rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            className="h-auto self-start rounded-md px-3 py-2 text-sm font-semibold"
           >
             {bioPending ? "저장 중..." : "저장"}
-          </button>
+          </Button>
         </form>
       </div>
 
@@ -222,14 +225,15 @@ export function AccountForm({
             onChange={(e) => onNicknameChange(e.target.value)}
             className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm"
           />
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={onCheckNickname}
             disabled={nicknameStatus === "checking" || !nickname.trim()}
-            className="shrink-0 rounded-md border border-neutral-300 px-3 py-2 text-sm disabled:opacity-50"
+            className="h-auto shrink-0 rounded-md px-3 py-2 text-sm"
           >
             중복확인
-          </button>
+          </Button>
         </div>
         {nicknameStatus === "available" ? (
           <p className="text-sm text-green-600">사용 가능한 닉네임입니다.</p>
@@ -238,13 +242,13 @@ export function AccountForm({
           <p className="text-sm text-red-600">이미 사용 중인 닉네임입니다.</p>
         ) : null}
         {nicknameError ? <p className="text-sm text-red-600">{nicknameError}</p> : null}
-        <button
+        <Button
           type="submit"
           disabled={nicknamePending}
-          className="self-start rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          className="h-auto self-start rounded-md px-3 py-2 text-sm font-semibold"
         >
           {nicknamePending ? "저장 중..." : "저장"}
-        </button>
+        </Button>
       </form>
 
       <form
@@ -270,13 +274,13 @@ export function AccountForm({
           className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
         />
         {passwordError ? <p className="text-sm text-red-600">{passwordError}</p> : null}
-        <button
+        <Button
           type="submit"
           disabled={passwordPending}
-          className="self-start rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          className="h-auto self-start rounded-md px-3 py-2 text-sm font-semibold"
         >
           {passwordPending ? "변경 중..." : "변경"}
-        </button>
+        </Button>
       </form>
     </div>
   );

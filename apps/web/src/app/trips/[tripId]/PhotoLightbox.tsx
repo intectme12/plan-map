@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
+import { LightboxCloseButton } from "@/components/LightboxCloseButton";
 
 type Photo = { id: string; storageKey: string };
 
@@ -34,17 +35,7 @@ export function PhotoLightbox({
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4"
       onClick={onClose}
     >
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onClose();
-        }}
-        aria-label="닫기"
-        className="absolute right-4 top-4 text-2xl text-white/80 hover:text-white"
-      >
-        ✕
-      </button>
+      <LightboxCloseButton onClose={onClose} />
 
       {photos.length > 1 ? (
         <button

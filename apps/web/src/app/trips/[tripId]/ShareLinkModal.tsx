@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createPortal } from "react-dom";
+import { Modal } from "@/components/Modal";
 import { TripShareManager } from "./TripShareManager";
 
 export function ShareLinkModal({ tripId, onClose }: { tripId: string; onClose: () => void }) {
@@ -20,65 +20,45 @@ export function ShareLinkModal({ tripId, onClose }: { tripId: string; onClose: (
     setTimeout(() => setCopied(false), 1500);
   }
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="flex w-full max-w-md flex-col gap-3 rounded-lg bg-white p-4 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold">공유 링크</h2>
-          <button
-            onClick={onClose}
-            aria-label="닫기"
-            className="text-neutral-400 hover:text-neutral-600"
-          >
-            ✕
-          </button>
-        </div>
+  return (
+    <Modal onClose={onClose} title="공유 링크">
+      <p className="text-xs text-neutral-500">
+        이 링크를 아는 사람은 누구나 여행 계획을 볼 수 있습니다.
+      </p>
 
-        <p className="text-xs text-neutral-500">
-          이 링크를 아는 사람은 누구나 여행 계획을 볼 수 있습니다.
-        </p>
-
-        <div className="flex gap-1.5">
-          <input
-            id="share-link-url"
-            readOnly
-            value={url}
-            onFocus={(e) => e.target.select()}
-            className="min-w-0 flex-1 rounded-md border border-neutral-300 bg-neutral-50 px-2 py-1.5 text-xs text-neutral-600"
-          />
-          <button
-            type="button"
-            onClick={onCopy}
-            className={`flex-none rounded-md border px-3 py-1.5 text-xs font-semibold ${
-              copied
-                ? "border-green-200 bg-green-50 text-green-600"
-                : "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100"
-            }`}
-          >
-            {copied ? "복사됨" : "복사"}
-          </button>
-        </div>
-
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="self-start text-xs text-neutral-400 hover:underline"
+      <div className="flex gap-1.5">
+        <input
+          id="share-link-url"
+          readOnly
+          value={url}
+          onFocus={(e) => e.target.select()}
+          className="min-w-0 flex-1 rounded-md border border-neutral-300 bg-neutral-50 px-2 py-1.5 text-xs text-neutral-600"
+        />
+        <button
+          type="button"
+          onClick={onCopy}
+          className={`flex-none rounded-md border px-3 py-1.5 text-xs font-semibold ${
+            copied
+              ? "border-green-200 bg-green-50 text-green-600"
+              : "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100"
+          }`}
         >
-          새 탭에서 열기 ↗
-        </a>
-
-        <div className="border-t border-neutral-200 pt-3">
-          <TripShareManager tripId={tripId} />
-        </div>
+          {copied ? "복사됨" : "복사"}
+        </button>
       </div>
-    </div>,
-    document.body
+
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="self-start text-xs text-neutral-400 hover:underline"
+      >
+        새 탭에서 열기 ↗
+      </a>
+
+      <div className="border-t border-neutral-200 pt-3">
+        <TripShareManager tripId={tripId} />
+      </div>
+    </Modal>
   );
 }

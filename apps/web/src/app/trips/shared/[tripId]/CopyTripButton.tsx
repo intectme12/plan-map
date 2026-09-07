@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/toast/ToastProvider";
+import { Button } from "@/components/ui/button";
 
 export function CopyTripButton({ tripId }: { tripId: string }) {
   const router = useRouter();
@@ -23,12 +24,8 @@ export function CopyTripButton({ tripId }: { tripId: string }) {
   }
 
   return (
-    <button
-      onClick={onCopy}
-      disabled={pending}
-      className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
-    >
+    <Button onClick={onCopy} disabled={pending} className="h-auto rounded-md px-3 py-1.5 text-sm font-semibold">
       {pending ? "복사 중..." : "내 여행으로 복사하기"}
-    </button>
+    </Button>
   );
 }

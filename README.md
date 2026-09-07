@@ -372,12 +372,22 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - **가입 회원은 "공유인원"으로 명시 표시**: 추가된 동행자 칩 목록에서 미가입자만 "(미가입)"으로 구분 표시하고 가입 회원은 아무 표시가 없었음 — 가입 회원 칩엔 파란색 "(공유인원)"을 붙여서, 이 사람은 여행 생성과 동시에 실제 `TripShare` 열람 권한도 함께 받는다는 걸 화면에서 바로 알 수 있게 함(백엔드 동작 자체는 이전 세션에 이미 구현되어 있었고 이번엔 표시만 보강)
 - `tsc --noEmit`/`eslint` 통과 확인 후 브라우저로 실제 계정(테스터A)으로 검색 → 행 클릭(닉네임 텍스트 부분)으로 "테스터B (공유인원)" 추가, 미가입 이름("홍길동") 입력 → "추가" 버튼으로 "(미가입)" 추가까지 확인. 여행 생성까지는 진행하지 않고 취소로 정리(DB에 데이터 남기지 않음)
 
+**완료 (2026-09-07, 반복 UI 패턴 4건 공용 컴포넌트로 추출)**
+
+사용자가 "JSX에 스타일 직접 작성 금지 + 컴포넌트별 `.css` 파일 분리" 방식의 전면 리팩토링을 제안했으나, 검토 결과 이 프로젝트는 처음부터 Tailwind+shadcn/ui로 설계되어(`globals.css` 1개 외 별도 CSS 자산이 없고 TSX 54개 파일이 전부 Tailwind 유틸리티 className, `style={{}}` 10곳도 전부 드래그 transform/도넛차트 등 런타임 계산값이라 정적 CSS로 뺄 수 없음) 그 방식은 적용 불가로 판단, 대신 실제 코드 중복을 grep으로 찾아 위험도 낮은 대안(공용 React 컴포넌트/shadcn Button 전환)으로 범위를 좁혀 진행했다.
+
+- **날짜 아코디언 셸 공용화**: [PlaceList.tsx](apps/web/src/app/trips/[tripId]/PlaceList.tsx)/[PhotoGallery.tsx](apps/web/src/app/trips/[tripId]/PhotoGallery.tsx)/[ReviewGallery.tsx](apps/web/src/app/trips/[tripId]/ReviewGallery.tsx)/[SharedPlaceList.tsx](apps/web/src/app/trips/shared/[tripId]/SharedPlaceList.tsx)/[SharedPhotoGrid.tsx](apps/web/src/app/trips/shared/[tripId]/SharedPhotoGrid.tsx) 5곳에 거의 동일하게 반복되던 "테두리 박스 + Chevron/색점/날짜라벨/개수 헤더 버튼 + 펼침 콘텐츠" 구조를 새 [DayAccordionSection.tsx](apps/web/src/app/trips/[tripId]/DayAccordionSection.tsx)로 추출(날짜별 실제 내용은 `children`으로 유지해 각 화면 고유 마크업/스타일은 그대로 둠). 기존 `PlaceList.tsx`에 있던 `Chevron`도 이 파일로 옮기고 4곳의 import를 갱신
+- **팝업(모달) 셸 공용화**: [ShareLinkModal.tsx](apps/web/src/app/trips/[tripId]/ShareLinkModal.tsx)/[SharedTripsModal.tsx](apps/web/src/app/trips/[tripId]/SharedTripsModal.tsx)/[PlacePhotos.tsx](apps/web/src/app/trips/[tripId]/PlacePhotos.tsx)의 "배경 오버레이 + 흰 카드 + 제목/닫기버튼 헤더"를 새 [Modal.tsx](apps/web/src/components/Modal.tsx)로 추출, `createPortal(..., document.body)`을 기본 내장해서 이전에 `PhotoLightbox`/`ShareLinkModal`에서 두 번 겪었던 "부모의 CSS transform이 fixed 팝업의 기준점을 바꿔 화면 가운데가 아니라 패널 안에 갇히는" 버그 클래스를 원천 차단(`SharedTripsModal`은 기존엔 portal 없이도 우연히 안전한 위치에서 렌더링되고 있었는데, 이제 항상 안전해짐)
+- **어두운 배경 라이트박스 닫기 버튼 공용화**: `PhotoLightbox.tsx`/`AvatarLightbox.tsx`에 완전히 동일하게 있던 닫기 버튼을 새 [LightboxCloseButton.tsx](apps/web/src/components/LightboxCloseButton.tsx)로 추출(밝은 배경 Modal 헤더의 닫기 버튼과는 스타일이 달라 별도 컴포넌트로 분리)
+- **기본/보조 버튼을 shadcn `Button`으로 전환**: TripCreateForm/TripMetaEditor/AccountForm/CopyTripButton/ImportFlow/register·login 페이지/admin 공지사항 목록·폼, 총 9개 파일의 원시 `<button className="rounded-md bg-blue-600...">`(기본)/`border border-neutral-300`(보조/취소) 버튼 20개를 `@/components/ui/button`의 `Button`(`variant="outline"`/`"default"`)으로 교체 — 지난 세션에 남겨뒀던 "shadcn은 비용입력/사진추가 두 곳에만 적용됨" 할 일을 마무리. 기존 padding/text 크기는 `className`으로 그대로 유지(`cn()`이 tailwind-merge 기반이라 뒤에 오는 className이 올바르게 우선 적용되는 것을 `ExpenseButton.tsx`의 기존 사용례로 먼저 확인). `admin/notices/page.tsx`의 `<Link>` 버튼은 `Button asChild`(Radix Slot)로 전환
+- `tsc --noEmit` 전체 통과, `eslint` 검사 결과 새로 만든/수정한 파일에서는 0건(기존에 있던 무관한 경고·에러 15건은 이번 세션에서 손대지 않은 파일들로 그대로 남아있음 확인). 브라우저로 실제 계정(테스터A)으로 트립을 새로 만들어 날짜 아코디언(타임라인/사진/후기 탭 펼침·접힘), 공유 링크 팝업, "다른 사람 여행계획" 팝업, 사진 업로드 팝업이 전부 화면 정중앙에 정상 렌더링되는 것을 확인했고, 공개 전환 후 `/trips/shared/[id]`(SharedPlaceList/SharedPhotoGrid)도 동일하게 확인. 버튼 전환은 `/account`, `/login`, `/register`, 트립 생성/수정 폼에서 레이아웃 변화 없이 렌더링되는 것을 확인(단, `/admin/notices`는 관리자 계정이 없어 코드 검토 + 컴파일 통과로만 확인). 테스트로 만든 트립은 삭제해 정리함
+
 **다음 세션 할 일**
 - Phase 0 잔여 작업: 유출됐던 카카오 키 재발급(재발급 후 신규 키로 각자 `.env` 갱신 필요) — 사용자 확인/조치 필요해 자동 진행하지 않음
-- (참고) ShareLinkModal이 실제로 화면 정중앙에 뜨는지 스크린샷으로 최종 확인 — 구조적 수정(createPortal)은 완료했지만 마지막에 브라우저 패널이 숨겨져 있어 눈으로 못 봄
 - (참고, 지금 범위 아님) 나중에 대중교통을 다시 붙이고 싶으면 ODsay 키 발급 + 이번에 지운 코드 복원부터 시작
 - (참고) 일차 드래그 이동은 펼쳐진 날짜끼리만 가능 — 접힌 날짜 헤더 자체를 드롭존으로 만들면(자동 펼침) 한 단계 더 편해질 수 있음
 - (참고) 특정 회원 지정 공유(`TripShare`)로만 공유된(PRIVATE) 트립은 복사를 막아뒀는데, 필요해지면 완화 검토
-- (참고) shadcn/ui는 지금 비용입력/사진추가 두 곳에만 적용됨 — 나머지 화면의 네이티브 폼 요소(날짜 입력, 인원수 등)도 점진적으로 옮기면 일관성이 더 좋아질 것
 - (신규) 이 환경의 `self-signed certificate in certificate chain` 문제로 카카오모빌리티 경로조회를 로컬에서 끝까지 실동작 검증하지 못함 — 이 백신/네트워크 설정을 우회할 수 있게 되거나 실제 배포 환경이 생기면 실제 거리/시간/택시요금 숫자가 정상 표시되는지 마지막으로 한 번 더 확인 필요
 - (신규) 여행 생성 시 등록한 미가입 동행자(`TripParticipant`, `userId` 없음)는 현재 생성 화면에만 노출되고 트립 상세에는 별도로 보여주는 화면이 없음 — 필요해지면 공유 팝업이나 트립 정보 영역에 동행자 목록을 추가하는 것 검토
+- (신규) `/admin/notices`의 shadcn Button 전환은 관리자 계정이 없어 브라우저로 최종 확인을 못 함 — 관리자 계정으로 한 번 확인 권장
+- (신규) 나머지 화면(날짜 입력, 인원수 등 네이티브 `<input>`/`<select>`)도 shadcn으로 옮기면 일관성이 더 좋아지겠지만, 이번엔 "기본/보조 버튼"으로 범위를 좁혀 진행함 — 필요해지면 다음 단계로

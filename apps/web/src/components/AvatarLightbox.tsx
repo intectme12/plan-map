@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
+import { LightboxCloseButton } from "./LightboxCloseButton";
 
 export function AvatarLightbox({ url, onClose }: { url: string; onClose: () => void }) {
   useEffect(() => {
@@ -17,17 +18,7 @@ export function AvatarLightbox({ url, onClose }: { url: string; onClose: () => v
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4"
       onClick={onClose}
     >
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onClose();
-        }}
-        aria-label="닫기"
-        className="absolute right-4 top-4 text-2xl text-white/80 hover:text-white"
-      >
-        ✕
-      </button>
+      <LightboxCloseButton onClose={onClose} />
 
       <div
         className="h-[70vmin] w-[70vmin] max-h-80 max-w-80 overflow-hidden rounded-full"

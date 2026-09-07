@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { KakaoMapCanvas } from "@/components/map/KakaoMapCanvas";
+import { Button } from "@/components/ui/button";
 
 type GeocodeCandidate = {
   name: string;
@@ -146,13 +147,13 @@ export function ImportFlow({ tripId }: { tripId: string }) {
             className="rounded-md border border-neutral-300 p-3 text-sm disabled:opacity-50"
           />
           {error ? <p className="text-xs text-red-600">{error}</p> : null}
-          <button
+          <Button
             type="submit"
             disabled={stage === "loading"}
-            className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            className="h-auto rounded-md px-3 py-2 text-sm font-semibold"
           >
             {stage === "loading" ? "분석 중..." : "텍스트 분석하기"}
-          </button>
+          </Button>
         </form>
 
         {stage === "loading" ? (
@@ -217,13 +218,13 @@ export function ImportFlow({ tripId }: { tripId: string }) {
         </ol>
 
         <div className="border-t border-neutral-200 p-3">
-          <button
+          <Button
             onClick={onCommit}
             disabled={submitting || selectedCount === 0}
-            className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            className="h-auto w-full rounded-md px-3 py-2 text-sm font-semibold"
           >
             {submitting ? "추가 중..." : `선택한 ${selectedCount}개 일정에 추가`}
-          </button>
+          </Button>
         </div>
       </div>
 
