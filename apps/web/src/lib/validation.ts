@@ -18,12 +18,18 @@ export const createTripSchema = z.object({
   personnel: z.coerce.number().int().min(1).max(50).default(1),
 });
 
+export const tripVisibilities = ["PRIVATE", "UNLISTED", "PUBLIC"] as const;
+
 export const updateTripSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   startDate: z.coerce.date().optional(),
   endDate: z.coerce.date().optional(),
   personnel: z.coerce.number().int().min(1).max(50).optional(),
-  isPublic: z.boolean().optional(),
+  visibility: z.enum(tripVisibilities).optional(),
+});
+
+export const shareTripSchema = z.object({
+  nickname: z.string().min(1).max(50),
 });
 
 export const sharedTripsQuerySchema = z.object({
@@ -37,8 +43,9 @@ export const userSearchQuerySchema = z.object({
   cursor: z.coerce.number().int().min(0).default(0),
 });
 
-export const updateBioSchema = z.object({
-  bio: z.string().max(300),
+export const updateProfileFieldsSchema = z.object({
+  bio: z.string().max(300).optional(),
+  showTripsOnProfile: z.boolean().optional(),
 });
 
 export const createPlaceSchema = z.object({

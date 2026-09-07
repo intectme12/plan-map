@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { TripShareManager } from "./TripShareManager";
 
 type TripMeta = {
   id: string;
@@ -9,8 +10,14 @@ type TripMeta = {
   startDate: string | Date;
   endDate: string | Date;
   personnel: number;
-  isPublic: boolean;
+  visibility: string;
 };
+
+const VISIBILITY_OPTIONS = [
+  { value: "PRIVATE", label: "비공개" },
+  { value: "UNLISTED", label: "링크 공개" },
+  { value: "PUBLIC", label: "전체 공개" },
+] as const;
 
 function toDateInputValue(d: string | Date) {
   return new Date(d).toISOString().slice(0, 10);
@@ -31,12 +38,13 @@ export function TripMetaEditor({ trip }: { trip: TripMeta }) {
   const [error, setError] = useState<string | null>(null);
   const [sharePending, setSharePending] = useState(false);
 
-  async function onToggleShare() {
+  async function onSetVisibility(visibility: string) {
+    if (visibility === trip.visibility) return;
     setSharePending(true);
     await fetch(`/api/trips/${trip.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isPublic: !trip.isPublic }),
+      body: JSON.stringify({ visibility }),
     });
     setSharePending(false);
     router.refresh();
@@ -79,18 +87,23 @@ export function TripMetaEditor({ trip }: { trip: TripMeta }) {
           </button>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={onToggleShare}
-            disabled={sharePending}
-            className={`rounded-md border px-2 py-1 text-xs font-semibold disabled:opacity-50 ${
-              trip.isPublic
-                ? "border-blue-200 bg-blue-50 text-blue-600"
-                : "border-neutral-200 text-neutral-500 hover:bg-neutral-50"
-            }`}
-          >
-            {trip.isPublic ? "공유 중" : "공유하기"}
-          </button>
-          {trip.isPublic ? (
+          <div className="inline-flex rounded-md border border-neutral-200 p-0.5">
+            {VISIBILITY_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => onSetVisibility(opt.value)}
+                disabled={sharePending}
+                className={`rounded px-2 py-1 text-xs font-semibold disabled:opacity-50 ${
+                  trip.visibility === opt.value
+                    ? "bg-blue-50 text-blue-600"
+                    : "text-neutral-500 hover:bg-neutral-50"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {trip.visibility !== "PRIVATE" ? (
             <a
               href={`/trips/shared/${trip.id}`}
               target="_blank"
@@ -101,6 +114,7 @@ export function TripMetaEditor({ trip }: { trip: TripMeta }) {
             </a>
           ) : null}
         </div>
+        <TripShareManager tripId={trip.id} />
       </div>
     );
   }

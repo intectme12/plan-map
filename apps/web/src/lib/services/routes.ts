@@ -58,7 +58,14 @@ export async function getRoute(
   toPlaceId: string
 ) {
   const trip = await prisma.trip.findFirst({
-    where: { id: tripId, OR: [{ userId }, { isPublic: true }] },
+    where: {
+      id: tripId,
+      OR: [
+        { userId },
+        { visibility: { in: ["PUBLIC", "UNLISTED"] } },
+        { shares: { some: { userId } } },
+      ],
+    },
     select: { id: true },
   });
   if (!trip) throw new NotFoundError("여행을 찾을 수 없습니다.");

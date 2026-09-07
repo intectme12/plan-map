@@ -6,10 +6,10 @@ import type { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { KakaoMapCanvas } from "@/components/map/KakaoMapCanvas";
 import { TripMetaEditor } from "./TripMetaEditor";
-import { PlaceList } from "./PlaceList";
+import { PlaceList, parseDayContainerId } from "./PlaceList";
 import { ExpenseSummary } from "./ExpenseSummary";
 import { PhotoGallery } from "./PhotoGallery";
-import { getTripDays, groupByDay, dayColor } from "./days";
+import { getTripDays, groupByDay, dayColor, dayIndexForPlace } from "./days";
 import { useToast } from "@/components/toast/ToastProvider";
 import { SharedTripsModal } from "./SharedTripsModal";
 import type { PlaceEntry } from "./types";
@@ -26,7 +26,7 @@ type TripMeta = {
   startDate: string | Date;
   endDate: string | Date;
   personnel: number;
-  isPublic: boolean;
+  visibility: string;
 };
 
 export function TripWorkspace({
@@ -208,15 +208,43 @@ export function TripWorkspace({
     });
   }
 
-  function handleDragEndForDay(dayIndex: number) {
-    return (event: DragEndEvent) => {
-      const { active, over } = event;
-      if (!over || active.id === over.id) return;
+  function patchPlace(placeId: string, body: { order?: number; scheduledAt?: string }) {
+    fetch(`/api/trips/${trip.id}/places/${placeId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
 
-      setItems((prev) => {
-        const group = groupByDay(prev, days)[dayIndex];
+  // 목적지 날짜 하나당 500ms 디바운스 후 그 날짜에 속한 장소들의 order(+ 이동된 장소의 scheduledAt)를 저장
+  function schedulePatch(dayIndex: number, run: () => void) {
+    if (reorderTimers.current.has(dayIndex)) clearTimeout(reorderTimers.current.get(dayIndex));
+    const timer = setTimeout(run, 500);
+    reorderTimers.current.set(dayIndex, timer);
+  }
+
+  // 장소 드래그: 같은 날짜 안에서는 순서만, 다른 날짜 위/컨테이너로 놓으면 scheduledAt까지 옮긴다
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over) return;
+
+    setItems((prev) => {
+      const activePlace = prev.find((p) => p.id === active.id);
+      if (!activePlace) return prev;
+      const sourceDayIndex = dayIndexForPlace(activePlace, days);
+
+      const overDayFromContainer = parseDayContainerId(over.id);
+      const overPlace = overDayFromContainer === null ? prev.find((p) => p.id === over.id) : undefined;
+      if (overDayFromContainer === null && !overPlace) return prev;
+      const destDayIndex = overDayFromContainer ?? dayIndexForPlace(overPlace!, days);
+
+      if (sourceDayIndex === destDayIndex) {
+        if (active.id === over.id) return prev;
+
+        const group = groupByDay(prev, days)[sourceDayIndex];
         const oldIndex = group.findIndex((p) => p.id === active.id);
-        const newIndex = group.findIndex((p) => p.id === over.id);
+        const newIndex =
+          overDayFromContainer !== null ? group.length - 1 : group.findIndex((p) => p.id === over.id);
         if (oldIndex < 0 || newIndex < 0) return prev;
 
         const reorderedGroup = arrayMove(group, oldIndex, newIndex);
@@ -226,21 +254,55 @@ export function TripWorkspace({
         const next = prev.map((p) => (orderById.has(p.id) ? { ...p, order: orderById.get(p.id)! } : p));
         next.sort((a, b) => a.order - b.order);
 
-        if (reorderTimers.current.has(dayIndex)) clearTimeout(reorderTimers.current.get(dayIndex));
-        const timer = setTimeout(() => {
-          reorderedGroup.forEach((p) => {
-            fetch(`/api/trips/${trip.id}/places/${p.id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ order: orderById.get(p.id) }),
-            });
-          });
-        }, 500);
-        reorderTimers.current.set(dayIndex, timer);
+        schedulePatch(sourceDayIndex, () => {
+          reorderedGroup.forEach((p) => patchPlace(p.id, { order: orderById.get(p.id)! }));
+        });
 
         return next;
+      }
+
+      // 다른 날짜로 이동: 목적지 그룹에 삽입하고, 그 날짜의 order 값 집합에 새 값 하나를 더해 재배치
+      const destGroup = groupByDay(prev, days)[destDayIndex];
+      const withoutActive = destGroup.filter((p) => p.id !== active.id);
+      const insertAt =
+        overDayFromContainer !== null
+          ? withoutActive.length
+          : Math.max(0, withoutActive.findIndex((p) => p.id === over.id));
+      const newDestGroup = [
+        ...withoutActive.slice(0, insertAt),
+        activePlace,
+        ...withoutActive.slice(insertAt),
+      ];
+
+      const maxOrder = Math.max(0, ...prev.map((p) => p.order));
+      const orderSlots = [...withoutActive.map((p) => p.order), maxOrder + 1].sort((a, b) => a - b);
+      const orderById = new Map(newDestGroup.map((p, i) => [p.id, orderSlots[i]]));
+      const destDate = days[destDayIndex];
+
+      const next = prev.map((p) => {
+        if (p.id === active.id) return { ...p, order: orderById.get(p.id)!, scheduledAt: destDate };
+        if (orderById.has(p.id)) return { ...p, order: orderById.get(p.id)! };
+        return p;
       });
-    };
+      next.sort((a, b) => a.order - b.order);
+
+      setExpandedDays((prevExpanded) => {
+        if (prevExpanded.has(destDayIndex)) return prevExpanded;
+        const nextExpanded = new Set(prevExpanded);
+        nextExpanded.add(destDayIndex);
+        return nextExpanded;
+      });
+
+      schedulePatch(destDayIndex, () => {
+        newDestGroup.forEach((p) => {
+          const body: { order: number; scheduledAt?: string } = { order: orderById.get(p.id)! };
+          if (p.id === active.id) body.scheduledAt = destDate.toISOString();
+          patchPlace(p.id, body);
+        });
+      });
+
+      return next;
+    });
   }
 
   return (
@@ -323,7 +385,7 @@ export function TripWorkspace({
                 expandedDays={expandedDays}
                 onToggleDay={toggleDay}
                 onDeletePlace={handleDeletePlace}
-                onDragEndForDay={handleDragEndForDay}
+                onDragEnd={handleDragEnd}
               />
             </div>
           </>

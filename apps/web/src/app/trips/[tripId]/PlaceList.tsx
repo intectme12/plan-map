@@ -5,8 +5,11 @@ import {
   DndContext,
   PointerSensor,
   closestCenter,
+  pointerWithin,
+  useDroppable,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -17,6 +20,28 @@ import { PlacePhotosInline } from "./PlacePhotosInline";
 import { PlaceForm } from "./PlaceForm";
 import { getTripDays, groupByDay, formatDayLabel, dayColor } from "./days";
 import type { PlaceEntry } from "./types";
+
+export const DAY_CONTAINER_PREFIX = "day-container-";
+
+export function dayContainerId(dayIndex: number): string {
+  return `${DAY_CONTAINER_PREFIX}${dayIndex}`;
+}
+
+// day-container-N 형태의 드롭 컨테이너 id면 그 날짜 인덱스를, 장소 위에 드롭된 것이면 null을 반환
+export function parseDayContainerId(id: string | number): number | null {
+  if (typeof id !== "string" || !id.startsWith(DAY_CONTAINER_PREFIX)) return null;
+  const idx = Number(id.slice(DAY_CONTAINER_PREFIX.length));
+  return Number.isNaN(idx) ? null : idx;
+}
+
+function DayDropZone({ dayIndex, children }: { dayIndex: number; children: React.ReactNode }) {
+  const { setNodeRef } = useDroppable({ id: dayContainerId(dayIndex) });
+  return (
+    <div ref={setNodeRef} className="min-h-[2.5rem]">
+      {children}
+    </div>
+  );
+}
 
 export function Chevron({ open }: { open: boolean }) {
   return (
@@ -143,7 +168,6 @@ function DaySection({
   selectedPlaceId,
   onDelete,
   onSelect,
-  onDragEnd,
 }: {
   tripId: string;
   dayIndex: number;
@@ -156,10 +180,7 @@ function DaySection({
   selectedPlaceId: string | null;
   onDelete: (place: PlaceEntry) => void;
   onSelect: (placeId: string) => void;
-  onDragEnd: (dayIndex: number) => (event: DragEndEvent) => void;
 }) {
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
-
   return (
     <div className="rounded-md border border-neutral-200">
       <button
@@ -180,15 +201,10 @@ function DaySection({
 
       {open ? (
         <div className="border-t border-neutral-200 p-2">
-          {places.length === 0 ? (
-            <p className="px-1 py-2 text-xs text-neutral-400">등록된 장소가 없습니다.</p>
-          ) : (
-            <DndContext
-              id={`place-day-${tripId}-${dayIndex}`}
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={onDragEnd(dayIndex)}
-            >
+          <DayDropZone dayIndex={dayIndex}>
+            {places.length === 0 ? (
+              <p className="px-1 py-2 text-xs text-neutral-400">등록된 장소가 없습니다. 다른 날짜의 장소를 여기로 끌어다 놓을 수 있습니다.</p>
+            ) : (
               <SortableContext items={places.map((p) => p.id)} strategy={verticalListSortingStrategy}>
                 <ol className="flex flex-col gap-1">
                   {places.map((place, index) => (
@@ -205,8 +221,8 @@ function DaySection({
                   ))}
                 </ol>
               </SortableContext>
-            </DndContext>
-          )}
+            )}
+          </DayDropZone>
 
           <PlaceForm tripId={tripId} scheduledAt={date} />
         </div>
@@ -224,7 +240,7 @@ export function PlaceList({
   expandedDays,
   onToggleDay,
   onDeletePlace,
-  onDragEndForDay,
+  onDragEnd,
 }: {
   tripId: string;
   trip: { startDate: string | Date; endDate: string | Date };
@@ -234,33 +250,48 @@ export function PlaceList({
   expandedDays: Set<number>;
   onToggleDay: (dayIndex: number) => void;
   onDeletePlace: (place: PlaceEntry) => void;
-  onDragEndForDay: (dayIndex: number) => (event: DragEndEvent) => void;
+  onDragEnd: (event: DragEndEvent) => void;
 }) {
   const days = getTripDays(trip.startDate, trip.endDate);
   const groups = groupByDay(places, days);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  // 날짜 아코디언 간 드래그가 가능하도록 컨테이너(day-container-N)를 먼저 찾고, 없으면 항목 단위로 폴백한다
+  // (closestCenter 단독으로는 장소가 0개인 빈 날짜 컨테이너에 드롭이 잘 안 잡히는 dnd-kit의 알려진 한계가 있음)
+  const collisionDetection: CollisionDetection = (args) => {
+    const pointerCollisions = pointerWithin(args);
+    if (pointerCollisions.length > 0) return pointerCollisions;
+    return closestCenter(args);
+  };
 
   return (
-    <div className="flex h-full flex-col gap-2 overflow-y-auto p-2">
-      {days.map((date, dayIndex) => {
-        const nextGroup = groups.slice(dayIndex + 1).find((g) => g.length > 0);
-        return (
-          <DaySection
-            key={dayIndex}
-            tripId={tripId}
-            dayIndex={dayIndex}
-            date={date}
-            dayNumber={dayIndex + 1}
-            places={groups[dayIndex]}
-            nextAfterLast={nextGroup ? nextGroup[0] : null}
-            open={expandedDays.has(dayIndex)}
-            onToggle={() => onToggleDay(dayIndex)}
-            selectedPlaceId={selectedPlaceId}
-            onDelete={onDeletePlace}
-            onSelect={onSelectPlace}
-            onDragEnd={onDragEndForDay}
-          />
-        );
-      })}
-    </div>
+    <DndContext
+      id={`place-list-${tripId}`}
+      sensors={sensors}
+      collisionDetection={collisionDetection}
+      onDragEnd={onDragEnd}
+    >
+      <div className="flex h-full flex-col gap-2 overflow-y-auto p-2">
+        {days.map((date, dayIndex) => {
+          const nextGroup = groups.slice(dayIndex + 1).find((g) => g.length > 0);
+          return (
+            <DaySection
+              key={dayIndex}
+              tripId={tripId}
+              dayIndex={dayIndex}
+              date={date}
+              dayNumber={dayIndex + 1}
+              places={groups[dayIndex]}
+              nextAfterLast={nextGroup ? nextGroup[0] : null}
+              open={expandedDays.has(dayIndex)}
+              onToggle={() => onToggleDay(dayIndex)}
+              selectedPlaceId={selectedPlaceId}
+              onDelete={onDeletePlace}
+              onSelect={onSelectPlace}
+            />
+          );
+        })}
+      </div>
+    </DndContext>
   );
 }

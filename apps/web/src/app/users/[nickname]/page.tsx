@@ -20,7 +20,9 @@ export default async function UserProfilePage({
   const profile = await getPublicProfile(nickname);
   if (!profile) notFound();
 
-  const trips = await listSharedTrips(undefined, 0, profile.id);
+  const isOwnProfile = profile.id === user.id;
+  const canSeeTrips = isOwnProfile || profile.showTripsOnProfile;
+  const trips = canSeeTrips ? await listSharedTrips(undefined, 0, profile.id, user.id) : [];
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 px-4 py-8">
@@ -34,13 +36,17 @@ export default async function UserProfilePage({
           <h1 className="text-xl font-bold">{profile.nickname}</h1>
           {profile.bio ? <p className="text-sm text-neutral-600">{profile.bio}</p> : null}
           <p className="text-xs text-neutral-400">
-            {profile.createdAt.toLocaleDateString("ko-KR")} 가입 · 공유 중인 여행{" "}
-            {profile._count.trips}개
+            {profile.createdAt.toLocaleDateString("ko-KR")} 가입
+            {canSeeTrips ? ` · 공유 중인 여행 ${profile._count.trips}개` : null}
           </p>
         </div>
       </header>
 
-      <UserTripList userId={profile.id} initialTrips={trips} />
+      {canSeeTrips ? (
+        <UserTripList userId={profile.id} initialTrips={trips} />
+      ) : (
+        <p className="text-sm text-neutral-500">이 회원은 여행 목록을 비공개로 설정했습니다.</p>
+      )}
     </main>
   );
 }

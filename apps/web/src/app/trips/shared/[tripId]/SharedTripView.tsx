@@ -22,6 +22,7 @@ type TripMeta = {
   startDate: string | Date;
   endDate: string | Date;
   personnel: number;
+  visibility: string;
   ownerNickname: string;
 };
 
@@ -209,9 +210,9 @@ export function SharedTripView({
             <span className="self-start rounded-md bg-neutral-100 px-2 py-1 text-xs text-neutral-500">
               내가 만든 여행입니다
             </span>
-          ) : (
+          ) : trip.visibility !== "PRIVATE" ? (
             <CopyTripButton tripId={trip.id} />
-          )}
+          ) : null}
         </header>
 
         <nav className="flex gap-1 border-b border-neutral-200 px-3">

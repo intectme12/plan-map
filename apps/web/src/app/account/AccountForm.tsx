@@ -11,10 +11,12 @@ export function AccountForm({
   initialNickname,
   initialBio,
   initialAvatarUrl,
+  initialShowTripsOnProfile,
 }: {
   initialNickname: string;
   initialBio: string;
   initialAvatarUrl: string | null;
+  initialShowTripsOnProfile: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -24,6 +26,7 @@ export function AccountForm({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [bio, setBio] = useState(initialBio);
+  const [showTripsOnProfile, setShowTripsOnProfile] = useState(initialShowTripsOnProfile);
   const [bioPending, setBioPending] = useState(false);
   const [bioError, setBioError] = useState<string | null>(null);
 
@@ -70,7 +73,7 @@ export function AccountForm({
     const res = await fetch("/api/account/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bio }),
+      body: JSON.stringify({ bio, showTripsOnProfile }),
     });
     setBioPending(false);
     if (!res.ok) {
@@ -186,6 +189,15 @@ export function AccountForm({
             onChange={(e) => setBio(e.target.value)}
             className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
           />
+          <label className="flex items-center gap-2 text-sm text-neutral-600">
+            <input
+              type="checkbox"
+              checked={showTripsOnProfile}
+              onChange={(e) => setShowTripsOnProfile(e.target.checked)}
+              className="rounded border-neutral-300"
+            />
+            다른 사람에게 내 여행 목록 보이기
+          </label>
           {bioError ? <p className="text-sm text-red-600">{bioError}</p> : null}
           <button
             type="submit"

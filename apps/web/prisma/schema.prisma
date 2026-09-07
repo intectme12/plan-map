@@ -8,17 +8,19 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  nickname     String   @unique
-  role         String   @default("USER") // "USER" | "ADMIN"
-  bio          String?
-  avatarUrl    String?
-  createdAt    DateTime @default(now())
+  id                 String   @id @default(cuid())
+  email              String   @unique
+  passwordHash       String
+  nickname           String   @unique
+  role               String   @default("USER") // "USER" | "ADMIN"
+  bio                String?
+  avatarUrl          String?
+  showTripsOnProfile Boolean  @default(true)
+  createdAt          DateTime @default(now())
 
-  trips   Trip[]
-  notices Notice[]
+  trips      Trip[]
+  notices    Notice[]
+  tripShares TripShare[]
 
   @@map("users")
 }
@@ -38,42 +40,58 @@ model Notice {
 }
 
 model Trip {
-  id        String    @id @default(cuid())
-  userId    String
-  name      String
-  startDate DateTime
-  endDate   DateTime
-  personnel Int       @default(1)
-  isPublic  Boolean   @default(false)
-  sharedAt  DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id         String    @id @default(cuid())
+  userId     String
+  name       String
+  startDate  DateTime
+  endDate    DateTime
+  personnel  Int       @default(1)
+  visibility String    @default("PRIVATE") // "PRIVATE" | "UNLISTED" | "PUBLIC"
+  sharedAt   DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   places PlaceEntry[]
+  shares TripShare[]
 
   @@index([userId])
-  @@index([isPublic, sharedAt])
+  @@index([visibility, sharedAt])
   @@map("trips")
 }
 
-model PlaceEntry {
-  id               String    @id @default(cuid())
-  tripId           String
-  order            Int
-  name             String
-  category         String?
-  lat              Float
-  lng              Float
-  address          String?
-  roadAddress      String?
-  placeUrl         String?
-  phone            String?
-  scheduledAt      DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+// 오너가 특정 회원에게 명시적으로 공유함 — visibility와 무관하게 항상 열람을 허용한다
+model TripShare {
+  id        String   @id @default(cuid())
+  tripId    String
+  userId    String
+  createdAt DateTime @default(now())
 
-  trip     Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, userId])
+  @@index([userId])
+  @@map("trip_shares")
+}
+
+model PlaceEntry {
+  id          String    @id @default(cuid())
+  tripId      String
+  order       Int
+  name        String
+  category    String?
+  lat         Float
+  lng         Float
+  address     String?
+  roadAddress String?
+  placeUrl    String?
+  phone       String?
+  scheduledAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  trip     Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
   expenses Expense[]
   photos   Photo[]
 
@@ -117,11 +135,11 @@ model Expense {
 }
 
 model Photo {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   placeEntryId String
   storageKey   String
   takenAt      DateTime?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
 
   placeEntry PlaceEntry @relation(fields: [placeEntryId], references: [id], onDelete: Cascade)
 

@@ -36,8 +36,11 @@ export async function changePassword(
   await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
 }
 
-export function updateBio(userId: string, bio: string) {
-  return prisma.user.update({ where: { id: userId }, data: { bio } });
+export function updateProfileFields(
+  userId: string,
+  data: Partial<{ bio: string; showTripsOnProfile: boolean }>
+) {
+  return prisma.user.update({ where: { id: userId }, data });
 }
 
 const SEARCH_PAGE_SIZE = 20;
@@ -53,7 +56,7 @@ export function searchUsers(q: string | undefined, cursor: number) {
       nickname: true,
       bio: true,
       avatarUrl: true,
-      _count: { select: { trips: { where: { isPublic: true } } } },
+      _count: { select: { trips: { where: { visibility: "PUBLIC" } } } },
     },
     orderBy: { nickname: "asc" },
     skip: cursor,
@@ -70,7 +73,8 @@ export function getPublicProfile(nickname: string) {
       bio: true,
       avatarUrl: true,
       createdAt: true,
-      _count: { select: { trips: { where: { isPublic: true } } } },
+      showTripsOnProfile: true,
+      _count: { select: { trips: { where: { visibility: "PUBLIC" } } } },
     },
   });
 }

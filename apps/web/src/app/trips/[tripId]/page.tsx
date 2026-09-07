@@ -28,7 +28,7 @@ export default async function TripDetailPage({
         startDate: trip.startDate,
         endDate: trip.endDate,
         personnel: trip.personnel,
-        isPublic: trip.isPublic,
+        visibility: trip.visibility,
       }}
       places={trip.places}
       activeTab={activeTab}

@@ -20,6 +20,7 @@ export default async function AccountPage() {
         initialNickname={user.nickname}
         initialBio={user.bio ?? ""}
         initialAvatarUrl={user.avatarUrl}
+        initialShowTripsOnProfile={user.showTripsOnProfile}
       />
     </main>
   );

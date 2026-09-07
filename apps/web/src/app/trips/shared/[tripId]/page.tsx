@@ -17,7 +17,7 @@ export default async function SharedTripDetailPage({
   const { tab } = await searchParams;
   const activeTab = tab === "expense" || tab === "photos" ? tab : "timeline";
 
-  const trip = await getSharedTrip(tripId);
+  const trip = await getSharedTrip(tripId, user.id);
   if (!trip) notFound();
 
   return (
@@ -28,6 +28,7 @@ export default async function SharedTripDetailPage({
         startDate: trip.startDate,
         endDate: trip.endDate,
         personnel: trip.personnel,
+        visibility: trip.visibility,
         ownerNickname: trip.user.nickname,
       }}
       places={trip.places}

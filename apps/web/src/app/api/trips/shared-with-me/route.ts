@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { listSharedTrips } from "@/lib/services/trips";
+import { listTripsSharedWithMe } from "@/lib/services/trips";
 import { sharedTripsQuerySchema } from "@/lib/validation";
 import { unauthorized, handleRouteError } from "@/lib/http";
 
@@ -10,12 +10,10 @@ export async function GET(request: Request) {
     if (!user) return unauthorized();
 
     const { searchParams } = new URL(request.url);
-    const { q, cursor, userId } = sharedTripsQuerySchema.parse({
-      q: searchParams.get("q") ?? undefined,
+    const { cursor } = sharedTripsQuerySchema.parse({
       cursor: searchParams.get("cursor") ?? undefined,
-      userId: searchParams.get("userId") ?? undefined,
     });
-    const trips = await listSharedTrips(q, cursor, userId, user.id);
+    const trips = await listTripsSharedWithMe(user.id, cursor);
     return NextResponse.json(trips);
   } catch (err) {
     return handleRouteError(err);

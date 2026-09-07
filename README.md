@@ -322,9 +322,19 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - **여행 만들기 폼 버튼 오른쪽 정렬**: `TripCreateForm`의 "취소"/"만들기" 버튼을 `justify-end`로 오른쪽 정렬하고 취소→만들기 순서로 배치(일반적인 다이얼로그 버튼 배치 관례)
 - 브라우저로 아바타 있는/없는 카드 둘 다 확인, 아바타 클릭 시 확대 팝업이 뜨고 카드 나머지 영역 클릭 시엔 정상적으로 상세 페이지로 이동하는 것(닫기 후에도 정상 동작), 여행 만들기 폼 버튼 정렬까지 확인
 
+**완료 (2026-09-07, 타임라인 일차 드래그 이동 + 트립 공유 범위 확장 + 프로필 여행목록 비공개)**
+
+이 세션은 Docker가 실행되지 않는 환경이라(`docker compose up -d db` 불가, `localhost:55432` 접속 불가) DB에 의존하는 화면은 브라우저로 직접 눌러보며 검증하지 못했다. `tsc --noEmit`/`eslint`는 전부 통과했고, 로직은 아래처럼 기존 코드 흐름을 그대로 추적해 손으로 재확인했다. **다음 세션에서 Docker가 되는 환경이라면 아래 3가지를 반드시 브라우저로 재검증할 것.**
+
+- **AI 가져오기 날짜 문제 → 타임라인 드래그로 일차 이동 기능 신설**: 애초에 "가져오기 화면에 날짜 지정 UI를 넣자"는 방향이었으나, 사용자 피드백으로 "가져오기 화면은 그대로 두고, 대시보드에서 장소 순서 바꾸듯 드래그로 일차를 옮기게 하자"로 방향 전환. 날짜(아코디언)마다 따로 있던 `<DndContext>`([PlaceList.tsx](apps/web/src/app/trips/[tripId]/PlaceList.tsx))를 하나로 합쳐 dnd-kit의 멀티 컨테이너 드래그 패턴으로 재작성 — 날짜 컨테이너를 `useDroppable`로 등록해서 장소가 0개인 빈 날짜에도 드롭 가능하게 하고, `pointerWithin` → `closestCenter` 순으로 폴백하는 커스텀 충돌감지를 추가(빈 컨테이너에 `closestCenter` 단독으로는 드롭이 잘 안 잡히는 dnd-kit 알려진 이슈 회피). [TripWorkspace.tsx](apps/web/src/app/trips/[tripId]/TripWorkspace.tsx)의 `handleDragEndForDay`를 단일 `handleDragEnd`로 교체해 같은 날짜 안 재정렬은 기존 로직 그대로, 다른 날짜로 이동 시엔 이동한 장소에만 새 order 값(`max(order)+1`)을 부여하고 `scheduledAt`을 목적지 날짜로 갱신해서 PATCH. `createPlaceSchema`/`updatePlaceSchema`가 이미 `scheduledAt`을 받고 있어 API/스키마 변경은 불필요했음. `ImportFlow.tsx`/`aiParse.ts`는 건드리지 않음.
+- **트립 공유 범위 확장(전체 공개 / 링크 전용 / 특정 회원 지정)**: `Trip.isPublic`(불리언)을 `Trip.visibility`(`"PRIVATE"|"UNLISTED"|"PUBLIC"`, `User.role`과 같은 문자열 컨벤션)로 교체하고, 오너가 특정 회원을 지정해 공유할 수 있는 `TripShare`(tripId+userId 유니크) 모델 신설. `getSharedTrip`/`getRoute`는 `PUBLIC`·`UNLISTED`·`TripShare` 매치·소유자 중 하나면 열람 허용, `listSharedTrips`(공개 목록/검색)는 `PUBLIC`만, `copyTrip`(복사)은 `PUBLIC`·`UNLISTED`만 허용(특정 회원 지정 공유는 더 사적인 공유로 보고 열람만, 복사는 막음). [TripMetaEditor.tsx](apps/web/src/app/trips/[tripId]/TripMetaEditor.tsx)의 단일 "공유하기" 토글을 3단 세그먼트(비공개/링크 공개/전체 공개) 버튼으로, 그 아래 새 [TripShareManager.tsx](apps/web/src/app/trips/[tripId]/TripShareManager.tsx)로 닉네임 검색+추가/제거 UI 추가(공개범위와 무관하게 항상 동작, PRIVATE 상태에서도 특정 회원 지정 가능). 대시보드에 "나에게 공유됨" 탭 신설([SharedWithMeBrowser.tsx](apps/web/src/app/trips/SharedWithMeBrowser.tsx)). 마이그레이션은 이 환경이 비대화형 셸이라 `prisma migrate diff` 대신 기존 전례(컬럼 추가/삭제 손 작성)를 따라 SQL을 직접 작성(`20260907120000_add_trip_visibility_and_shares`) — **DB가 꺼져 있어 `prisma migrate deploy`를 실행하지 못했음, 다음 세션에서 Docker 켜지면 최우선으로 적용 필요**(컬럼 삭제가 포함돼 있어 적용 후 README 기존 경고대로 `.next` 캐시 삭제 + 서버 재시작까지 필요).
+- **프로필의 "여행 목록" 노출만 별도로 비공개 설정**: 사용자가 명확히 확정한 범위대로 — 회원검색 노출, `/users/[nickname]` 프로필 페이지 열람(닉네임/자기소개/아바타)은 그대로 전체 공개 유지하고, **여행 목록 섹션만** 토글로 숨김. `User.showTripsOnProfile`(기본 `true`) 추가. `/users/[nickname]/page.tsx`는 본인이거나 이 값이 켜져 있을 때만 여행 목록/개수를 보여주고, 꺼져 있으면 "여행 목록을 비공개로 설정했습니다" 안내문만 표시. `AccountForm.tsx`의 자기소개 저장 폼에 체크박스 하나 추가해 같은 PATCH로 저장. **`listSharedTrips`에 특정 회원(`userId`) 필터가 걸릴 때도 그 회원의 `showTripsOnProfile`을 서비스 레이어에서 재확인**하도록 해서, 프로필 페이지의 첫 렌더뿐 아니라 `UserTripList`의 "더보기" 페이지네이션이 호출하는 `/api/trips/shared?userId=...`를 직접 두드려도 새어나가지 않게 막음. 마이그레이션 `20260907130000_add_user_show_trips_on_profile`(컬럼 추가만이라 안전) — 이것도 DB가 꺼져 있어 미적용.
+- `npx prisma generate`/`npx next typegen`이 세션 시작 시 둘 다 갱신 안 된 상태였음(README에 이미 있는 주의사항) — 재실행해서 해결, 이후 `tsc --noEmit` 전체 통과 확인.
+
 **다음 세션 할 일**
+- **최우선**: 위 두 마이그레이션(`add_trip_visibility_and_shares`, `add_user_show_trips_on_profile`)을 Docker 켜서 `npx prisma migrate deploy`로 적용하고, 컬럼 삭제가 포함된 첫 번째 이후엔 `.next` 캐시 삭제 + 서버 재시작
+- 위 3개 기능(일차 드래그 이동/공유 범위 3단계/프로필 여행목록 비공개) 전부 브라우저 E2E 미검증 — 마이그레이션 적용 직후 최우선으로 확인
 - Phase 0 잔여 작업: 유출됐던 카카오 키 재발급(재발급 후 신규 키로 각자 `.env` 갱신 필요) — 사용자 확인/조치 필요해 자동 진행하지 않음
 - (참고, 지금 범위 아님) 나중에 대중교통을 다시 붙이고 싶으면 ODsay 키 발급 + 이번에 지운 코드 복원부터 시작
-- (참고) AI로 일정 가져오기 화면에서도 날짜를 지정해 가져올 수 있게 하면 좋을 듯 — 지금은 전부 1일차로 들어감
-- (참고) 공유 트립 목록/상세는 지금 로그인한 사용자면 누구나 볼 수 있음 — 특정 사용자에게만 공유하거나 링크를 아는 사람만 보게 하는 등 세분화된 공개 범위가 필요해지면 별도 설계 필요
-- (참고) 회원 프로필도 같은 이유로 로그인한 사용자면 누구나 검색/열람 가능 — 프로필 비공개 옵션은 아직 없음
+- (참고) 일차 드래그 이동은 펼쳐진 날짜끼리만 가능 — 접힌 날짜 헤더 자체를 드롭존으로 만들면(자동 펼침) 한 단계 더 편해질 수 있음
+- (참고) 특정 회원 지정 공유(`TripShare`)로만 공유된(PRIVATE) 트립은 복사를 막아뒀는데, 필요해지면 완화 검토
