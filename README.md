@@ -394,6 +394,14 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - 위 두 원인 모두 해결 후 `./down.sh && rm -rf apps/web/.next && ./up.sh`로 완전 재기동, 브라우저로 `/login` 화면이 CSS 정상 적용된 채(파란 로그인 버튼 등) 렌더링되는 것과 `.dev-server.log`에 `globals.css`/`isPublic` 관련 에러가 더 이상 없는 것까지 확인
 - 재발 방지로 README "수동으로 띄우기" 섹션의 `npm install`을 `apps/web` 안이 아니라 루트에서 실행하도록 수정, "이 환경 관련 참고사항"에 이 lock 파일 문제 새 항목 추가
 
+**완료 (2026-09-08, 후기 탭에 장소별 별점 추가)**
+- 사용자 요청: 후기 탭의 장소 이름 오른쪽에 별 5개짜리 별점을 오른쪽 정렬로 추가, 클릭한 별까지 왼쪽부터 노란색으로 채워지는 방식
+- `PlaceEntry.rating`(Int, 기본값 0, 0~5) 필드 추가(마이그레이션 `20260908090000_add_place_rating`). 후기(`Review`)는 장소당 여러 건이 달릴 수 있는 별개 개념이라, 별점은 후기 각각이 아니라 **장소 자체에 달린 값 하나**로 설계(리뷰 사이트의 "장소 평균 별점"이 아니라 이 트립 안에서 내가 매기는 개인 평점 개념)
+- 새 [PlaceRating.tsx](apps/web/src/app/trips/[tripId]/PlaceRating.tsx): 별 5개 SVG를 순수 클라이언트 컴포넌트로 구현, `PATCH /api/trips/[tripId]/places/[placeId]`에 `{ rating }`만 보내 저장(기존 장소 수정 API/스키마 재사용, 별도 엔드포인트 신설 안 함). 클릭 즉시 낙관적으로 채워 보여주고 실패 시 이전 값으로 롤백, hover 시에도 그 지점까지 미리 채워 보이도록 함. [ReviewGallery.tsx](apps/web/src/app/trips/[tripId]/ReviewGallery.tsx)의 장소 이름 버튼을 `justify-between` flex 행으로 감싸 오른쪽에 배치
+- `updatePlaceSchema`(`lib/validation.ts`)에 `rating: 0~5 정수 optional` 추가, `PlaceInput` 타입(`lib/services/places.ts`)과 `PlaceEntry` 타입(`app/trips/[tripId]/types.ts`)에도 반영 — `createPlaceSchema`(장소 생성)에는 넣지 않음, 별점은 항상 생성 후 수정으로만 매기는 값이라서
+- **버그 재현(README에 이미 있던 패턴)**: 마이그레이션 적용 후 dev 서버를 재시작했는데도 `Unknown argument rating` 500 에러가 재현됨 — `./down.sh && ./up.sh`만으로는 `apps/web/.next` 캐시가 이전 Prisma Client 타입을 계속 참조해서였고, `rm -rf apps/web/.next`까지 하고서야 해소됨(다른 스키마 변경 세션들에서도 반복된 것과 동일한 원인이라 새로 배운 건 아님, 재확인 차원)
+- `tsc --noEmit`/`eslint` 통과 확인. 브라우저로 테스트 계정 신규 가입 → 여행 생성 → "경복궁" 장소 추가 → 후기 탭에서 4번째 별 클릭 시 1~4번째만 노란색으로 채워지는 것, 새로고침 후에도 4점이 유지되는 것까지 확인. 테스트 여행은 삭제해 정리함(테스트 계정 자체는 로컬 Docker DB에만 남음, 실 서비스 데이터 아님)
+
 **다음 세션 할 일**
 - Phase 0 잔여 작업: 유출됐던 카카오 키 재발급(재발급 후 신규 키로 각자 `.env` 갱신 필요) — 사용자 확인/조치 필요해 자동 진행하지 않음
 - (참고, 지금 범위 아님) 나중에 대중교통을 다시 붙이고 싶으면 ODsay 키 발급 + 이번에 지운 코드 복원부터 시작

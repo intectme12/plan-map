@@ -117,4 +117,5 @@ export const updatePlaceSchema = z.object({
   phone: z.string().max(50).optional(),
   scheduledAt: z.coerce.date().optional(),
   order: z.coerce.number().int().optional(),
+  rating: z.coerce.number().int().min(0).max(5).optional(),
 });

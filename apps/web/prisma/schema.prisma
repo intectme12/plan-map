@@ -107,6 +107,7 @@ model PlaceEntry {
   placeUrl    String?
   phone       String?
   scheduledAt DateTime?
+  rating      Int       @default(0) // 0~5, 후기 탭 별점
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

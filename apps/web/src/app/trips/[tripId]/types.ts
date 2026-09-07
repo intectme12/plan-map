@@ -10,6 +10,7 @@ export type PlaceEntry = {
   placeUrl: string | null;
   phone: string | null;
   scheduledAt: string | Date | null;
+  rating: number;
   expenses: { id: string; amount: number; category: string; memo: string | null }[];
   photos: { id: string; storageKey: string }[];
   reviews: { id: string; content: string; createdAt: string | Date }[];

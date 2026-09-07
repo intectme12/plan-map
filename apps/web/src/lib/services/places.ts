@@ -25,6 +25,7 @@ type PlaceInput = {
   placeUrl?: string;
   phone?: string;
   scheduledAt?: Date;
+  rating?: number;
 };
 
 export async function createPlace(userId: string, tripId: string, data: PlaceInput) {

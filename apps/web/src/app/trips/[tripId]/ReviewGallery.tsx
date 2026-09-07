@@ -1,4 +1,5 @@
 import { PlaceReviews } from "./PlaceReviews";
+import { PlaceRating } from "./PlaceRating";
 import { DayAccordionSection } from "./DayAccordionSection";
 import { getTripDays, groupByDay } from "./days";
 import type { PlaceEntry } from "./types";
@@ -49,15 +50,18 @@ export function ReviewGallery({
               ) : (
                 dayPlaces.map((place) => (
                   <div key={place.id}>
-                    <button
-                      type="button"
-                      onClick={() => onSelectPlace(place.id)}
-                      className={`mb-2 rounded px-1 -mx-1 text-left text-sm font-semibold hover:bg-neutral-50 ${
-                        selectedPlaceId === place.id ? "bg-blue-50" : ""
-                      }`}
-                    >
-                      {place.name}
-                    </button>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onSelectPlace(place.id)}
+                        className={`rounded px-1 -mx-1 text-left text-sm font-semibold hover:bg-neutral-50 ${
+                          selectedPlaceId === place.id ? "bg-blue-50" : ""
+                        }`}
+                      >
+                        {place.name}
+                      </button>
+                      <PlaceRating tripId={tripId} placeId={place.id} initialRating={place.rating} />
+                    </div>
                     <PlaceReviews tripId={tripId} placeId={place.id} initialReviews={place.reviews} />
                   </div>
                 ))
