@@ -176,20 +176,25 @@ export function TripCreateForm() {
               </p>
             ) : (
               <ul className="flex max-h-32 flex-col gap-1 overflow-y-auto">
-                {participantResults.map((u) => (
-                  <li key={u.id} className="flex items-center gap-2 rounded-md bg-white px-2 py-1">
-                    <Avatar url={u.avatarUrl} nickname={u.nickname} size={18} />
-                    <span className="min-w-0 flex-1 truncate text-xs">{u.nickname}</span>
-                    <button
-                      type="button"
-                      onClick={() => addParticipant({ name: u.nickname, userId: u.id })}
-                      disabled={addedUserIds.has(u.id)}
-                      className="flex-none rounded-md border border-neutral-300 px-2 py-0.5 text-[11px] disabled:opacity-50"
-                    >
-                      {addedUserIds.has(u.id) ? "추가됨" : "추가"}
-                    </button>
-                  </li>
-                ))}
+                {participantResults.map((u) => {
+                  const added = addedUserIds.has(u.id);
+                  return (
+                    <li key={u.id}>
+                      <button
+                        type="button"
+                        onClick={() => addParticipant({ name: u.nickname, userId: u.id })}
+                        disabled={added}
+                        className="flex w-full items-center gap-2 rounded-md bg-white px-2 py-1 text-left hover:bg-blue-50 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-white"
+                      >
+                        <Avatar url={u.avatarUrl} nickname={u.nickname} size={18} />
+                        <span className="min-w-0 flex-1 truncate text-xs">{u.nickname}</span>
+                        <span className="flex-none text-[11px] text-neutral-400">
+                          {added ? "추가됨" : "추가"}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
@@ -203,7 +208,9 @@ export function TripCreateForm() {
                 className="flex items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs"
               >
                 <span>{p.name}</span>
-                {!p.userId ? <span className="text-neutral-400">(미가입)</span> : null}
+                <span className={p.userId ? "text-blue-500" : "text-neutral-400"}>
+                  {p.userId ? "(공유인원)" : "(미가입)"}
+                </span>
                 <button
                   type="button"
                   onClick={() => removeParticipant(p.key)}
