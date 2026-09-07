@@ -1,10 +1,11 @@
 -- AlterTable: isPublic(boolean) -> visibility(string: PRIVATE|UNLISTED|PUBLIC)
 ALTER TABLE "trips" ADD COLUMN "visibility" TEXT NOT NULL DEFAULT 'PRIVATE';
 UPDATE "trips" SET "visibility" = 'PUBLIC' WHERE "isPublic" = true;
+-- "isPublic"를 지우면 그 컬럼을 포함하던 "trips_isPublic_sharedAt_idx" 인덱스는 Postgres가 자동으로 함께 지운다
+-- (컬럼이 인덱스에 포함되어 있으면 DROP COLUMN 시 자동 CASCADE) — 그래서 별도 DROP INDEX 문이 필요 없다
 ALTER TABLE "trips" DROP COLUMN "isPublic";
 
--- DropIndex / CreateIndex
-DROP INDEX "trips_isPublic_sharedAt_idx";
+-- CreateIndex
 CREATE INDEX "trips_visibility_sharedAt_idx" ON "trips"("visibility", "sharedAt");
 
 -- CreateTable
