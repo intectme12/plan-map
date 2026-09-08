@@ -69,6 +69,7 @@ export function TripWorkspace({
         roadAddress: p.roadAddress,
         phone: p.phone,
         placeUrl: p.placeUrl,
+        rating: p.rating,
       })),
     [items]
   );

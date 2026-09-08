@@ -417,6 +417,13 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - **읽기 전용 공유 화면에 후기 탭 추가**: 새 [SharedReviewGallery.tsx](apps/web/src/app/trips/shared/[tripId]/SharedReviewGallery.tsx) — `PlaceRating.tsx`에서 별점 SVG를 `Star`/`StaticStars`(읽기 전용, 클릭 불가)로 분리해 재사용. `getSharedTrip`도 `reviews`에 작성자 닉네임을 함께 내려주도록 수정
 - `tsc --noEmit`/`eslint` 전체 통과. 브라우저로 두 계정(A=별점테스터/B=공유테스터B)을 만들어 E2E 확인: A가 트립 생성 후 전체공개 + 후기 작성 → B가 "다른 사람 여행계획"에서 그 트립의 후기 탭(읽기 전용)에 A의 후기+닉네임+별점이 보이는 것 → A가 B를 닉네임으로 공유 추가 → B가 "나에게 공유됨"에서 클릭하면 (읽기전용이 아니라) 오너와 동일한 전체 편집 화면으로 들어가는 것, 공유/공개범위 버튼은 없고 "별점테스터님의 여행" 표시만 있는 것 → B가 직접 후기를 추가하니 "공유테스터B" 닉네임으로 저장되는 것 → A로 돌아와도 B의 후기가 정상적으로 함께 보이고 A의 공유/공개범위 컨트롤은 그대로 살아있는 것까지 확인. 테스트 트립은 삭제해 정리(테스트 계정 2개는 로컬 Docker DB에만 남음)
 
+**완료 (2026-09-08, 마커 정보 팝업에 장소 별점 표시 + Prisma Client 재생성 누락 버그 수정)**
+
+- 사용자 요청으로 지도 마커 클릭 시 뜨는 정보 팝업([KakaoMapCanvas.tsx](apps/web/src/components/map/KakaoMapCanvas.tsx)의 `buildInfoCard`)에서 장소명 옆에 노란 별 아이콘 + 별점 숫자를 표시하도록 추가. `PlaceEntry.rating`(0~5, 공유 편집자 전원이 공동으로 매기는 단일 값 — 개인별 평점을 모아 평균 내는 구조는 아님)을 `MapPoint.rating`으로 전달해 표시하며, 0점(미평가)일 때는 배지를 숨김
+- `TripWorkspace.tsx`/`SharedTripView.tsx` 양쪽의 `points` 매핑에 `rating: p.rating` 추가해 편집 화면과 읽기전용 공유 화면 모두에 반영
+- **버그 발견/수정**: 직전 세션(후기 작성자 표시 기능)에서 `Review.author` 관계를 스키마에 추가하고 마이그레이션까지 적용했지만 `npx prisma generate`를 실행하지 않아, dev 서버가 "Unknown field `author` for include statement on model `Review`" 런타임 에러를 냄(README에 이미 여러 번 기록된 "스키마 변경 후 dev 서버/클라이언트 재생성 누락" 패턴과 동일). dev 서버가 Prisma 엔진 dll을 잠그고 있어 `prisma generate`가 EPERM으로 실패하는 것까지 확인 → dev 서버 종료 후 재생성, `.next/dev` 캐시 삭제, 서버 재시작으로 해소
+- `tsc --noEmit` 통과 확인. 서버 재시작 후 사용자 본인 브라우저 세션이 재연결되어 API 호출이 200으로 정상 처리되는 것을 서버 로그로 확인. 별점 배지 UI 자체는 이 환경의 자동화 브라우저 패널에 로그인 세션이 없어 직접 클릭해 스크린샷으로 확인하지는 못함 — 사용자 쪽에서 마커 클릭해 확인 권장
+
 **다음 세션 할 일**
 - Phase 0 잔여 작업: 유출됐던 카카오 키 재발급(재발급 후 신규 키로 각자 `.env` 갱신 필요) — 사용자 확인/조치 필요해 자동 진행하지 않음
 - (참고, 지금 범위 아님) 나중에 대중교통을 다시 붙이고 싶으면 ODsay 키 발급 + 이번에 지운 코드 복원부터 시작

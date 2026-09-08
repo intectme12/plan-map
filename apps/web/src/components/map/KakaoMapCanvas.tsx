@@ -13,6 +13,7 @@ type MapPoint = {
   roadAddress?: string | null;
   phone?: string | null;
   placeUrl?: string | null;
+  rating?: number;
 };
 type MapSegment = {
   fromLat: number;
@@ -47,10 +48,28 @@ function buildInfoCard(point: MapPoint, onClose: () => void): HTMLElement {
   closeBtn.onclick = onClose;
   card.appendChild(closeBtn);
 
-  const title = document.createElement("div");
+  const titleRow = document.createElement("div");
+  titleRow.style.cssText =
+    "display:flex; align-items:center; gap:5px; padding-right:16px; margin-bottom:2px;";
+
+  const title = document.createElement("span");
   title.textContent = point.name;
-  title.style.cssText = "font-weight:700; font-size:13px; padding-right:16px; margin-bottom:2px;";
-  card.appendChild(title);
+  title.style.cssText = "font-weight:700; font-size:13px;";
+  titleRow.appendChild(title);
+
+  if (point.rating && point.rating > 0) {
+    const ratingBadge = document.createElement("span");
+    ratingBadge.style.cssText =
+      "display:inline-flex; align-items:center; gap:2px; color:#b45309; font-weight:600; font-size:12px; flex:none;";
+    ratingBadge.innerHTML =
+      '<svg width="12" height="12" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3z" fill="#facc15" stroke="#facc15" stroke-width="1.3" stroke-linejoin="round"/></svg>';
+    const ratingValue = document.createElement("span");
+    ratingValue.textContent = point.rating.toFixed(1);
+    ratingBadge.appendChild(ratingValue);
+    titleRow.appendChild(ratingBadge);
+  }
+
+  card.appendChild(titleRow);
 
   if (point.category) {
     const cat = document.createElement("div");
