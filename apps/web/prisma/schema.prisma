@@ -7,24 +7,87 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// email/비밀번호 + OAuth(카카오/구글/네이버) 로그인은 better-auth가 관장한다 — docs/OAUTH.md 참고.
+// passwordHash는 better-auth 도입 이전 계정의 잔여 컬럼(레거시 안전망)이고, 이후 로그인은
+// account 테이블(providerId="credential")의 password를 쓴다. emailVerified/updatedAt은
+// better-auth가 요구하는 필드, nickname은 better-auth user.fields에서 name으로 매핑된다.
 model User {
   id                 String   @id @default(cuid())
   email              String   @unique
-  passwordHash       String
+  emailVerified      Boolean  @default(false)
+  passwordHash       String? // 레거시(마이그레이션 이전 계정), 더 이상 로그인에 쓰이지 않음
   nickname           String   @unique
   role               String   @default("USER") // "USER" | "ADMIN"
   bio                String?
   avatarUrl          String?
   showTripsOnProfile Boolean  @default(true)
   createdAt          DateTime @default(now())
+  updatedAt          DateTime @default(now()) @updatedAt
 
   trips            Trip[]
   notices          Notice[]
   tripShares       TripShare[]
   tripParticipants TripParticipant[]
   reviews          Review[]
+  sessions         Session[]
+  accounts         Account[]
 
   @@map("users")
+}
+
+// 아래 세 모델은 better-auth가 요구하는 스키마(session/account/verification)를
+// 이 프로젝트의 명명 규칙(camelCase 컬럼, snake_case 테이블)에 맞춰 그대로 둔 것 —
+// better-auth 옵션에서 별도 modelName 매핑 없이도 Prisma Client 접근자(prisma.session 등)와
+// 기본 내부 키가 일치해서 필드명만 기본값 그대로 쓴다.
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// providerId="credential"인 row가 이메일/비밀번호 계정의 비밀번호 해시(password)를 갖는다.
+model Account {
+  id                    String    @id @default(cuid())
+  userId                String
+  providerId            String
+  accountId             String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verifications")
 }
 
 model Notice {

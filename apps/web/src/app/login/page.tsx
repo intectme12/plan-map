@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { OAuthButtons } from "@/components/OAuthButtons";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -56,6 +57,7 @@ export default function LoginPage() {
           {pending ? "로그인 중..." : "로그인"}
         </Button>
       </form>
+      <OAuthButtons />
       <p className="text-sm text-neutral-500">
         계정이 없으신가요?{" "}
         <Link href="/register" className="font-semibold text-blue-600">

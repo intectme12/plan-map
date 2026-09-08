@@ -6,7 +6,7 @@
 
 - 큐/워커가 없으므로 Redis 등 별도 저장소가 없다 — 캐시가 필요한 유일한 것(경로 조회)도 그냥 Postgres 테이블(`RouteSegment`)에 TTL 컬럼(`computedAt`)으로 구현.
 - ID는 전부 `cuid()`(Prisma 기본), UUID 아님.
-- 소셜 로그인이 없으므로 OAuth 토큰 테이블도 없다 — 자세한 내용은 [OAUTH.md](./OAUTH.md).
+- 로그인(이메일/비밀번호 + 카카오/구글/네이버 OAuth)은 better-auth가 관장하고, `sessions`/`accounts`/`verifications` 테이블을 쓴다 — 자세한 내용은 [OAUTH.md](./OAUTH.md). 이 문서의 아래 스키마 스냅샷은 오래돼 있으니(예: User 컬럼 목록이 실제보다 적음) 정확한 최신 스키마는 `apps/web/prisma/schema.prisma`를 직접 확인할 것.
 - 사진 파일 자체는 DB에 없다 — `Photo.storageKey`가 로컬 디스크 경로(`/uploads/...`)를 가리킬 뿐.
 
 ## 스키마 (실제)

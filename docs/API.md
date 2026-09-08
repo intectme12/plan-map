@@ -5,13 +5,13 @@
 ## 공통 규칙
 
 - JSON, 별도 표기 없으면 요청/응답 바디는 camelCase.
-- 인증: `Authorization` 헤더가 아니라 **httpOnly 쿠키 세션**(`session`, JWT). 로그인 시 `Set-Cookie`로 발급, 이후 요청은 브라우저가 자동으로 쿠키를 붙임. 예외 없이 모든 트립/장소/지출/사진/경로/AI 엔드포인트가 이 방식으로 인증한다.
+- 인증: `Authorization` 헤더가 아니라 **httpOnly 쿠키 세션**(better-auth DB 세션, [OAUTH.md](./OAUTH.md) 참고). 로그인 시 `Set-Cookie`로 발급, 이후 요청은 브라우저가 자동으로 쿠키를 붙임. 예외 없이 모든 트립/장소/지출/사진/경로/AI 엔드포인트가 이 방식으로 인증한다.
 - 에러 응답: `{ "error": string | ZodFlattenedError }`. Zod 검증 실패는 400, 소유권 없음/미존재는 404, 외부 API 키 미설정처럼 기능 자체를 쓸 수 없는 경우는 503(`lib/http.ts`의 `handleRouteError`가 매핑).
 - 소유권: 모든 변경 엔드포인트가 리소스를 로드해 `userId`를 검사한다. 실패 시 403이 아니라 404(리소스 존재 여부 자체를 감춤).
 
 ## 인증 (`/api/auth`)
 
-`lib/auth.ts` + `app/api/auth/*`.
+`lib/betterAuth.ts`(better-auth) + `app/api/auth/*`. 아래 4개는 요청/응답 형태를 기존 그대로 유지한 자체 라우트, `[...all]`은 better-auth 내장 엔드포인트(OAuth 등)를 그대로 노출한다 — 자세한 내용은 [OAUTH.md](./OAUTH.md).
 
 | Method | Path | 설명 |
 | --- | --- | --- |
@@ -19,6 +19,8 @@
 | `POST` | `/api/auth/login` | `{ email, password }` → 세션 쿠키 발급, `{ id, email, nickname }` 반환 |
 | `POST` | `/api/auth/logout` | 세션 쿠키 삭제 |
 | `GET` | `/api/auth/me` | 현재 로그인한 사용자 조회 |
+| `POST` | `/api/auth/sign-in/social` | `{ provider: "kakao"\|"google"\|"naver", callbackURL }` → OAuth 인가 URL로 리다이렉트(better-auth 내장, `[...all]` 라우트가 처리) |
+| `GET` | `/api/auth/callback/{kakao,google,naver}` | OAuth 콜백(better-auth 내장) |
 
 ## 여행 (`/api/trips`)
 

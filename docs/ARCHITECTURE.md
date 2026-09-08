@@ -7,7 +7,7 @@ plan-map의 실제 아키텍처 문서. 상위 개요/로드맵은 [README.md](.
 | 주제 | 결정 | 근거 |
 | --- | --- | --- |
 | 앱 구조 | Next.js 16 App Router 단일 앱이 UI(RSC)와 API(Route Handler)를 겸함 | 화면 수가 적은 MVP 단계에서 별도 백엔드/워커 프로세스를 둘 이유가 없음. 워커·큐(Redis 등)가 필요할 만큼 무거운 비동기 작업이 없음(외부 API 호출은 전부 짧은 동기 요청) |
-| 인증 | bcrypt 해싱 + JWT를 httpOnly 쿠키에 저장(`SameSite=Lax`) | 소셜 로그인/OAuth 없음 — 자체 회원가입만 지원. 세부는 [OAUTH.md](./OAUTH.md) 참고 |
+| 인증 | better-auth가 이메일/비밀번호 + 카카오/구글/네이버 OAuth를 함께 관장, DB 세션 쿠키 | 2026-09-08부터 OAuth 지원(이전엔 자체 회원가입만). 세부는 [OAUTH.md](./OAUTH.md) 참고 |
 | 테넌시 | 단일 사용자 계정, 모든 리소스가 `userId` 소유권 검사를 거침 | 여러 명이 같은 여행을 공동 편집하는 기능은 아직 요구사항에 없음 |
 | DB | PostgreSQL + Prisma | 타입 자동 생성, PostGIS로 추후 지오 쿼리 확장 여지 |
 | 지도/장소 검색/경로(자동차) | 카카오맵 JS SDK + 카카오모빌리티 REST API | 국내 POI 검색 품질 |
@@ -54,7 +54,7 @@ Prisma Client → PostgreSQL
 
 | 경로 접두사 | 서비스 파일 | 비고 |
 | --- | --- | --- |
-| `/api/auth/*` | `lib/auth.ts` | 회원가입/로그인/로그아웃/me |
+| `/api/auth/*` | `lib/betterAuth.ts`(better-auth) | 회원가입/로그인/로그아웃/me + 카카오·구글·네이버 OAuth. `lib/auth.ts`는 `getCurrentUser()`/`isAdmin()`만 남음 |
 | `/api/trips` | `lib/services/trips.ts` | 여행 CRUD |
 | `/api/trips/[tripId]/places` | `lib/services/places.ts` | 장소 CRUD, 순서(order) 관리 |
 | `/api/places/search` | `lib/services/geocode.ts` | 카카오 장소검색(여행에 종속되지 않음) — 장소 추가 폼이 위도/경도 직접 입력 대신 이걸 씀 |
@@ -83,14 +83,14 @@ components/
   map/KakaoMapCanvas.tsx     카카오맵 렌더링(클라이언트 컴포넌트)
   toast/ToastProvider.tsx    삭제/실행취소 등에 쓰는 토스트
 lib/
-  auth.ts, db.ts, errors.ts, http.ts, validation.ts   공통 유틸
+  auth.ts, betterAuth.ts, auth-client.ts, password.ts, db.ts, errors.ts, http.ts, validation.ts   공통 유틸(인증 관련은 OAUTH.md 참고)
   services/                 도메인별 서비스 (위 표 참고)
 ```
 
 ## 5. 보안 기준선
 
-- 비밀번호: bcrypt(10 rounds).
-- 세션: JWT(HS256) + httpOnly, `SameSite=Lax` 쿠키. `JWT_SECRET` 미설정 시 앱이 기동 실패하도록 `lib/auth.ts`에서 즉시 throw.
+- 비밀번호: bcrypt(10 rounds, `lib/password.ts`) — better-auth의 `emailAndPassword.password` 훅에 연결.
+- 세션: better-auth DB 세션 + httpOnly 쿠키. `BETTER_AUTH_SECRET` 미설정 시 앱이 기동 실패하도록 `lib/betterAuth.ts`에서 즉시 throw.
 - 모든 요청 바디는 zod로 검증(`lib/validation.ts`). 검증 실패는 `ZodError` → 400.
 - 모든 변경 작업은 리소스를 로드해 `userId` 소유권을 확인한 뒤 처리(`assertTripOwnership`/`assertPlaceOwnership` 패턴). 소유권 실패는 404(존재 자체를 숨김 — IDOR 방지 목적으로 403 대신 404 사용).
 - 비밀 정보는 전부 `.env`(gitignore 처리, 커밋 안 됨)로 분리 — Phase 0의 계기: 기존 CRA/Express 코드에 카카오 키가 하드코딩되어 공개 커밋된 적이 있음. 자세한 배경은 README.md "리팩토링 배경" 참고.
@@ -113,7 +113,7 @@ lib/
 | [DATABASE.md](./DATABASE.md) | Prisma 스키마 |
 | [API.md](./API.md) | REST 엔드포인트 |
 | [AI.md](./AI.md) | AI 일정 자동생성 |
-| [OAUTH.md](./OAUTH.md) | 인증 방식(OAuth 미사용) |
+| [OAUTH.md](./OAUTH.md) | 인증 방식(better-auth, OAuth 포함) |
 | [PUBLISHING.md](./PUBLISHING.md) | 외부 API 연동 패턴 |
 | [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) | 디자인 토큰 |
 | [UI_RULES.md](./UI_RULES.md) | UI/UX 체크리스트 |

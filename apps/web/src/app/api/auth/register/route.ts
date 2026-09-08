@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
+import { APIError } from "better-auth";
+import { headers } from "next/headers";
 import { prisma } from "@/lib/db";
-import { hashPassword, signSession, SESSION_COOKIE, SESSION_MAX_AGE_SECONDS } from "@/lib/auth";
+import { auth } from "@/lib/betterAuth";
 import { registerSchema } from "@/lib/validation";
 import { handleRouteError } from "@/lib/http";
 
@@ -21,10 +23,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "이미 사용 중인 닉네임입니다." }, { status: 409 });
     }
 
-    const passwordHash = await hashPassword(password);
     let user;
     try {
-      user = await prisma.user.create({ data: { email, passwordHash, nickname } });
+      const result = await auth.api.signUpEmail({
+        body: { name: nickname, email, password },
+        headers: await headers(),
+      });
+      user = result.user;
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
         const target = (err.meta?.target as string[] | undefined)?.[0];
@@ -32,21 +37,16 @@ export async function POST(request: Request) {
           target === "nickname" ? "이미 사용 중인 닉네임입니다." : "이미 가입된 이메일입니다.";
         return NextResponse.json({ error: message }, { status: 409 });
       }
+      if (err instanceof APIError) {
+        return NextResponse.json({ error: "이미 가입된 이메일입니다." }, { status: 409 });
+      }
       throw err;
     }
 
-    const response = NextResponse.json(
-      { id: user.id, email: user.email, nickname: user.nickname },
+    return NextResponse.json(
+      { id: user.id, email: user.email, nickname: user.name },
       { status: 201 }
     );
-    response.cookies.set(SESSION_COOKIE, signSession(user.id), {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: SESSION_MAX_AGE_SECONDS,
-    });
-    return response;
   } catch (err) {
     return handleRouteError(err);
   }

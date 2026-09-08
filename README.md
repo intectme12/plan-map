@@ -432,7 +432,21 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - `SharedTripCard.tsx`의 아바타 클릭 동작을 이걸로 교체 — 기존에 있던 "아바타 클릭 시 사진만 확대"(`AvatarLightbox`) 기능은 이 카드에서만 쓰이고 있었고 프로필 팝업이 그 역할을 포함하는 상위 호환이라 판단해 대체, 더 이상 아무 데서도 안 쓰는 `AvatarLightbox.tsx`는 삭제. "나에게 공유됨" 탭도 같은 `SharedTripCard`를 쓰고 있어 함께 팝업으로 바뀜(부수효과이지만 일관된 동작이라 그대로 둠)
 - `tsc --noEmit`/`eslint` 통과(초기 구현에서 effect 안 setState 경고 나와서 제거 — 모달이 열릴 때마다 새로 마운트되니 초기 `useState`의 `loading` 상태로 이미 충분함). 브라우저에서 로그인된 테스트 계정으로 "다른 사람 여행계획" 탭 진입 → 아바타 클릭 → 페이지 이동 없이 팝업으로 프로필+여행 목록이 뜨는 것, X 버튼으로 닫히는 것까지 확인
 
+**완료 (2026-09-08, 로그인을 better-auth로 전환 + 카카오/구글/네이버 OAuth 추가)**
+
+사용자 요청: 기존 이메일/비밀번호 로그인은 그대로 두고 카카오·구글·네이버 OAuth 로그인을 추가. 구현 방식으로 [better-auth](https://www.better-auth.com) 도입을 검토해달라는 요청이 있어 조사 후 채택(카카오/구글/네이버 모두 내장 프로바이더로 지원, Prisma 어댑터가 기존 테이블/컬럼명에 필드 매핑만으로 붙는 것까지 확인). 자세한 설계는 [docs/OAUTH.md](docs/OAUTH.md) 참고.
+
+- 자체 JWT+bcrypt 세션(`lib/auth.ts`)을 better-auth(`lib/betterAuth.ts`)로 교체하되, `getCurrentUser()`/`isAdmin()` 반환 계약은 그대로 유지해서 이 함수를 쓰는 다른 코드(약 15곳 이상)는 한 곳도 안 건드림. `/api/auth/{login,register,logout}`도 요청/응답 JSON은 그대로 두고 내부만 `auth.api.signInEmail/signUpEmail/signOut` 호출로 교체, 새 `/api/auth/[...all]` 라우트가 OAuth 콜백 등 better-auth 내장 엔드포인트를 처리
+- Prisma 스키마: `User`에 `emailVerified`/`updatedAt` 추가, `passwordHash`는 nullable로 변경(OAuth 전용 계정엔 값이 없어서), better-auth가 요구하는 `Session`/`Account`/`Verification` 테이블 신설. 기존 회원의 bcrypt 해시는 `apps/web/scripts/migrate-passwords-to-accounts.mjs`로 `Account`(providerId="credential")에 1회 이관 — 비밀번호 재설정 없이 기존 계정 3개 전부 로그인 유지되는 것 확인
+- 카카오 로그인은 사업자 인증 없이는 이메일을 안 줘서(`User.email`이 NOT NULL unique) `kakao_<id>@oauth.local` 플레이스홀더로 대체, OAuth 프로필 이름이 다른 회원과 겹칠 수 있어 `isNicknameAvailable`로 확인 후 숫자를 붙여 재시도하는 로직을 각 프로바이더의 `mapProfileToUser`에 추가(`lib/betterAuth.ts`)
+- 로그인/회원가입 화면에 카카오/구글/네이버 버튼 3개 추가([OAuthButtons.tsx](apps/web/src/components/OAuthButtons.tsx)) — `.env`에 해당 프로바이더 키가 없으면 그 프로바이더는 아예 등록 안 돼서 버튼을 눌러도 에러 메시지만 뜨고 앱이 깨지지 않음(다른 외부 API 키 미설정 패턴과 동일)
+- **버그/이슈 발견**: 스키마를 바꾸고 `npx prisma migrate dev`를 돌렸더니, 예전 세션에서 이미 적용된 마이그레이션(`20260907120000_add_trip_visibility_and_shares`)을 적용 후에 손으로 고친 이력(다른 커밋에서 `DROP INDEX` 제거) 때문에 체크섬이 안 맞아 Prisma가 "스키마 리셋 필요"(전체 데이터 삭제)를 요구함 — 리셋은 절대 안 하고, 대신 `prisma db push`로 무손실 반영 후 마이그레이션 파일은 손으로 작성해 `migrate resolve --applied`로 이력만 맞춤. **다음에 스키마를 또 바꾸면 이 드리프트가 다시 걸릴 수 있음**(아래 다음 세션 할 일 참고)
+- `tsc --noEmit`/`eslint` 전체 통과. 브라우저로 신규 계정 회원가입→로그아웃→로그인, 기존 회원 3명의 이관된 비밀번호 해시가 원본과 일치하는지 DB 조회로 확인. 카카오 버튼 클릭 시(키 미설정 상태) 에러 메시지만 뜨고 정상 폴백하는 것까지 확인 — 실제 OAuth 동의화면까지 완주하는 테스트는 사용자가 각 콘솔에서 키를 발급한 뒤 직접 확인 필요(이 환경은 자동화 브라우저라 실제 카카오/구글/네이버 계정으로 로그인할 수 없음). 테스트 계정은 삭제해 정리(DB에 흔적 안 남음)
+
 **다음 세션 할 일**
+- **(중요)** 카카오/구글/네이버 콘솔에서 OAuth 앱 등록 + 클라이언트 ID/시크릿 발급 후 `apps/web/.env`의 `GOOGLE_CLIENT_ID`/`KAKAO_CLIENT_ID`/`NAVER_CLIENT_ID` 등에 채워넣고, 실제 소셜 로그인 버튼 클릭까지 브라우저로 최종 확인 필요(자세한 절차는 [docs/OAUTH.md](docs/OAUTH.md))
+- **(중요)** 이번에 발견한 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`) 정리 필요 — 지금은 `db push`로 우회했지만, 다음에 스키마를 바꿀 때 `migrate dev`가 또 리셋을 요구할 수 있음. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나, 드리프트를 감수하고 앞으로도 `db push` + 손으로 마이그레이션 작성하는 방식을 표준으로 삼을지 결정 필요
+- (참고) `users.passwordHash` 컬럼은 이제 레거시(로그인은 `accounts.password`를 씀) — 운영 안정성 확인되면 제거하는 마이그레이션 검토
 - Phase 0 잔여 작업: 유출됐던 카카오 키 재발급(재발급 후 신규 키로 각자 `.env` 갱신 필요) — 사용자 확인/조치 필요해 자동 진행하지 않음
 - (참고, 지금 범위 아님) 나중에 대중교통을 다시 붙이고 싶으면 ODsay 키 발급 + 이번에 지운 코드 복원부터 시작
 - (참고) 일차 드래그 이동은 펼쳐진 날짜끼리만 가능 — 접힌 날짜 헤더 자체를 드롭존으로 만들면(자동 펼침) 한 단계 더 편해질 수 있음

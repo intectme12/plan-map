@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { OAuthButtons } from "@/components/OAuthButtons";
 
 type NicknameCheckStatus = "idle" | "checking" | "available" | "taken";
 
@@ -109,6 +110,7 @@ export default function RegisterPage() {
           {pending ? "가입 중..." : "가입하기"}
         </Button>
       </form>
+      <OAuthButtons />
       <p className="text-sm text-neutral-500">
         이미 계정이 있으신가요?{" "}
         <Link href="/login" className="font-semibold text-blue-600">

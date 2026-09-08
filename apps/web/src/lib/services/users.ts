@@ -1,7 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db";
-import { hashPassword, verifyPassword } from "../auth";
-import { InvalidCredentialsError, NicknameTakenError } from "../errors";
+import { NicknameTakenError } from "../errors";
 
 export async function isNicknameAvailable(nickname: string, excludeUserId?: string) {
   const existing = await prisma.user.findUnique({ where: { nickname } });
@@ -21,19 +20,6 @@ export async function updateNickname(userId: string, nickname: string) {
     }
     throw err;
   }
-}
-
-export async function changePassword(
-  userId: string,
-  currentPassword: string,
-  newPassword: string
-) {
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-  const valid = await verifyPassword(currentPassword, user.passwordHash);
-  if (!valid) throw new InvalidCredentialsError("현재 비밀번호가 올바르지 않습니다.");
-
-  const passwordHash = await hashPassword(newPassword);
-  await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
 }
 
 export function updateProfileFields(
