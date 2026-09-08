@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Avatar } from "@/components/Avatar";
-import { AvatarLightbox } from "@/components/AvatarLightbox";
+import { UserProfileModal } from "@/components/UserProfileModal";
 
 export type SharedTripCardData = {
   id: string;
@@ -28,16 +28,16 @@ export function SharedTripCard({
   showOwner?: boolean;
   href?: string;
 }) {
-  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   return (
     <div className="flex items-center gap-3 rounded-lg border border-neutral-200 px-4 py-3 hover:bg-neutral-50">
       {showOwner ? (
         <button
           type="button"
-          onClick={() => trip.user.avatarUrl && setLightboxOpen(true)}
+          onClick={() => setProfileOpen(true)}
           className="flex-none"
-          aria-label={`${trip.user.nickname} 프로필 사진 확대`}
+          aria-label={`${trip.user.nickname} 프로필 보기`}
         >
           <Avatar url={trip.user.avatarUrl} nickname={trip.user.nickname} size={40} />
         </button>
@@ -57,8 +57,8 @@ export function SharedTripCard({
         <span className="flex-none text-sm text-neutral-400">장소 {trip._count.places}개</span>
       </Link>
 
-      {lightboxOpen && trip.user.avatarUrl ? (
-        <AvatarLightbox url={trip.user.avatarUrl} onClose={() => setLightboxOpen(false)} />
+      {profileOpen ? (
+        <UserProfileModal nickname={trip.user.nickname} onClose={() => setProfileOpen(false)} />
       ) : null}
     </div>
   );

@@ -424,6 +424,14 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - **버그 발견/수정**: 직전 세션(후기 작성자 표시 기능)에서 `Review.author` 관계를 스키마에 추가하고 마이그레이션까지 적용했지만 `npx prisma generate`를 실행하지 않아, dev 서버가 "Unknown field `author` for include statement on model `Review`" 런타임 에러를 냄(README에 이미 여러 번 기록된 "스키마 변경 후 dev 서버/클라이언트 재생성 누락" 패턴과 동일). dev 서버가 Prisma 엔진 dll을 잠그고 있어 `prisma generate`가 EPERM으로 실패하는 것까지 확인 → dev 서버 종료 후 재생성, `.next/dev` 캐시 삭제, 서버 재시작으로 해소
 - `tsc --noEmit` 통과 확인. 서버 재시작 후 사용자 본인 브라우저 세션이 재연결되어 API 호출이 200으로 정상 처리되는 것을 서버 로그로 확인. 별점 배지 UI 자체는 이 환경의 자동화 브라우저 패널에 로그인 세션이 없어 직접 클릭해 스크린샷으로 확인하지는 못함 — 사용자 쪽에서 마커 클릭해 확인 권장
 
+**완료 (2026-09-08, 다른 사람 여행계획 목록에서 프로필을 팝업으로 보기)**
+
+- 사용자 요청으로 "다른 사람 여행계획" 탭([SharedTripBrowser.tsx](apps/web/src/app/trips/SharedTripBrowser.tsx))에서 아바타를 클릭하면 전체 페이지 이동(`/users/[nickname]`) 없이 그 화면과 같은 내용(프로필 사진/닉네임/소개/가입일/공유 중인 여행 목록)을 팝업으로 보여주도록 변경
+- 새 `GET /api/users/[nickname]`([route.ts](apps/web/src/app/api/users/[nickname]/route.ts)) 추가 — `/users/[nickname]/page.tsx`가 서버 컴포넌트에서 하던 것과 동일하게 `getPublicProfile` + `listSharedTrips`를 조합해 프로필과 첫 페이지 여행 목록, 그리고 "본인이거나 여행목록 공개 설정"인지(`canSeeTrips`)를 한 번에 응답 — 클라이언트가 비공개 여부를 별도로 판단할 필요 없게 서버에서 계산해 내려줌
+- 새 [UserProfileModal.tsx](apps/web/src/components/UserProfileModal.tsx): 공용 `Modal` 셸 위에 프로필 헤더 + 기존 `UserTripList`(더보기 페이지네이션 포함)를 그대로 재사용해 렌더링
+- `SharedTripCard.tsx`의 아바타 클릭 동작을 이걸로 교체 — 기존에 있던 "아바타 클릭 시 사진만 확대"(`AvatarLightbox`) 기능은 이 카드에서만 쓰이고 있었고 프로필 팝업이 그 역할을 포함하는 상위 호환이라 판단해 대체, 더 이상 아무 데서도 안 쓰는 `AvatarLightbox.tsx`는 삭제. "나에게 공유됨" 탭도 같은 `SharedTripCard`를 쓰고 있어 함께 팝업으로 바뀜(부수효과이지만 일관된 동작이라 그대로 둠)
+- `tsc --noEmit`/`eslint` 통과(초기 구현에서 effect 안 setState 경고 나와서 제거 — 모달이 열릴 때마다 새로 마운트되니 초기 `useState`의 `loading` 상태로 이미 충분함). 브라우저에서 로그인된 테스트 계정으로 "다른 사람 여행계획" 탭 진입 → 아바타 클릭 → 페이지 이동 없이 팝업으로 프로필+여행 목록이 뜨는 것, X 버튼으로 닫히는 것까지 확인
+
 **다음 세션 할 일**
 - Phase 0 잔여 작업: 유출됐던 카카오 키 재발급(재발급 후 신규 키로 각자 `.env` 갱신 필요) — 사용자 확인/조치 필요해 자동 진행하지 않음
 - (참고, 지금 범위 아님) 나중에 대중교통을 다시 붙이고 싶으면 ODsay 키 발급 + 이번에 지운 코드 복원부터 시작
