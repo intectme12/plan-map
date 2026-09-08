@@ -38,6 +38,18 @@ export const auth = betterAuth({
   user: {
     fields: { name: "nickname", image: "avatarUrl" },
   },
+  account: {
+    accountLinking: {
+      trustedProviders: ["google", "kakao", "naver"],
+      // 이 앱은 이메일 인증 절차 자체가 없어서(회원가입 시 이메일 소유 확인 안 함) 모든
+      // 계정이 항상 emailVerified=false다. 기본값(true)대로 두면 이메일/비밀번호로 먼저
+      // 가입한 회원은 같은 이메일의 OAuth로 영영 연결(로그인)할 수 없어서 false로 낮춘다.
+      // 트레이드오프: 공격자가 남의 이메일로 먼저 비밀번호 계정을 만들어두면, 그 사람이
+      // 나중에 진짜 소유한 구글/카카오/네이버로 로그인할 때 공격자가 만든 계정에 연결될
+      // 수 있음 — 이메일 인증 절차를 도입하기 전까지 감수하는 위험.
+      requireLocalEmailVerified: false,
+    },
+  },
   // 기존 회원의 bcrypt 해시(users.passwordHash → account.password로 1회 이관)와
   // 계속 호환되도록 해싱/검증 함수를 자체 bcrypt 구현으로 교체한다.
   emailAndPassword: {
@@ -59,13 +71,17 @@ export const auth = betterAuth({
           },
         }
       : {}),
-    // 카카오 로그인은 사업자 인증 없이는 이메일 동의항목을 못 받아 email이 없을 수 있다 —
-    // 그 경우 고유 플레이스홀더 이메일로 대체(실 이메일 아님을 알 수 있는 형식).
+    // 카카오 로그인은 사업자 인증 없이는 콘솔에서 이메일(account_email) 동의항목 자체를 켤 수
+    // 없다 — 그 상태에서 account_email scope를 요청하면 인가 단계에서 KOE205로 거부된다.
+    // 그래서 기본 scope(account_email 포함)를 끄고 사업자 인증 없이도 켤 수 있는
+    // 닉네임/프로필사진만 요청한다. email이 없는 건 고유 플레이스홀더로 대체(아래).
     ...(kakaoClientId
       ? {
           kakao: {
             clientId: kakaoClientId,
             clientSecret: kakaoClientSecret,
+            disableDefaultScope: true,
+            scope: ["profile_nickname", "profile_image"],
             mapProfileToUser: async (profile: KakaoProfile) => {
               const account = profile.kakao_account;
               const base = account?.profile?.nickname || account?.name || `카카오사용자${profile.id}`;

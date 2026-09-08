@@ -13,6 +13,8 @@
 
 - `User.nickname`은 `@unique`인데 OAuth 프로필 이름은 다른 회원과 겹칠 수 있어서, 각 제공자의 `mapProfileToUser`(`lib/betterAuth.ts`)에서 `isNicknameAvailable`로 확인 후 겹치면 임의의 4자리 숫자를 붙여 재시도한다.
 - **카카오는 사업자 인증 없이는 이메일 동의항목을 못 받는다.** `User.email`이 `@unique` NOT NULL이라 이메일이 없으면 가입 자체가 막히므로, 카카오 계정에 이메일이 없으면 `kakao_<카카오ID>@oauth.local` 형태의 플레이스홀더로 대체한다(실제 이메일 아님 — 나중에 사업자 인증을 받으면 실 이메일을 받도록 전환 가능).
+  - **콘솔에 없는 동의항목을 scope로 요청하면 인가 단계에서 카카오가 `KOE205`로 거절한다** — 이메일이 아예 안 될 걸 알면서도 better-auth 카카오 프로바이더 기본 scope(`account_email` 포함)를 그대로 요청하면 이 에러가 난다. 그래서 `kakao` 설정에 `disableDefaultScope: true` + `scope: ["profile_nickname", "profile_image"]`로 email 요청 자체를 뺐다(사업자 인증 없이도 켤 수 있는 동의항목만).
+- **계정 연결(account linking)**: better-auth는 기본적으로 "로컬 계정이 `emailVerified: true`인 경우에만 같은 이메일의 OAuth를 자동 연결"한다. 이 앱은 이메일 인증 절차가 아예 없어서(회원가입 시 이메일 소유 확인 안 함) 모든 계정이 항상 `emailVerified: false`라서 이 기본값대로면 기존 이메일/비밀번호 회원은 같은 이메일의 OAuth로 영영 로그인할 수 없다(`account_not_linked` 에러). `account.accountLinking.requireLocalEmailVerified: false`로 낮춰서 해결 — 트레이드오프는 코드 주석(`lib/betterAuth.ts`) 참고. 이메일 인증 절차를 나중에 추가하면 이 설정을 다시 검토할 것.
 
 ## 시크릿
 

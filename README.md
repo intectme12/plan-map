@@ -442,9 +442,13 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - 로그인/회원가입 화면에 카카오/구글/네이버 버튼 3개 추가([OAuthButtons.tsx](apps/web/src/components/OAuthButtons.tsx)) — `.env`에 해당 프로바이더 키가 없으면 그 프로바이더는 아예 등록 안 돼서 버튼을 눌러도 에러 메시지만 뜨고 앱이 깨지지 않음(다른 외부 API 키 미설정 패턴과 동일)
 - **버그/이슈 발견**: 스키마를 바꾸고 `npx prisma migrate dev`를 돌렸더니, 예전 세션에서 이미 적용된 마이그레이션(`20260907120000_add_trip_visibility_and_shares`)을 적용 후에 손으로 고친 이력(다른 커밋에서 `DROP INDEX` 제거) 때문에 체크섬이 안 맞아 Prisma가 "스키마 리셋 필요"(전체 데이터 삭제)를 요구함 — 리셋은 절대 안 하고, 대신 `prisma db push`로 무손실 반영 후 마이그레이션 파일은 손으로 작성해 `migrate resolve --applied`로 이력만 맞춤. **다음에 스키마를 또 바꾸면 이 드리프트가 다시 걸릴 수 있음**(아래 다음 세션 할 일 참고)
 - `tsc --noEmit`/`eslint` 전체 통과. 브라우저로 신규 계정 회원가입→로그아웃→로그인, 기존 회원 3명의 이관된 비밀번호 해시가 원본과 일치하는지 DB 조회로 확인. 카카오 버튼 클릭 시(키 미설정 상태) 에러 메시지만 뜨고 정상 폴백하는 것까지 확인 — 실제 OAuth 동의화면까지 완주하는 테스트는 사용자가 각 콘솔에서 키를 발급한 뒤 직접 확인 필요(이 환경은 자동화 브라우저라 실제 카카오/구글/네이버 계정으로 로그인할 수 없음). 테스트 계정은 삭제해 정리(DB에 흔적 안 남음)
+- **실키 발급 후 후속 버그 2건 수정**: 사용자가 카카오/구글/네이버 클라이언트 ID·시크릿을 실제로 발급해 `.env`에 채운 뒤 직접 테스트하다가 발견됨.
+  1. 구글 로그인 시 `account_not_linked` 에러 — 이 앱은 이메일 인증 절차가 없어 모든 계정이 항상 `emailVerified: false`인데, better-auth 기본값은 "로컬 계정이 이메일 인증된 경우에만 같은 이메일의 OAuth를 자동 연결"이라 기존 이메일/비밀번호 회원이 같은 이메일의 OAuth로 영영 로그인 못 하는 상태였음 → `lib/betterAuth.ts`에 `account.accountLinking.requireLocalEmailVerified: false` 추가로 해결(트레이드오프는 코드 주석/OAUTH.md 참고)
+  2. 카카오 로그인 시 `KOE205`(콘솔에 없는 동의항목 요청) 에러 — 사업자 인증 없이는 이메일 동의항목을 켤 수 없는데 better-auth 카카오 프로바이더가 기본 scope에 `account_email`을 항상 포함해서 요청하다 보니 인가 단계에서부터 거절당함 → `disableDefaultScope: true` + `scope: ["profile_nickname", "profile_image"]`로 이메일 요청 자체를 빼서 해결
+  - 구글/카카오/네이버 전부 실제 로그인 화면까지 정상 도달하는 것을 브라우저로 확인(카카오는 scope 파라미터에 `account_email`이 빠진 것도 직접 확인). 실제 계정으로 로그인을 끝까지 완료하는 것은 비밀번호 입력이 필요해 사용자가 직접 마무리해야 함
 
 **다음 세션 할 일**
-- **(중요)** 카카오/구글/네이버 콘솔에서 OAuth 앱 등록 + 클라이언트 ID/시크릿 발급 후 `apps/web/.env`의 `GOOGLE_CLIENT_ID`/`KAKAO_CLIENT_ID`/`NAVER_CLIENT_ID` 등에 채워넣고, 실제 소셜 로그인 버튼 클릭까지 브라우저로 최종 확인 필요(자세한 절차는 [docs/OAUTH.md](docs/OAUTH.md))
+- 위에서 수정한 두 버그(계정 연결, 카카오 scope)가 실제 로그인 완료까지 문제없는지 사용자 쪽 최종 확인 필요
 - **(중요)** 이번에 발견한 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`) 정리 필요 — 지금은 `db push`로 우회했지만, 다음에 스키마를 바꿀 때 `migrate dev`가 또 리셋을 요구할 수 있음. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나, 드리프트를 감수하고 앞으로도 `db push` + 손으로 마이그레이션 작성하는 방식을 표준으로 삼을지 결정 필요
 - (참고) `users.passwordHash` 컬럼은 이제 레거시(로그인은 `accounts.password`를 씀) — 운영 안정성 확인되면 제거하는 마이그레이션 검토
 - Phase 0 잔여 작업: 유출됐던 카카오 키 재발급(재발급 후 신규 키로 각자 `.env` 갱신 필요) — 사용자 확인/조치 필요해 자동 진행하지 않음
