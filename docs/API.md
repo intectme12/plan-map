@@ -90,9 +90,24 @@
 | `POST` | `/api/trips/{tripId}/places/{placeId}/photos` | `multipart/form-data`, `file` 필드. jpg/png/webp/gif만 허용, 8MB 제한. `201` |
 | `DELETE` | `/api/trips/{tripId}/places/{placeId}/photos/{photoId}` | 삭제(DB 레코드 + 디스크 파일) |
 
+## 메시지 (`/api/conversations`, `/api/messages/stream`)
+
+`lib/services/conversations.ts` + `lib/messageEvents.ts`. 1:1 DM(그룹채팅 없음). 자세한 설계는 [MESSAGING.md](./MESSAGING.md).
+
+| Method | Path | 설명 |
+| --- | --- | --- |
+| `GET` | `/api/conversations` | 내 대화 목록(상대 정보/마지막 메시지 미리보기/안읽음 여부), `lastMessageAt desc` |
+| `POST` | `/api/conversations` | `{ userId }` → 그 회원과의 대화를 조회하거나 없으면 생성, `201` |
+| `GET` | `/api/conversations/{conversationId}/messages?before={ISO}` | 메시지 히스토리(최신 30개, `before`로 더 과거 페이지네이션 — 다른 목록과 달리 오프셋이 아니라 시각 커서를 쓰는 이유는 MESSAGING.md 참고) |
+| `POST` | `/api/conversations/{conversationId}/messages` | `multipart/form-data`: `content`(선택)·`image`(선택, jpg/png/webp/gif 8MB 제한) — 최소 하나 필수. `201` |
+| `POST` | `/api/conversations/{conversationId}/read` | 내 안읽음 상태 해제(`lastReadAt` 갱신) |
+| `GET` | `/api/messages/stream` | SSE. 로그인 사용자당 연결 하나로 내가 속한 모든 대화의 새 메시지를 받는다 |
+
 ## 관련 문서
 
 - [DATABASE.md](./DATABASE.md)
 - [AI.md](./AI.md)
+- [OAUTH.md](./OAUTH.md)
+- [MESSAGING.md](./MESSAGING.md)
 - [PUBLISHING.md](./PUBLISHING.md)
 - [ARCHITECTURE.md](./ARCHITECTURE.md)

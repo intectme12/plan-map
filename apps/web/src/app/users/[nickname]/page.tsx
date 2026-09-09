@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getPublicProfile } from "@/lib/services/users";
 import { listSharedTrips } from "@/lib/services/trips";
 import { Avatar } from "@/components/Avatar";
+import { SendMessageButton } from "@/components/SendMessageButton";
 import { UserTripList } from "./UserTripList";
 
 export default async function UserProfilePage({
@@ -40,6 +41,9 @@ export default async function UserProfilePage({
             {canSeeTrips ? ` · 공유 중인 여행 ${profile._count.trips}개` : null}
           </p>
         </div>
+        {isOwnProfile ? null : (
+          <SendMessageButton userId={profile.id} className="ml-auto h-auto flex-none rounded-md px-3 py-1.5 text-xs" />
+        )}
       </header>
 
       {canSeeTrips ? (

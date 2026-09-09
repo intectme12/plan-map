@@ -16,6 +16,7 @@ plan-map의 실제 아키텍처 문서. 상위 개요/로드맵은 [README.md](.
 | 사진 저장 | 로컬 디스크(`apps/web/public/uploads/`) | S3/R2 도입은 운영 단계로 후순위 — 지금 도입하면 조기 추상화 |
 | 서버 상태 관리 | 보류, `fetch` + `router.refresh()` | 화면 수가 적어 TanStack Query 도입이 아직 이르다고 판단(README 참고) |
 | 큐/워커 | 없음 | 외부 API 호출이 전부 초 단위로 끝나는 동기 요청이라 잡 큐가 필요 없음. 유일하게 캐시가 필요한 것(카카오/ODsay 경로)은 DB 테이블(`RouteSegment`)에 10분 TTL로 캐싱 |
+| 실시간 갱신 | SSE(Server-Sent Events), 프로세스 메모리 pub/sub | DM 실시간 수신용(2026-09-09). 단일 프로세스 배포와 일치해 Redis 등 외부 pub/sub 없이 구현 — 여러 인스턴스로 수평 확장하면 안 먹힘, 그때 재검토. 세부는 [MESSAGING.md](./MESSAGING.md) |
 
 ## 1. 배포 토폴로지
 
@@ -62,6 +63,7 @@ Prisma Client → PostgreSQL
 | `/api/trips/[tripId]/ai-parse` | `lib/services/aiParse.ts` + `geocode.ts` + `aiImport.ts` | AI 일정 자동생성(F4), 자세한 내용은 [AI.md](./AI.md) |
 | `/api/trips/[tripId]/places/[placeId]/expense` | `lib/services/expenses.ts` | 장소별 지출 인라인 입력 |
 | `/api/trips/[tripId]/places/[placeId]/photos` | `lib/services/photos.ts` | 로컬 디스크 사진 업로드/삭제 |
+| `/api/conversations`, `/api/messages/stream` | `lib/services/conversations.ts` + `lib/messageEvents.ts` | 1:1 DM(텍스트+사진), SSE로 실시간 갱신 — 자세한 설계는 [MESSAGING.md](./MESSAGING.md) |
 
 전체 엔드포인트 목록은 [API.md](./API.md) 참고.
 
@@ -79,11 +81,16 @@ app/
       RouteSegmentRow.tsx, ExpenseInput.tsx, PlacePhotos.tsx
       ExpenseSummary.tsx, PhotoGallery.tsx
       import/                AI 일정 자동생성 화면
+  messages/                 1:1 DM 받은편지함 + 대화창(MESSAGING.md 참고)
 components/
   map/KakaoMapCanvas.tsx     카카오맵 렌더링(클라이언트 컴포넌트)
   toast/ToastProvider.tsx    삭제/실행취소 등에 쓰는 토스트
+hooks/
+  useMessageStream.ts        /api/messages/stream(SSE) 구독 훅
 lib/
   auth.ts, betterAuth.ts, auth-client.ts, password.ts, db.ts, errors.ts, http.ts, validation.ts   공통 유틸(인증 관련은 OAUTH.md 참고)
+  upload.ts                 로컬 디스크 이미지 업로드 공용 로직(사진/메시지 첨부 공용)
+  messageEvents.ts           SSE 인메모리 pub/sub
   services/                 도메인별 서비스 (위 표 참고)
 ```
 
@@ -114,6 +121,7 @@ lib/
 | [API.md](./API.md) | REST 엔드포인트 |
 | [AI.md](./AI.md) | AI 일정 자동생성 |
 | [OAUTH.md](./OAUTH.md) | 인증 방식(better-auth, OAuth 포함) |
+| [MESSAGING.md](./MESSAGING.md) | 1:1 DM(SSE 실시간 갱신) |
 | [PUBLISHING.md](./PUBLISHING.md) | 외부 API 연동 패턴 |
 | [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) | 디자인 토큰 |
 | [UI_RULES.md](./UI_RULES.md) | UI/UX 체크리스트 |

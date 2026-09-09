@@ -119,3 +119,15 @@ export const updatePlaceSchema = z.object({
   order: z.coerce.number().int().optional(),
   rating: z.coerce.number().int().min(0).max(5).optional(),
 });
+
+export const createConversationSchema = z.object({
+  userId: z.string().min(1),
+});
+
+export const messagesQuerySchema = z.object({
+  before: z.coerce.date().optional(),
+});
+
+export const sendMessageSchema = z.object({
+  content: z.string().trim().min(1).max(2000).optional(),
+});

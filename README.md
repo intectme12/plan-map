@@ -447,6 +447,18 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
   2. 카카오 로그인 시 `KOE205`(콘솔에 없는 동의항목 요청) 에러 — 사업자 인증 없이는 이메일 동의항목을 켤 수 없는데 better-auth 카카오 프로바이더가 기본 scope에 `account_email`을 항상 포함해서 요청하다 보니 인가 단계에서부터 거절당함 → `disableDefaultScope: true` + `scope: ["profile_nickname", "profile_image"]`로 이메일 요청 자체를 빼서 해결
   - 구글/카카오/네이버 전부 실제 로그인 화면까지 정상 도달하는 것을 브라우저로 확인(카카오는 scope 파라미터에 `account_email`이 빠진 것도 직접 확인). 실제 계정으로 로그인을 끝까지 완료하는 것은 비밀번호 입력이 필요해 사용자가 직접 마무리해야 함
 
+**완료 (2026-09-09, 1:1 메시지(DM) 기능 추가)**
+
+사용자 요청으로 인스타그램 DM 같은 회원 간 1:1 메시지 기능 추가. 사용자 결정: 그룹채팅 없이 1:1만, 실시간 갱신은 SSE(폴링 대신), 첫 버전부터 사진 첨부 포함. 자세한 설계는 [docs/MESSAGING.md](docs/MESSAGING.md).
+
+- `Conversation`/`Message` 모델 추가 — 1:1 전용이라 참여자 조인 테이블 대신 `Conversation`에 `userAId`/`userBId` 두 컬럼을 정렬해서 저장(`@@unique`로 중복 대화 방지), 안읽음 판정은 `userALastReadAt`/`userBLastReadAt` 비교, 목록 화면 N+1 방지를 위해 `lastMessagePreview`/`lastMessageSenderId`를 `Conversation`에 비정규화
+- **SSE 실시간 갱신**: 이 앱은 워커/큐 없는 단일 프로세스라([docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 확정 결정) Redis 등 외부 pub/sub 없이 프로세스 메모리 안의 구독자 맵([lib/messageEvents.ts](apps/web/src/lib/messageEvents.ts))으로 구현 — 로그인 사용자당 SSE 연결 하나(`GET /api/messages/stream`)로 자신이 속한 모든 대화의 새 메시지를 받는다. 여러 인스턴스로 확장하면 안 먹히는 방식이라 그때는 재검토 필요(문서에 남김)
+- 사진 첨부는 기존 `lib/services/photos.ts`에 있던 업로드 검증/저장 로직을 [lib/upload.ts](apps/web/src/lib/upload.ts)로 뽑아 공용화해서 재사용(중복 방지) — 텍스트+사진을 한 번에 받는 멀티파트 POST 하나로 전송(업로드 분리 안 함)
+- 메시지 목록만 다른 화면들과 다르게 `createdAt` 기준 커서 페이지네이션을 씀(오프셋 커서는 새 메시지가 계속 쌓이는 채팅 구조에서 밀림) — 이유는 코드 주석 + MESSAGING.md에 남김
+- 진입점: 프로필 팝업/페이지의 "메시지 보내기" 버튼(공용 `SendMessageButton.tsx`), `/trips` 헤더의 "메시지" 링크 + 안읽음 배지(`MessageNavLink.tsx`)
+- `npx prisma db push`로 스키마 반영 후 마이그레이션 파일은 손으로 작성해 `migrate resolve --applied`로 이력만 맞춤(지난 세션과 동일 패턴, 아래 마이그레이션 드리프트 항목 참고) — 이번엔 데이터 손실 경고 없이 깔끔하게 반영됨
+- `tsc --noEmit`/`eslint` 전체 통과(새 코드에서 React effect 관련 경고 3건 발견해 전부 근본적으로 고침 — ref는 effect 안에서 갱신, "다른 대화로 이동 시 상태 초기화"는 effect 대신 `key={conversationId}`로 리마운트, "현재 보고 있는 대화는 안읽음 배지 숨김"은 effect+setState 대신 렌더링 시점에 파생 계산). 브라우저에서 테스트 계정 2개(A/B)로 회원검색→프로필→메시지 보내기→대화 생성, 텍스트 주고받기, 안읽음 배지 정확성(로그인 전환으로 확인), 사진 첨부(파일 선택 다이얼로그는 이 자동화 브라우저가 못 열어서 API로 직접 전송 후 **같은 브라우저 탭에 새로고침 없이 SSE로 라이브 반영되는 것까지 확인** — 서버가 아니라 별도 프로세스(curl)에서 보낸 메시지가 열려있는 탭에 즉시 뜬 것이라 SSE 푸시가 실제로 동작한다는 확실한 증거), 이미지 라이트박스, 계정 삭제 시 대화/메시지 cascade 삭제까지 확인. 테스트 계정/업로드 파일은 삭제해 정리
+
 **다음 세션 할 일**
 - **(중요)** 네이버 로그인 콜백에서 `invalid_code` 에러 발생 — 원인은 코드가 아니라 이 PC의 보안 소프트웨어(발급자 "LG CNS Co. Ltd v3")가 아웃바운드 HTTPS를 가로채 자체 인증서로 재서명하고 있어서, 서버가 네이버 토큰 발급 엔드포인트(`nid.naver.com`)로 보내는 코드 교환 요청이 `SELF_SIGNED_CERT_IN_CHAIN`으로 실패하는 것(Node가 Windows가 신뢰하는 이 회사 인증서를 자체적으로는 신뢰하지 않아서). 아래 "카카오모빌리티 경로조회" 항목과 동일한 근본 원인 — 이 PC/사내망 특유의 문제라 실제 배포 서버에선 재현 안 될 가능성이 높음. 사용자가 이 문제가 없는 다른 네트워크 환경(회사 보안 소프트웨어가 안 깔린 PC, 또는 다른 네트워크)에서 카카오/구글/네이버 로그인을 실제 계정으로 끝까지 완료해서 확인하기로 함 — 그때 위에서 고친 두 버그(계정 연결, 카카오 scope)까지 함께 최종 확인 필요
 - **(중요)** 이번에 발견한 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`) 정리 필요 — 지금은 `db push`로 우회했지만, 다음에 스키마를 바꿀 때 `migrate dev`가 또 리셋을 요구할 수 있음. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나, 드리프트를 감수하고 앞으로도 `db push` + 손으로 마이그레이션 작성하는 방식을 표준으로 삼을지 결정 필요

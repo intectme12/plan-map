@@ -24,15 +24,56 @@ model User {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @default(now()) @updatedAt
 
-  trips            Trip[]
-  notices          Notice[]
-  tripShares       TripShare[]
-  tripParticipants TripParticipant[]
-  reviews          Review[]
-  sessions         Session[]
-  accounts         Account[]
+  trips              Trip[]
+  notices            Notice[]
+  tripShares         TripShare[]
+  tripParticipants   TripParticipant[]
+  reviews            Review[]
+  sessions           Session[]
+  accounts           Account[]
+  conversationsAsA   Conversation[]    @relation("ConversationAsA")
+  conversationsAsB   Conversation[]    @relation("ConversationAsB")
+  sentMessages       Message[]
 
   @@map("users")
+}
+
+// 1:1 DM. 그룹채팅은 지원 안 해서 참여자 조인 테이블 대신 userA/userB 두 컬럼을 직접 둔다 —
+// 서비스 레이어(lib/services/conversations.ts)가 두 id를 항상 정렬해서 저장해 같은 두 사람
+// 사이 대화가 중복 생성되지 않게 한다(@@unique로 강제).
+model Conversation {
+  id                String    @id @default(cuid())
+  userAId           String
+  userBId           String
+  userALastReadAt   DateTime?
+  userBLastReadAt   DateTime?
+  lastMessageAt     DateTime  @default(now())
+  lastMessagePreview String?  // 목록 화면에서 매번 마지막 메시지를 따로 조회하지 않도록 미리 계산해 저장(사진만 보내면 "사진")
+  lastMessageSenderId String? // 안읽음 판정에 씀(메시지가 아직 하나도 없으면 null이라 "안읽음" 아님)
+  createdAt         DateTime  @default(now())
+
+  userA    User      @relation("ConversationAsA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB    User      @relation("ConversationAsB", fields: [userBId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@unique([userAId, userBId])
+  @@index([userBId])
+  @@map("conversations")
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String?
+  imageKey       String? // lib/upload.ts의 storageKey 형식 — /uploads/messages/<conversationId>/<uuid>.ext
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
 }
 
 // 아래 세 모델은 better-auth가 요구하는 스키마(session/account/verification)를

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { Avatar } from "@/components/Avatar";
+import { SendMessageButton } from "@/components/SendMessageButton";
 import { UserTripList } from "@/app/users/[nickname]/UserTripList";
 import type { SharedTripCardData } from "@/app/trips/SharedTripCard";
 
@@ -59,6 +60,10 @@ export function UserProfileModal({ nickname, onClose }: { nickname: string; onCl
                 {state.canSeeTrips ? ` · 공유 중인 여행 ${state.profile._count.trips}개` : null}
               </p>
             </div>
+            <SendMessageButton
+              userId={state.profile.id}
+              className="h-auto flex-none rounded-md px-3 py-1.5 text-xs"
+            />
           </header>
 
           {state.canSeeTrips ? (

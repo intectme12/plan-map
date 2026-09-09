@@ -2,7 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser, isAdmin } from "@/lib/auth";
 import { listTrips } from "@/lib/services/trips";
+import { listConversations } from "@/lib/services/conversations";
 import { LogoutButton } from "@/components/LogoutButton";
+import { MessageNavLink } from "@/components/MessageNavLink";
 import { TripsTabs } from "./TripsTabs";
 
 export default async function TripsPage() {
@@ -10,6 +12,8 @@ export default async function TripsPage() {
   if (!user) redirect("/login");
 
   const trips = await listTrips(user.id);
+  const conversations = await listConversations(user.id);
+  const unreadCount = conversations.filter((c) => c.unread).length;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 px-4 py-8">
@@ -22,6 +26,7 @@ export default async function TripsPage() {
             관리자
           </Link>
         ) : null}
+        <MessageNavLink currentUserId={user.id} initialUnreadCount={unreadCount} />
         <Link
           href="/account"
           className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50"
