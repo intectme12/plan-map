@@ -477,10 +477,21 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - **마이그레이션 드리프트 재확인**: 지난 세션에서 발견한 `20260907120000_add_trip_visibility_and_shares` 체크섬 불일치가 이번에도 `migrate dev`를 막아 리셋을 요구함 — 리셋 대신 `prisma migrate diff`(라이브 DB ↔ 새 스키마, 섀도우DB 미사용)로 `follows` 테이블 SQL만 뽑아 `prisma db execute`로 직접 적용 후 `migrate resolve --applied`로 이력만 맞춤(지난 세션들의 `db push` 우회와 동일 계열, 이번엔 diff를 직접 활용). 아래 "다음 세션 할 일"의 드리프트 정리 항목은 여전히 미해결
 - `tsc --noEmit`/`eslint` 통과. 브라우저에서 테스트 계정 2개(follow_test_a/b)로 A→B 프로필에서 팔로우 클릭 → A 프로필의 팔로워 수 1 증가·버튼이 "팔로잉"으로 전환, B의 팔로워 목록 페이지에 A가 표시, 자기 자신 팔로우 시도 시 403, 언팔로우 시 카운트/버튼이 원래대로 복귀하는 것까지 확인. 테스트 계정은 삭제해 정리
 
+**완료 (2026-09-09, 팔로우한 사용자의 게시물 피드 + 게시물 좋아요)**
+
+지난 세션에 이어 나머지 2건 진행: ①팔로우한 사용자의 공개 여행(게시물) 피드, ②여행(게시물) 좋아요. 여전히 `Trip`(`visibility="PUBLIC"`)을 게시물로 취급.
+
+- 새 `TripLike` 모델(`tripId`/`userId`, `@@unique`로 중복 좋아요 방지) 추가, `Trip.likes`/`User.tripLikes` 관계 추가
+- [lib/services/tripLikes.ts](apps/web/src/lib/services/tripLikes.ts) 신설: `likeTrip`/`unlikeTrip` — 좋아요는 그 여행을 **열람할 수 있는 사람만** 가능하도록 `getSharedTrip`과 동일한 조건(공개/링크공개/오너 본인/공유받음)으로 검증(비공개 여행은 좋아요 시도 자체가 404)
+- [trips.ts](apps/web/src/lib/services/trips.ts): 새 `listFollowingTrips(cursor, viewerUserId)` — `listSharedTrips`와 동일 구조지만 대상을 `userId` 하나가 아니라 "내가 팔로우하는 회원 전체"(`user.followers.some.followerId`)로 좁힘. `listSharedTrips`/`listTripsSharedWithMe`/`getSharedTrip` 세 곳 모두 `_count.likes` + `likes: {where: {userId: viewer}}` 조회를 추가하고, `withLikeInfo` 헬퍼로 `likeCount`/`likedByMe` 필드로 펼쳐서 응답(원본 `likes` 배열은 응답에 안 내려줌) — 목록 화면에서 항목별 추가 요청 없이 한 번의 쿼리로 좋아요 상태까지 같이 내려주기 위함
+- API: `GET /api/trips/following`(피드 목록), `POST`/`DELETE /api/trips/[tripId]/like`
+- UI: 새 `LikeButton.tsx`(하트 아이콘 + 카운트, 낙관적 업데이트, 카드 안에서 클릭해도 상위 `<Link>` 이동을 막도록 `preventDefault`/`stopPropagation`)를 공용 `SharedTripCard.tsx`에 추가해 "다른 사람 여행계획"·"팔로잉 피드"·"나에게 공유됨"·프로필 여행목록 4곳에 한 번에 반영, 읽기전용 여행 상세 화면(`SharedTripView.tsx`) 헤더에도 별도로 추가. 새 `FollowingTripBrowser.tsx`(검색창 없이 무한스크롤만, `SharedTripBrowser.tsx`에서 검색 부분만 뺀 버전)를 만들고 `TripsTabs.tsx`에 "팔로잉 피드" 탭을 다른 사람 여행계획 바로 뒤에 추가
+- **마이그레이션 드리프트 재재확인**: 이번에도 `20260907120000_add_trip_visibility_and_shares` 체크섬 불일치로 `migrate dev`가 리셋을 요구해서, 지난 세션과 동일하게 `migrate diff`(라이브 DB ↔ 새 스키마) → `db execute` → `migrate resolve --applied`로 우회. 세 번째로 반복돼 아래 "다음 세션 할 일"에 다시 남김
+- `tsc --noEmit`/`eslint` 통과. 브라우저에서 테스트 계정 2개(feed_test_a/b)로: b가 여행 생성 후 전체공개 → a가 팔로우하기 전엔 피드가 비어있다가 팔로우 후 그 여행이 뜨는 것(API로 먼저 확인), 좋아요 시 카운트 1 증가·하트 채워짐 → UI에서 실제 하트 버튼 클릭으로 좋아요/취소 토글(카운트 0↔1) 확인 → 피드/다른 사람 여행계획/여행 상세 페이지 3곳 모두에서 좋아요 버튼이 동작하는 것 확인 → **권한 경계 확인**: 존재하지 않는 여행 id 좋아요 시 404, b의 비공개(PRIVATE) 여행을 a가 좋아요 시도하면 404(열람 권한 없는 여행은 좋아요도 불가)까지 확인. 테스트 계정은 삭제해 정리
+
 **다음 세션 할 일**
-- (신규) 팔로우 기능에 이어 나머지 2건 대기 중: ①팔로우한 사용자의 공개 여행(게시물) 피드, ②여행(게시물) 좋아요. 설계는 위 팔로우 구현과 같은 방식(`Trip`을 게시물로 취급)으로 이미 잡아둠 — 사용자 요청 시 이어서 진행
+- **(중요)** 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`)가 스키마를 바꿀 때마다(이번까지 3세션 연속) `migrate dev` 리셋 요구로 이어짐 — 매번 `migrate diff`/`db push` + 손으로 마이그레이션 작성 + `migrate resolve`로 우회하고 있지만 언제까지나 반복할 방식은 아님. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나(체크섬 재계산), 이 우회를 앞으로도 정식 절차로 문서화할지 다음 세션에서 결정 필요
 - **(중요)** 네이버 로그인 콜백에서 `invalid_code` 에러 발생 — 원인은 코드가 아니라 이 PC의 보안 소프트웨어(발급자 "LG CNS Co. Ltd v3")가 아웃바운드 HTTPS를 가로채 자체 인증서로 재서명하고 있어서, 서버가 네이버 토큰 발급 엔드포인트(`nid.naver.com`)로 보내는 코드 교환 요청이 `SELF_SIGNED_CERT_IN_CHAIN`으로 실패하는 것(Node가 Windows가 신뢰하는 이 회사 인증서를 자체적으로는 신뢰하지 않아서). 아래 "카카오모빌리티 경로조회" 항목과 동일한 근본 원인 — 이 PC/사내망 특유의 문제라 실제 배포 서버에선 재현 안 될 가능성이 높음. 사용자가 이 문제가 없는 다른 네트워크 환경(회사 보안 소프트웨어가 안 깔린 PC, 또는 다른 네트워크)에서 카카오/구글/네이버 로그인을 실제 계정으로 끝까지 완료해서 확인하기로 함 — 그때 위에서 고친 두 버그(계정 연결, 카카오 scope)까지 함께 최종 확인 필요
-- **(중요)** 이번에 발견한 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`) 정리 필요 — 지금은 `db push`로 우회했지만, 다음에 스키마를 바꿀 때 `migrate dev`가 또 리셋을 요구할 수 있음. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나, 드리프트를 감수하고 앞으로도 `db push` + 손으로 마이그레이션 작성하는 방식을 표준으로 삼을지 결정 필요
 - (참고) `users.passwordHash` 컬럼은 이제 레거시(로그인은 `accounts.password`를 씀) — 운영 안정성 확인되면 제거하는 마이그레이션 검토
 - Phase 0 잔여 작업: 유출됐던 카카오 키 재발급(재발급 후 신규 키로 각자 `.env` 갱신 필요) — 사용자 확인/조치 필요해 자동 진행하지 않음
 - (참고, 지금 범위 아님) 나중에 대중교통을 다시 붙이고 싶으면 ODsay 키 발급 + 이번에 지운 코드 복원부터 시작

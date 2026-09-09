@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Avatar } from "@/components/Avatar";
 import { UserProfileModal } from "@/components/UserProfileModal";
+import { LikeButton } from "@/components/LikeButton";
 
 export type SharedTripCardData = {
   id: string;
@@ -13,6 +14,8 @@ export type SharedTripCardData = {
   personnel: number;
   user: { nickname: string; avatarUrl: string | null };
   _count: { places: number };
+  likeCount: number;
+  likedByMe: boolean;
 };
 
 function formatDate(d: string | Date) {
@@ -56,6 +59,8 @@ export function SharedTripCard({
         </div>
         <span className="flex-none text-sm text-neutral-400">장소 {trip._count.places}개</span>
       </Link>
+
+      <LikeButton tripId={trip.id} initialLiked={trip.likedByMe} initialCount={trip.likeCount} />
 
       {profileOpen ? (
         <UserProfileModal nickname={trip.user.nickname} onClose={() => setProfileOpen(false)} />

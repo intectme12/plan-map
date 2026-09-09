@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { KakaoMapCanvas } from "@/components/map/KakaoMapCanvas";
+import { LikeButton } from "@/components/LikeButton";
 import { ExpenseSummary } from "@/app/trips/[tripId]/ExpenseSummary";
 import { getTripDays, groupByDay, dayColor } from "@/app/trips/[tripId]/days";
 import type { PlaceEntry } from "@/app/trips/[tripId]/types";
@@ -26,6 +27,8 @@ type TripMeta = {
   personnel: number;
   visibility: string;
   ownerNickname: string;
+  likeCount: number;
+  likedByMe: boolean;
 };
 
 export function SharedTripView({
@@ -201,13 +204,16 @@ export function SharedTripView({
         }`}
       >
         <header className="flex flex-col gap-2 border-b border-neutral-200 p-4">
-          <div>
-            <h1 className="text-lg font-bold">{trip.name}</h1>
-            <p className="text-sm text-neutral-500">
-              {new Date(trip.startDate).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })}{" "}
-              – {new Date(trip.endDate).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })} ·{" "}
-              {trip.personnel}명 · {trip.ownerNickname}
-            </p>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h1 className="text-lg font-bold">{trip.name}</h1>
+              <p className="text-sm text-neutral-500">
+                {new Date(trip.startDate).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })}{" "}
+                – {new Date(trip.endDate).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })} ·{" "}
+                {trip.personnel}명 · {trip.ownerNickname}
+              </p>
+            </div>
+            <LikeButton tripId={trip.id} initialLiked={trip.likedByMe} initialCount={trip.likeCount} />
           </div>
           {isOwnTrip ? (
             <span className="self-start rounded-md bg-neutral-100 px-2 py-1 text-xs text-neutral-500">

@@ -36,6 +36,7 @@ model User {
   sentMessages       Message[]
   following          Follow[]          @relation("Following")
   followers          Follow[]          @relation("Followers")
+  tripLikes          TripLike[]
 
   @@map("users")
 }
@@ -179,10 +180,27 @@ model Trip {
   places       PlaceEntry[]
   shares       TripShare[]
   participants TripParticipant[]
+  likes        TripLike[]
 
   @@index([userId])
   @@index([visibility, sharedAt])
   @@map("trips")
+}
+
+// 열람 가능한(공개/링크공개/오너 본인/공유받은) 여행에 대한 좋아요. 열람 권한 자체는
+// 서비스 레이어(lib/services/tripLikes.ts)가 getSharedTrip과 동일한 기준으로 검증한다.
+model TripLike {
+  id        String   @id @default(cuid())
+  tripId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, userId])
+  @@index([tripId])
+  @@map("trip_likes")
 }
 
 // 오너가 특정 회원에게 명시적으로 공유함 — visibility와 무관하게 항상 열람을 허용하고,

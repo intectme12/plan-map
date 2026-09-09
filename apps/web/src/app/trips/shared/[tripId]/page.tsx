@@ -31,6 +31,8 @@ export default async function SharedTripDetailPage({
         personnel: trip.personnel,
         visibility: trip.visibility,
         ownerNickname: trip.user.nickname,
+        likeCount: trip.likeCount,
+        likedByMe: trip.likedByMe,
       }}
       places={trip.places}
       activeTab={activeTab}

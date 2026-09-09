@@ -8,6 +8,20 @@ const reviewsInclude = {
 
 const SHARED_PAGE_SIZE = 20;
 
+// 목록 조회 결과에 딸려온 _count.likes/likes(내가 눌렀는지 확인용 1건)를 카드가 바로 쓸 수 있는
+// likeCount/likedByMe로 펼치고, 원본 likes 배열은 응답에서 뺀다(클라이언트가 알 필요 없음)
+function withLikeInfo<T extends { _count: { places: number; likes: number }; likes: { id: string }[] }>(
+  trip: T
+) {
+  const { likes, _count, ...rest } = trip;
+  return { ...rest, _count: { places: _count.places }, likeCount: _count.likes, likedByMe: likes.length > 0 };
+}
+
+const likesInclude = (viewerUserId: string | undefined) => ({
+  _count: { select: { places: true, likes: true } },
+  likes: { where: { userId: viewerUserId ?? "" }, select: { id: true } },
+});
+
 export function listTrips(userId: string) {
   return prisma.trip.findMany({
     where: { userId },
@@ -118,7 +132,7 @@ export async function listSharedTrips(
 
   const term = q?.trim();
 
-  return prisma.trip.findMany({
+  const trips = await prisma.trip.findMany({
     where: {
       visibility: "PUBLIC",
       ...(userId ? { userId } : {}),
@@ -147,14 +161,36 @@ export async function listSharedTrips(
     take: SHARED_PAGE_SIZE,
     include: {
       user: { select: { nickname: true, avatarUrl: true } },
-      _count: { select: { places: true } },
+      ...likesInclude(viewerUserId),
     },
   });
+
+  return trips.map(withLikeInfo);
+}
+
+// 내가 팔로우하는 회원들이 전체공개한 여행 — "게시물" 피드. listSharedTrips와 동일 구조지만
+// 대상을 특정 회원이 아니라 "내 팔로잉 전체"로 좁힌다.
+export async function listFollowingTrips(cursor: number, viewerUserId: string) {
+  const trips = await prisma.trip.findMany({
+    where: {
+      visibility: "PUBLIC",
+      user: { followers: { some: { followerId: viewerUserId } } },
+    },
+    orderBy: { sharedAt: "desc" },
+    skip: cursor,
+    take: SHARED_PAGE_SIZE,
+    include: {
+      user: { select: { nickname: true, avatarUrl: true } },
+      ...likesInclude(viewerUserId),
+    },
+  });
+
+  return trips.map(withLikeInfo);
 }
 
 // 링크 전용/특정 회원 지정 공유는 목록에 안 뜨므로, id를 아는 사람이 직접 열람할 때만 이 함수를 거친다
-export function getSharedTrip(tripId: string, viewerUserId: string) {
-  return prisma.trip.findFirst({
+export async function getSharedTrip(tripId: string, viewerUserId: string) {
+  const trip = await prisma.trip.findFirst({
     where: {
       id: tripId,
       OR: [
@@ -169,8 +205,14 @@ export function getSharedTrip(tripId: string, viewerUserId: string) {
         orderBy: { order: "asc" },
         include: { expenses: true, photos: true, reviews: reviewsInclude },
       },
+      _count: { select: { likes: true } },
+      likes: { where: { userId: viewerUserId }, select: { id: true } },
     },
   });
+  if (!trip) return null;
+
+  const { likes, _count, ...rest } = trip;
+  return { ...rest, likeCount: _count.likes, likedByMe: likes.length > 0 };
 }
 
 // 특정 회원에게만 공유된(PRIVATE+TripShare) 트립은 더 사적인 공유로 보고 복사는 막고 열람만 허용한다
@@ -214,17 +256,19 @@ export async function copyTrip(userId: string, sourceTripId: string) {
   });
 }
 
-export function listTripsSharedWithMe(userId: string, cursor: number) {
-  return prisma.trip.findMany({
+export async function listTripsSharedWithMe(userId: string, cursor: number) {
+  const trips = await prisma.trip.findMany({
     where: { shares: { some: { userId } } },
     orderBy: { sharedAt: "desc" },
     skip: cursor,
     take: SHARED_PAGE_SIZE,
     include: {
       user: { select: { nickname: true, avatarUrl: true } },
-      _count: { select: { places: true } },
+      ...likesInclude(userId),
     },
   });
+
+  return trips.map(withLikeInfo);
 }
 
 export function listTripShares(ownerId: string, tripId: string) {
