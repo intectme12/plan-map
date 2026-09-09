@@ -12,7 +12,7 @@ plan-map의 실제 아키텍처 문서. 상위 개요/로드맵은 [README.md](.
 | DB | PostgreSQL + Prisma | 타입 자동 생성, PostGIS로 추후 지오 쿼리 확장 여지 |
 | 지도/장소 검색/경로(자동차) | 카카오맵 JS SDK + 카카오모빌리티 REST API | 국내 POI 검색 품질 |
 | 대중교통 경로 | ODsay API | 카카오는 자동차 경로만 공개 API 제공 |
-| AI 일정 파싱 | Claude API(Anthropic), 구조화 출력 | 비정형 텍스트 → JSON 추출에 적합, SDK 공식 지원 |
+| AI 일정 파싱 | Groq API, 구조화 출력(strict JSON schema) | 비정형 텍스트 → JSON 추출에 적합. 2026-09-09에 Claude(Anthropic)에서 비용/속도 목적으로 교체 — 상세는 [AI.md](./AI.md) |
 | 사진 저장 | 로컬 디스크(`apps/web/public/uploads/`) | S3/R2 도입은 운영 단계로 후순위 — 지금 도입하면 조기 추상화 |
 | 서버 상태 관리 | 보류, `fetch` + `router.refresh()` | 화면 수가 적어 TanStack Query 도입이 아직 이르다고 판단(README 참고) |
 | 큐/워커 | 없음 | 외부 API 호출이 전부 초 단위로 끝나는 동기 요청이라 잡 큐가 필요 없음. 유일하게 캐시가 필요한 것(카카오/ODsay 경로)은 DB 테이블(`RouteSegment`)에 10분 TTL로 캐싱 |
@@ -27,7 +27,7 @@ plan-map의 실제 아키텍처 문서. 상위 개요/로드맵은 [README.md](.
                     ↓
               PostgreSQL (Prisma)
                     ↓ (외부 호출, 전부 서버 사이드)
-        카카오맵/모빌리티/로컬검색   ODsay   Claude API
+        카카오맵/모빌리티/로컬검색   ODsay   Groq API
 ```
 
 - 로컬 개발: `npm run db:up`(docker-compose로 Postgres만 기동, 포트 `55432`) + `npm run dev`(Next.js dev 서버).

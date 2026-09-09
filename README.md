@@ -66,7 +66,7 @@ apps/
 | 지도 | 카카오맵 JS SDK | 국내 POI 검색 품질, 기존 로직 재사용. 현재는 키 미설정으로 자리표시자만 렌더 |
 | 인증 | bcrypt 해싱 + JWT(httpOnly 쿠키) | 평문 비밀번호/파일세션 문제 해결 |
 | 검증 | zod | 요청 검증 + 타입 동시 확보 |
-| AI 파싱(F4) | Claude API (tool use) | 비정형 텍스트 → 구조화 일정 JSON 추출 (미착수) |
+| AI 파싱(F4) | Groq API (구조화 출력, `openai/gpt-oss-120b`) | 비정형 텍스트 → 구조화 일정 JSON 추출. 2026-09-09에 Claude에서 교체(비용/속도), 실제 키로 추출 품질 검증 완료 |
 | 경로(F3) | 카카오모빌리티(자동차만) | 실제 도로 vertexes로 지도에 경로 표시. 대중교통(ODsay)은 2026-09-04에 제외 |
 | 스토리지 | Supabase Storage 또는 R2 | 사진 업로드, 운영 부담 최소화 (미착수) |
 
@@ -87,7 +87,7 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - [~] **Phase 0 — 긴급 보안 조치**: 새 코드는 시크릿을 전부 `.env`로 분리해 하드코딩 재발 방지 완료. `client/`·`server/` 내 중첩 `.git` 정리 완료(2026-09-04, 아래 참고). **미완료(사용자 조치 필요): 유출됐던 카카오 API 키 재발급**, DB 비밀번호 변경
 - [x] **Phase 1 — 웹 MVP**: F1·F5 완료, F2는 수동 좌표 입력까지(자동완성은 카카오 키 필요)
 - [x] **Phase 2 — 경로/교통**: 코드·UI 완료, 실제 조회는 API 키 설정 후 활성화 (F3)
-- [x] **Phase 3 — AI 자동생성**: Claude API 파싱(구조화 출력) + 카카오 로컬 검색 지오코딩 매칭 + 사용자 확인 UI(`/trips/[tripId]/import`) (F4). 코드 완료 + 폴백 경로까지 브라우저로 검증됨. 실제 파싱 결과는 `ANTHROPIC_API_KEY`/`KAKAO_REST_API_KEY` 설정 후 최종 확인 필요
+- [x] **Phase 3 — AI 자동생성**: AI 파싱(구조화 출력, 2026-09-09부터 Groq API) + 카카오 로컬 검색 지오코딩 매칭 + 사용자 확인 UI(`/trips/[tripId]/import`) (F4). 코드 완료, 실제 `GROQ_API_KEY`/`KAKAO_REST_API_KEY`로 추출 품질까지 검증 완료(2026-09-09, 아래 "진행 상황" 참고)
 - [x] **Phase 4 — 비용/사진 기본형**: 지출 인라인 입력, 사진 업로드/삭제 (F6, F7 웹 범위) — 코드·DB 반영·브라우저 검증까지 완료
 - [ ] **Phase 5 (고도화) — 모바일 앱**: Expo 앱, 사진첩 자동연동, 만보기/GPS (F7 완성, F8) — **웹 우선 진행이라는 기존 결정에 따라 이번 자동 진행 범위에서 제외**
 - [ ] **Phase 6 (장기) — 카드 자동연동**: 오픈뱅킹/코드에프 등 제휴 검토 (F6 고도화) — **실제 금융기관 제휴가 필요해 코드만으로는 완료 불가, 계정 생성 등 실제 사업자 절차는 사용자 본인이 진행해야 함**
@@ -141,7 +141,7 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 
 **완료 (Phase 3)**
 - `AiParseRequest` 대신 상태 없는 동기 플로우로 구현 — 별도 `AIParseJob` 테이블 없이 요청 1회로 파싱→지오코딩→확인 응답까지 처리(화면 수가 적은 지금은 잡 큐가 조기 추상화라 보류, README 데이터 모델 초안의 `AIParseJob`은 미적용)
-- `lib/services/aiParse.ts`: Claude API(`claude-opus-5`, `messages.parse` + zod 구조화 출력)로 원문 텍스트에서 장소명/카테고리/지역힌트 추출
+- `lib/services/aiParse.ts`: Claude API(`claude-opus-5`, `messages.parse` + zod 구조화 출력)로 원문 텍스트에서 장소명/카테고리/지역힌트 추출 (**2026-09-09에 Groq로 교체됨 — 아래 해당 날짜 로그 참고, 현재는 Claude 미사용**)
 - `lib/services/geocode.ts`: 카카오 로컬 키워드 검색으로 장소명 → 좌표 후보(최대 5개) 매칭, 카카오 키 미설정 시 다른 서비스와 동일하게 안전 폴백(빈 후보)
 - `lib/services/aiImport.ts`: 소유권 검증 후 위 둘을 조합, `ANTHROPIC_API_KEY` 미설정 시 503 에러로 명확히 알림(카카오/ODsay와 달리 이 기능은 키 없이 대체 동작 불가)
 - `POST /api/trips/[tripId]/ai-parse`: 텍스트 → 후보 목록 반환
@@ -524,6 +524,16 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - `up.sh`/`.claude/launch.json` 둘 다 결국 `npm run dev --workspace=web` → `apps/web`의 `dev` 스크립트를 타므로 별도 수정 없이 자동 적용됨
 - **검증**: dev 서버 재시작 후 실제 `GROQ_API_KEY`로 `/api/trips/{id}/ai-parse` 호출이 `200`으로 성공(경복궁/봉피양 카카오 지오코딩 후보까지 정상 응답), `/trips/[tripId]/import` 화면에서 강릉 텍스트로 실제 UI 클릭까지 끝까지 정상 동작(오죽헌/경포해변/안목해변 커피거리 후보 목록 + 지도 렌더링) 확인. 테스트 계정/여행은 삭제해 정리
 - **중요한 파급 효과**: 이 근본 원인(Node가 Windows 신뢰 인증서 저장소를 안 씀)은 아래 "네이버 로그인 invalid_code"/"카카오모빌리티 경로조회 미검증" 항목과 **동일한 원인**이었을 가능성이 매우 높음 — 이번에 dev 스크립트 자체를 고쳤으므로 다음 세션에서 네이버/카카오 관련 항목도 함께 재검증 필요(아래로 이동)
+
+**완료 (2026-09-10, 환경 점검 + README/docs의 Claude→Groq 교체 반영 누락 수정)**
+
+사용자 요청으로 dev 서버 기동 확인 및 "README와 현재 환경이 다른 게 있는지" 점검. 코드 변경은 없고 문서만 수정.
+
+- 서버 기동 점검: `apps/web/.env`는 이미 정상 설정돼 있고(`BETTER_AUTH_SECRET` 포함), dev 서버를 새로 띄워 `/login`까지 정상 렌더링 확인 — 사용자가 공유한 `BETTER_AUTH_SECRET 환경변수가 설정되어 있지 않습니다` 런타임 에러 스크린샷은 이 환경에서는 재현 안 됨(다른 기기의 `.env` 미설정 상태였을 가능성)
+- 환경 자체는 README "이 환경 관련 참고사항"과 일치함을 확인: Docker/WSL 계속 불가(Neon Postgres 사용 중), Prisma client 생성됨, `lightningcss`/`@tailwindcss/oxide`의 win32 네이티브 바이너리가 문서에 적힌 폴백 경로(패키지 폴더 안에 직접 `.node` 파일)에 있음, `apps/web/package-lock.json` 없음
+- **문서 불일치 발견**: 2026-09-09 세션에서 AI 파싱을 Claude→Groq로 교체했고 진행 상황 로그(바로 위 항목)에는 정확히 기록돼 있었지만, 그보다 위에 있는 현재-상태 설명 문서들이 갱신이 안 돼 있었음 — [README.md](../README.md)의 스택 표/로드맵(F4 상태 줄), [docs/AI.md](docs/AI.md) 개요, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)의 스택 결정 표·배포 다이어그램에 여전히 "Claude API"/`ANTHROPIC_API_KEY`가 남아 현재 코드(`aiParse.ts`가 실제로 쓰는 `groq-sdk`)와 어긋나 있었음. `docs/API.md`/`docs/PUBLISHING.md`/`.env.example`은 이미 정확했음
+- 수정 범위: 현재 상태를 설명하는 부분(README 스택 표·로드맵, AI.md, ARCHITECTURE.md)은 Groq 기준으로 직접 교체. 과거 특정 세션을 그대로 기록한 로그 항목(README의 Phase 3/2026-09-03/2026-09-04 완료 기록, [docs/ROADMAP.md](docs/ROADMAP.md)의 Phase 3 항목)은 당시엔 실제로 Claude였던 사실 자체를 다시 쓰지 않고, "2026-09-09에 Groq로 교체됨" 안내만 덧붙임 — 이 프로젝트가 기존에 써온 방식(새 사실은 새 날짜 항목으로 추가, 과거 기록은 보존)과 동일하게 처리
+- 검증: 코드 변경이 없어 `tsc`/`eslint`/브라우저 확인 대상 아님. `grep -rn "ANTHROPIC_API_KEY\|Claude API"`로 남은 참조가 전부 의도한 과거-기록용 문구뿐인지 확인
 
 **다음 세션 할 일**
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음

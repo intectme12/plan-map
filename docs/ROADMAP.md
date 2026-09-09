@@ -36,7 +36,7 @@
 
 한 세션에서 "나중에 진행"으로 보류됐다가, 이후 세션에서 재개 요청을 받아 완료.
 
-- Claude API(`claude-opus-5`, 구조화 출력)로 텍스트에서 장소 추출 + 카카오 로컬 검색으로 지오코딩 매칭 — 상세는 [AI.md](./AI.md).
+- Claude API(`claude-opus-5`, 구조화 출력)로 텍스트에서 장소 추출 + 카카오 로컬 검색으로 지오코딩 매칭 — 상세는 [AI.md](./AI.md). (**2026-09-09에 Groq API로 교체됨 — 현재는 Claude 미사용, AI.md 참고**)
 - 확인 UI(`/trips/[tripId]/import`): 텍스트 붙여넣기 → 스켈레톤 로딩 → 후보 카드 리스트(체크박스 기본 선택, 동명 장소는 뱃지+선택 드롭다운) + 지도 마커 → 일괄 추가.
 - `AIParseJob` 같은 잡 큐 테이블은 만들지 않음(요청 1회로 끝나는 동기 흐름이라 불필요) — README 초안에서 조기 추상화로 판단해 뺌.
 - 이 개발 환경에서 발견한 별개의 버그를 이 단계에서 같이 고침: `npm install`만으로는 Prisma 클라이언트가 실제로 생성되지 않아(`allow-scripts` 정책이 postinstall 차단) `tsc`가 무관해 보이는 implicit-any 에러를 냈던 것 — `npx prisma generate` + `npx next typegen`을 수동 실행해서 해결, README에 원인/해결법 기록.
