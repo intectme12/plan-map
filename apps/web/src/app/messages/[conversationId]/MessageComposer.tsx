@@ -16,7 +16,19 @@ export function MessageComposer({
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const lastTypingSentAtRef = useRef(0);
   const toast = useToast();
+
+  // 매 키 입력마다 보내지 않고 2초에 한 번 정도만 신호를 보낸다 — 계속 입력 중이면 이 정도
+  // 간격으로도 받는 쪽의 4초짜리 "입력 중" 표시(ConversationView.tsx)가 끊기지 않는다.
+  function onContentChange(value: string) {
+    setContent(value);
+    const now = Date.now();
+    if (now - lastTypingSentAtRef.current > 2000) {
+      lastTypingSentAtRef.current = now;
+      fetch(`/api/conversations/${conversationId}/typing`, { method: "POST" });
+    }
+  }
 
   function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -81,7 +93,7 @@ export function MessageComposer({
         </label>
         <textarea
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={(e) => onContentChange(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();

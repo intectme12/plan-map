@@ -25,6 +25,7 @@ export default async function ConversationPage({
       currentUserId={user.id}
       other={conversation.other}
       initialMessages={messages}
+      initialOtherLastReadAt={conversation.otherLastReadAt}
     />
   );
 }

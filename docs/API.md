@@ -100,8 +100,9 @@
 | `POST` | `/api/conversations` | `{ userId }` → 그 회원과의 대화를 조회하거나 없으면 생성, `201` |
 | `GET` | `/api/conversations/{conversationId}/messages?before={ISO}` | 메시지 히스토리(최신 30개, `before`로 더 과거 페이지네이션 — 다른 목록과 달리 오프셋이 아니라 시각 커서를 쓰는 이유는 MESSAGING.md 참고) |
 | `POST` | `/api/conversations/{conversationId}/messages` | `multipart/form-data`: `content`(선택)·`image`(선택, jpg/png/webp/gif 8MB 제한) — 최소 하나 필수. `201` |
-| `POST` | `/api/conversations/{conversationId}/read` | 내 안읽음 상태 해제(`lastReadAt` 갱신) |
-| `GET` | `/api/messages/stream` | SSE. 로그인 사용자당 연결 하나로 내가 속한 모든 대화의 새 메시지를 받는다 |
+| `POST` | `/api/conversations/{conversationId}/read` | 내 안읽음 상태 해제(`lastReadAt` 갱신) — 상대에게 `read` SSE 이벤트 발송(읽음 표시) |
+| `POST` | `/api/conversations/{conversationId}/typing` | 입력 중 신호를 상대에게만 전달(DB 저장 안 함, `typing` SSE 이벤트) |
+| `GET` | `/api/messages/stream` | SSE. 로그인 사용자당 연결 하나로 내가 속한 모든 대화의 새 메시지(`message`)/타이핑(`typing`)/읽음(`read`) 이벤트를 받는다 |
 
 ## 관련 문서
 

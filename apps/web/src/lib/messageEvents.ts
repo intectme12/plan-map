@@ -33,9 +33,23 @@ export type MessageStreamEvent = {
   };
 };
 
-// 대화 상대 두 명(발신자 포함 — 다른 탭/기기 동기화용) 각자의 연결에 새 메시지를 밀어넣는다.
-export function publishMessage(userIds: string[], event: MessageStreamEvent) {
-  const payload = encoder.encode(`event: message\ndata: ${JSON.stringify(event)}\n\n`);
+// 타이핑 중 표시는 DB에 저장하지 않는 순간적인 신호라 메시지와 다른 이벤트 이름(typing)으로 보낸다.
+export type TypingStreamEvent = {
+  type: "typing";
+  conversationId: string;
+  userId: string; // 지금 입력 중인 사람
+};
+
+// 상대가 읽음 처리(markRead)할 때마다 보내서, 내가 보낸 메시지 옆에 "읽음"을 실시간으로 띄운다.
+export type ReadStreamEvent = {
+  type: "read";
+  conversationId: string;
+  userId: string; // 읽은 사람
+  readAt: string;
+};
+
+function broadcast(userIds: string[], eventName: string, data: unknown) {
+  const payload = encoder.encode(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`);
   for (const userId of userIds) {
     const set = subscribers.get(userId);
     if (!set) continue;
@@ -47,4 +61,19 @@ export function publishMessage(userIds: string[], event: MessageStreamEvent) {
       }
     }
   }
+}
+
+// 대화 상대 두 명(발신자 포함 — 다른 탭/기기 동기화용) 각자의 연결에 새 메시지를 밀어넣는다.
+export function publishMessage(userIds: string[], event: MessageStreamEvent) {
+  broadcast(userIds, "message", event);
+}
+
+// 타이핑 신호는 받는 사람에게만 보낸다(발신자 본인은 알 필요 없음).
+export function publishTyping(userIds: string[], event: TypingStreamEvent) {
+  broadcast(userIds, "typing", event);
+}
+
+// 읽음 신호도 상대(내가 읽은 메시지를 보낸 사람)에게만 보낸다.
+export function publishRead(userIds: string[], event: ReadStreamEvent) {
+  broadcast(userIds, "read", event);
 }

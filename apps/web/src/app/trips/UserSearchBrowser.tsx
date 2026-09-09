@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Avatar } from "@/components/Avatar";
+import { SendMessageButton } from "@/components/SendMessageButton";
 
 type UserResult = {
   id: string;
@@ -51,11 +52,11 @@ export function UserSearchBrowser() {
 
       <ul className="flex flex-col gap-2">
         {users.map((u) => (
-          <li key={u.id}>
-            <Link
-              href={`/users/${u.nickname}`}
-              className="flex items-center gap-3 rounded-lg border border-neutral-200 px-4 py-3 hover:bg-neutral-50"
-            >
+          <li
+            key={u.id}
+            className="flex items-center gap-3 rounded-lg border border-neutral-200 px-4 py-3 hover:bg-neutral-50"
+          >
+            <Link href={`/users/${u.nickname}`} className="flex min-w-0 flex-1 items-center gap-3">
               <Avatar url={u.avatarUrl} nickname={u.nickname} size={40} />
               <div className="min-w-0 flex-1">
                 <p className="font-semibold">{u.nickname}</p>
@@ -63,6 +64,7 @@ export function UserSearchBrowser() {
               </div>
               <span className="flex-none text-sm text-neutral-400">여행 {u._count.trips}개</span>
             </Link>
+            <SendMessageButton userId={u.id} className="h-auto flex-none rounded-md px-3 py-1.5 text-xs" />
           </li>
         ))}
       </ul>

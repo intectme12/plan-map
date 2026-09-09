@@ -1,7 +1,7 @@
 import { prisma } from "../db";
 import { NotFoundError, ForbiddenError, InvalidFileError } from "../errors";
 import { saveImageFile } from "../upload";
-import { publishMessage } from "../messageEvents";
+import { publishMessage, publishTyping, publishRead } from "../messageEvents";
 
 const MESSAGE_PAGE_SIZE = 30;
 
@@ -77,8 +77,10 @@ export async function getConversationSummary(userId: string, conversationId: str
   });
   if (!conversation) return null;
 
-  const other = conversation.userAId === userId ? conversation.userB : conversation.userA;
-  return { id: conversation.id, other };
+  const isUserA = conversation.userAId === userId;
+  const other = isUserA ? conversation.userB : conversation.userA;
+  const otherLastReadAt = isUserA ? conversation.userBLastReadAt : conversation.userALastReadAt;
+  return { id: conversation.id, other, otherLastReadAt };
 }
 
 export async function listMessages(userId: string, conversationId: string, before?: Date) {
@@ -98,11 +100,23 @@ export async function listMessages(userId: string, conversationId: string, befor
 export async function markRead(userId: string, conversationId: string) {
   const conversation = await getConversationForUser(userId, conversationId);
   const isUserA = conversation.userAId === userId;
+  const otherUserId = isUserA ? conversation.userBId : conversation.userAId;
+  const readAt = new Date();
 
   await prisma.conversation.update({
     where: { id: conversationId },
-    data: isUserA ? { userALastReadAt: new Date() } : { userBLastReadAt: new Date() },
+    data: isUserA ? { userALastReadAt: readAt } : { userBLastReadAt: readAt },
   });
+
+  // 상대(내가 방금 읽은 메시지들을 보낸 사람)에게 실시간으로 "읽음" 알려줌
+  publishRead([otherUserId], { type: "read", conversationId, userId, readAt: readAt.toISOString() });
+}
+
+// DB에 남기지 않는 순간적인 신호라 소유권 확인 후 상대에게만 그대로 전달한다.
+export async function notifyTyping(userId: string, conversationId: string) {
+  const conversation = await getConversationForUser(userId, conversationId);
+  const otherUserId = conversation.userAId === userId ? conversation.userBId : conversation.userAId;
+  publishTyping([otherUserId], { type: "typing", conversationId, userId });
 }
 
 export async function sendMessage(

@@ -26,11 +26,13 @@ export function ConversationView({
   currentUserId,
   other,
   initialMessages,
+  initialOtherLastReadAt,
 }: {
   conversationId: string;
   currentUserId: string;
   other: OtherUser;
   initialMessages: Message[];
+  initialOtherLastReadAt: string | Date | null;
 }) {
   // 다른 대화로 이동하면 이 컴포넌트가 다시 마운트되도록 호출부([conversationId]/page.tsx)가
   // key={conversationId}를 준다 — 그래서 initialMessages가 그대로 초기값이 되고, 대화가
@@ -39,22 +41,53 @@ export function ConversationView({
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasMoreOlder, setHasMoreOlder] = useState(initialMessages.length >= 30);
   const [lightboxKey, setLightboxKey] = useState<string | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [otherLastReadAt, setOtherLastReadAt] = useState(initialOtherLastReadAt);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length]);
+  }, [messages.length, isTyping]);
 
-  useMessageStream((event) => {
-    if (event.conversationId !== conversationId) return;
-    setMessages((prev) => {
-      if (prev.some((m) => m.id === event.message.id)) return prev;
-      return [...prev, event.message];
-    });
-    if (event.message.senderId !== currentUserId) {
-      fetch(`/api/conversations/${conversationId}/read`, { method: "POST" });
+  // 대화를 나가면(다른 대화로 이동/언마운트) 남아있는 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    };
+  }, []);
+
+  useMessageStream(
+    (event) => {
+      if (event.conversationId !== conversationId) return;
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === event.message.id)) return prev;
+        return [...prev, event.message];
+      });
+      if (event.message.senderId !== currentUserId) {
+        fetch(`/api/conversations/${conversationId}/read`, { method: "POST" });
+        // 실제 메시지가 도착했으면 그 사람은 더 이상 "입력 중"이 아님
+        setIsTyping(false);
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      }
+    },
+    (event) => {
+      if (event.conversationId !== conversationId || event.userId === currentUserId) return;
+      setIsTyping(true);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      // 4초 안에 다음 타이핑 신호가 안 오면 "입력 중" 표시를 지운다(상대가 멈췄다고 간주).
+      typingTimeoutRef.current = setTimeout(() => setIsTyping(false), 4000);
+    },
+    (event) => {
+      if (event.conversationId !== conversationId || event.userId === currentUserId) return;
+      setOtherLastReadAt(event.readAt);
     }
-  });
+  );
+
+  // KakaoTalk처럼 내가 보낸 메시지 중 가장 최근 것에만 "읽음"을 표시(전부에 달면 지저분함 —
+  // 상대가 그 메시지를 읽었으면 그 이전 것들도 당연히 다 읽은 것이므로 충분).
+  const lastMineMessageId = [...messages].reverse().find((m) => m.senderId === currentUserId)?.id;
+  const otherLastReadAtMs = otherLastReadAt ? new Date(otherLastReadAt).getTime() : null;
 
   async function loadOlder() {
     if (messages.length === 0) return;
@@ -93,6 +126,11 @@ export function ConversationView({
 
         {messages.map((m) => {
           const mine = m.senderId === currentUserId;
+          const showRead =
+            mine &&
+            m.id === lastMineMessageId &&
+            otherLastReadAtMs !== null &&
+            otherLastReadAtMs >= new Date(m.createdAt).getTime();
           return (
             <div key={m.id} className={`flex flex-col ${mine ? "items-end" : "items-start"}`}>
               <div
@@ -111,10 +149,14 @@ export function ConversationView({
                 ) : null}
                 {m.content ? <p className="whitespace-pre-wrap break-words">{m.content}</p> : null}
               </div>
-              <span className="mt-0.5 text-xs text-neutral-400">{formatTime(m.createdAt)}</span>
+              <span className="mt-0.5 flex items-center gap-1 text-xs text-neutral-400">
+                {showRead ? <span className="text-blue-500">읽음</span> : null}
+                {formatTime(m.createdAt)}
+              </span>
             </div>
           );
         })}
+        {isTyping ? <p className="px-1 text-xs text-neutral-400">{other.nickname}님이 입력 중...</p> : null}
         <div ref={bottomRef} />
       </div>
 
