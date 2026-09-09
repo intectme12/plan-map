@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { MessageNavLink } from "@/components/MessageNavLink";
 import { TripCreateForm } from "./TripCreateForm";
 import { TripList, type Trip } from "./TripList";
 import { SharedTripBrowser } from "./SharedTripBrowser";
@@ -25,15 +24,7 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
   );
 }
 
-export function TripsTabs({
-  trips,
-  currentUserId,
-  unreadMessageCount,
-}: {
-  trips: Trip[];
-  currentUserId: string;
-  unreadMessageCount: number;
-}) {
+export function TripsTabs({ trips }: { trips: Trip[] }) {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab");
   const [tab, setTab] = useState<TabKey>(
@@ -47,7 +38,7 @@ export function TripsTabs({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* 사용자 요청 순서: 내 여행계획 / 다른 사람 여행계획 / 팔로잉 피드 / 메시지 / 나에게 공유됨 / 회원검색 */}
+      {/* 사용자 요청 순서: 내 여행계획 / 다른 사람 여행계획 / 팔로잉 피드 / 나에게 공유됨 / 회원검색 (메시지는 페이지 헤더의 버튼으로 이동) */}
       <nav className="flex gap-1 border-b border-neutral-200">
         <TabButton active={tab === "mine"} onClick={() => setTab("mine")}>
           내 여행계획
@@ -58,11 +49,6 @@ export function TripsTabs({
         <TabButton active={tab === "following"} onClick={() => setTab("following")}>
           팔로잉 피드
         </TabButton>
-        <MessageNavLink
-          currentUserId={currentUserId}
-          initialUnreadCount={unreadMessageCount}
-          className="relative border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-neutral-500 hover:text-neutral-700"
-        />
         <TabButton active={tab === "shared-with-me"} onClick={() => setTab("shared-with-me")}>
           나에게 공유됨
         </TabButton>
