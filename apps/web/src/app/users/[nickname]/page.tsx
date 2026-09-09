@@ -3,8 +3,10 @@ import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getPublicProfile } from "@/lib/services/users";
 import { listSharedTrips } from "@/lib/services/trips";
+import { getFollowState } from "@/lib/services/follows";
 import { Avatar } from "@/components/Avatar";
 import { SendMessageButton } from "@/components/SendMessageButton";
+import { FollowButton } from "@/components/FollowButton";
 import { UserTripList } from "./UserTripList";
 
 export default async function UserProfilePage({
@@ -23,7 +25,10 @@ export default async function UserProfilePage({
 
   const isOwnProfile = profile.id === user.id;
   const canSeeTrips = isOwnProfile || profile.showTripsOnProfile;
-  const trips = canSeeTrips ? await listSharedTrips(undefined, 0, profile.id, user.id) : [];
+  const [trips, followState] = await Promise.all([
+    canSeeTrips ? listSharedTrips(undefined, 0, profile.id, user.id) : Promise.resolve([]),
+    getFollowState(user.id, profile.id),
+  ]);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 px-4 py-8">
@@ -40,9 +45,24 @@ export default async function UserProfilePage({
             {profile.createdAt.toLocaleDateString("ko-KR")} 가입
             {canSeeTrips ? ` · 공유 중인 여행 ${profile._count.trips}개` : null}
           </p>
+          <p className="mt-1 flex gap-3 text-sm">
+            <Link href={`/users/${nickname}/followers`} className="hover:underline">
+              팔로워 <span className="font-semibold">{followState.followerCount}</span>
+            </Link>
+            <Link href={`/users/${nickname}/following`} className="hover:underline">
+              팔로잉 <span className="font-semibold">{followState.followingCount}</span>
+            </Link>
+          </p>
         </div>
         {isOwnProfile ? null : (
-          <SendMessageButton userId={profile.id} className="ml-auto h-auto flex-none rounded-md px-3 py-1.5 text-xs" />
+          <div className="ml-auto flex flex-none items-center gap-2">
+            <FollowButton
+              nickname={profile.nickname}
+              initialIsFollowing={followState.isFollowing}
+              className="h-auto rounded-md px-3 py-1.5 text-xs"
+            />
+            <SendMessageButton userId={profile.id} className="h-auto flex-none rounded-md px-3 py-1.5 text-xs" />
+          </div>
         )}
       </header>
 

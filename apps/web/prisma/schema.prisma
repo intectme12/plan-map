@@ -34,8 +34,26 @@ model User {
   conversationsAsA   Conversation[]    @relation("ConversationAsA")
   conversationsAsB   Conversation[]    @relation("ConversationAsB")
   sentMessages       Message[]
+  following          Follow[]          @relation("Following")
+  followers          Follow[]          @relation("Followers")
 
   @@map("users")
+}
+
+// followerId가 followingId를 팔로우한다. 자기 자신 팔로우 금지·중복 팔로우 방지는
+// 서비스 레이어(lib/services/follows.ts)에서 검증하고, @@unique는 마지막 안전망.
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followingId])
+  @@map("follows")
 }
 
 // 1:1 DM. 그룹채팅은 지원 안 해서 참여자 조인 테이블 대신 userA/userB 두 컬럼을 직접 둔다 —

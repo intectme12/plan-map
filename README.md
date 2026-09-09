@@ -466,7 +466,19 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
   - **브라우저 앱 아이콘 배지**: Web Badging API(`navigator.setAppBadge`)를 [lib/appBadge.ts](apps/web/src/lib/appBadge.ts) + [AppBadgeSync.tsx](apps/web/src/components/AppBadgeSync.tsx)로 구현, 루트 레이아웃에 항상 마운트. 새 메시지 도착 시 즉시 +1(반응성), 페이지 이동(`usePathname` 변화)마다 서버에서 다시 정확한 카운트를 조회해 맞춤(그냥 증가만 추적하면 대화를 읽어서 줄어드는 걸 못 잡아서)
   - `tsc --noEmit`/`eslint` 전체 통과. 브라우저 2세션(계정 C/D, 이번엔 매번 curl 대신 Node `fetch`로 회원가입해 컬 UTF-8 인코딩 깨짐 문제 회피 — 첫 시도에서 D 닉네임이 깨져서 재발급) + `navigator.setAppBadge`를 임시로 가로채는 방식으로 검증: 회원검색 카드 메시지 버튼, 타이핑 표시가 4초 뒤 자동으로 사라지는 것, 읽음 표시가 상대 읽음 처리 즉시 뜨는 것, 배지가 새 메시지에 +1 되고 대화를 읽으면(페이지 이동 시) 다시 0으로 맞춰지는 것까지 전부 라이브로 확인. 검증 중 잠시 세션 사용량 한도에 걸렸다가 재개됨 — 디버그용 `console.log`는 확인 후 제거. 테스트 계정 삭제해 정리(실사용자 본인 계정의 기존 대화 1건은 테스트 데이터가 아니라 그대로 둠)
 
+**완료 (2026-09-09, 팔로우/팔로워 기능 추가)**
+
+사용자 요청 3건(팔로우/팔로워, 팔로우한 사용자의 게시물 피드, 게시물 좋아요) 중 첫 번째만 이번 세션에서 진행하기로 확인받아 팔로우/팔로워만 구현. 이 프로젝트엔 별도 "게시물" 모델이 없고 `Trip`(`visibility="PUBLIC"`)이 사실상 그 역할이라(`SharedTripBrowser.tsx`), 나머지 두 기능은 팔로우 관계가 먼저 있어야 의미가 있어 순서를 그렇게 잡음.
+
+- 새 `Follow` 모델(`followerId`/`followingId`, `@@unique`로 중복 팔로우 방지) 추가, `User`에 `following`/`followers` 관계 추가
+- [lib/services/follows.ts](apps/web/src/lib/services/follows.ts) 신설: `followUser`/`unfollowUser`(닉네임으로 대상 조회, 자기 자신 팔로우는 `ForbiddenError`로 차단), `getFollowState`(팔로워/팔로잉 카운트 + 내가 팔로우 중인지 한 번에 조회), `listFollowers`/`listFollowing`(커서 페이지네이션, 기존 `SharedTripBrowser` 패턴과 동일하게 20개씩)
+- API: `POST`/`DELETE /api/users/[nickname]/follow`, `GET /api/users/[nickname]/followers`, `GET /api/users/[nickname]/following`
+- UI: `/users/[nickname]` 프로필 헤더에 팔로워/팔로잉 카운트(클릭 시 각각 새 `/users/[nickname]/followers`·`/following` 목록 페이지로 이동) + `FollowButton.tsx`(낙관적 업데이트, 실패 시 롤백) 추가. 목록 페이지는 공용 `FollowUserList.tsx`(무한스크롤 "더보기") 재사용
+- **마이그레이션 드리프트 재확인**: 지난 세션에서 발견한 `20260907120000_add_trip_visibility_and_shares` 체크섬 불일치가 이번에도 `migrate dev`를 막아 리셋을 요구함 — 리셋 대신 `prisma migrate diff`(라이브 DB ↔ 새 스키마, 섀도우DB 미사용)로 `follows` 테이블 SQL만 뽑아 `prisma db execute`로 직접 적용 후 `migrate resolve --applied`로 이력만 맞춤(지난 세션들의 `db push` 우회와 동일 계열, 이번엔 diff를 직접 활용). 아래 "다음 세션 할 일"의 드리프트 정리 항목은 여전히 미해결
+- `tsc --noEmit`/`eslint` 통과. 브라우저에서 테스트 계정 2개(follow_test_a/b)로 A→B 프로필에서 팔로우 클릭 → A 프로필의 팔로워 수 1 증가·버튼이 "팔로잉"으로 전환, B의 팔로워 목록 페이지에 A가 표시, 자기 자신 팔로우 시도 시 403, 언팔로우 시 카운트/버튼이 원래대로 복귀하는 것까지 확인. 테스트 계정은 삭제해 정리
+
 **다음 세션 할 일**
+- (신규) 팔로우 기능에 이어 나머지 2건 대기 중: ①팔로우한 사용자의 공개 여행(게시물) 피드, ②여행(게시물) 좋아요. 설계는 위 팔로우 구현과 같은 방식(`Trip`을 게시물로 취급)으로 이미 잡아둠 — 사용자 요청 시 이어서 진행
 - **(중요)** 네이버 로그인 콜백에서 `invalid_code` 에러 발생 — 원인은 코드가 아니라 이 PC의 보안 소프트웨어(발급자 "LG CNS Co. Ltd v3")가 아웃바운드 HTTPS를 가로채 자체 인증서로 재서명하고 있어서, 서버가 네이버 토큰 발급 엔드포인트(`nid.naver.com`)로 보내는 코드 교환 요청이 `SELF_SIGNED_CERT_IN_CHAIN`으로 실패하는 것(Node가 Windows가 신뢰하는 이 회사 인증서를 자체적으로는 신뢰하지 않아서). 아래 "카카오모빌리티 경로조회" 항목과 동일한 근본 원인 — 이 PC/사내망 특유의 문제라 실제 배포 서버에선 재현 안 될 가능성이 높음. 사용자가 이 문제가 없는 다른 네트워크 환경(회사 보안 소프트웨어가 안 깔린 PC, 또는 다른 네트워크)에서 카카오/구글/네이버 로그인을 실제 계정으로 끝까지 완료해서 확인하기로 함 — 그때 위에서 고친 두 버그(계정 연결, 카카오 scope)까지 함께 최종 확인 필요
 - **(중요)** 이번에 발견한 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`) 정리 필요 — 지금은 `db push`로 우회했지만, 다음에 스키마를 바꿀 때 `migrate dev`가 또 리셋을 요구할 수 있음. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나, 드리프트를 감수하고 앞으로도 `db push` + 손으로 마이그레이션 작성하는 방식을 표준으로 삼을지 결정 필요
 - (참고) `users.passwordHash` 컬럼은 이제 레거시(로그인은 `accounts.password`를 씀) — 운영 안정성 확인되면 제거하는 마이그레이션 검토

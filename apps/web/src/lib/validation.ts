@@ -49,6 +49,10 @@ export const userSearchQuerySchema = z.object({
   cursor: z.coerce.number().int().min(0).default(0),
 });
 
+export const followListQuerySchema = z.object({
+  cursor: z.coerce.number().int().min(0).default(0),
+});
+
 export const updateProfileFieldsSchema = z.object({
   bio: z.string().max(300).optional(),
   showTripsOnProfile: z.boolean().optional(),
