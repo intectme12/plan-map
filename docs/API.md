@@ -69,7 +69,7 @@
 
 | Method | Path | 설명 |
 | --- | --- | --- |
-| `POST` | `/api/trips/{tripId}/ai-parse` | `{ text: string(10~5000자) }` → `{ candidates: [{ name, category, note, candidates: GeocodeCandidate[] }] }`. `ANTHROPIC_API_KEY` 미설정 시 `503` |
+| `POST` | `/api/trips/{tripId}/ai-parse` | `{ text: string(10~5000자) }` → `{ candidates: [{ name, category, note, candidates: GeocodeCandidate[] }] }`. `GROQ_API_KEY` 미설정 시 `503` |
 
 후보를 실제 장소로 반영하는 별도 API는 없다 — 프런트가 사용자가 선택한 후보들을 기존 `POST /api/trips/{tripId}/places`로 순차 호출해 일괄 추가한다(주문(order) 충돌을 피하려고 병렬 호출하지 않음).
 

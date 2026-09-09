@@ -20,7 +20,7 @@ export async function parseTripText(
   const extracted = await extractPlacesFromText(rawText);
   if (extracted === null) {
     throw new ServiceUnavailableError(
-      "AI 자동생성 기능을 사용하려면 ANTHROPIC_API_KEY 설정이 필요합니다."
+      "AI 자동생성 기능을 사용하려면 GROQ_API_KEY 설정이 필요합니다."
     );
   }
 
@@ -30,8 +30,8 @@ export async function parseTripText(
     const geocoded = await searchPlaceCandidates(query);
     results.push({
       name: place.name,
-      category: place.category ?? null,
-      note: place.note ?? null,
+      category: place.category,
+      note: place.note,
       candidates: geocoded ?? [],
     });
   }

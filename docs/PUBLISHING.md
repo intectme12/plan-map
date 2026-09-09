@@ -10,7 +10,7 @@
 | 카카오모빌리티 Directions API | 자동차 경로 | `lib/services/routes.ts` | `KAKAO_REST_API_KEY` |
 | 카카오 로컬 키워드 검색 | 장소명 → 좌표 지오코딩 | `lib/services/geocode.ts` | `KAKAO_REST_API_KEY` |
 | ODsay | 대중교통(버스) 경로 | `lib/services/routes.ts` | `ODSAY_API_KEY` |
-| Claude API | AI 일정 텍스트 파싱 | `lib/services/aiParse.ts` | `ANTHROPIC_API_KEY` |
+| Groq API | AI 일정 텍스트 파싱 | `lib/services/aiParse.ts` | `GROQ_API_KEY` |
 
 ## 공통 패턴: 키 없으면 폴백, 있으면 캐시
 
@@ -32,11 +32,11 @@ async function callExternalApi(...) {
 - 로컬 개발 중 아직 키를 안 받았어도 나머지 기능(여행/장소 CRUD 등)이 전부 정상 동작한다.
 - 실제로 이 프로젝트를 열 때마다 키가 없는 상태로 여러 번 테스트됐고, 그때마다 이 폴백이 500 에러 없이 잘 동작하는지 확인했다(Phase 2/3 진행 상황 참고).
 
-**예외: Claude API는 이 패턴을 따르지 않는다.** AI 파싱은 Claude 응답 없이는 아무 것도 할 수 없으므로(대체 경로 없음), 키 미설정 시 `null` 대신 `ServiceUnavailableError`를 던져 API가 명시적으로 `503`을 반환한다 — 자세한 내용은 [AI.md](./AI.md).
+**예외: Groq API는 이 패턴을 따르지 않는다.** AI 파싱은 Groq 응답 없이는 아무 것도 할 수 없으므로(대체 경로 없음), 키 미설정 시 `null` 대신 `ServiceUnavailableError`를 던져 API가 명시적으로 `503`을 반환한다 — 자세한 내용은 [AI.md](./AI.md).
 
 ## 캐싱
 
-경로 조회(카카오모빌리티/ODsay)만 캐시가 있다 — 동일 `[출발지, 도착지, 수단]` 조합은 `RouteSegment` 테이블에 저장하고 `computedAt` 기준 10분 TTL로 재사용한다(`lib/services/routes.ts`의 `CACHE_TTL_MS`). 지오코딩(카카오 로컬 검색)이나 Claude 파싱 결과는 캐시하지 않는다 — 매번 새 텍스트를 파싱하는 게 보통이라 캐시 히트율이 낮을 것으로 판단, 필요해지면 나중에 추가.
+경로 조회(카카오모빌리티/ODsay)만 캐시가 있다 — 동일 `[출발지, 도착지, 수단]` 조합은 `RouteSegment` 테이블에 저장하고 `computedAt` 기준 10분 TTL로 재사용한다(`lib/services/routes.ts`의 `CACHE_TTL_MS`). 지오코딩(카카오 로컬 검색)이나 Groq 파싱 결과는 캐시하지 않는다 — 매번 새 텍스트를 파싱하는 게 보통이라 캐시 히트율이 낮을 것으로 판단, 필요해지면 나중에 추가.
 
 ## 시크릿 관리
 

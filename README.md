@@ -497,7 +497,18 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - `TripsTabs.tsx`: 탭 줄에서 `<MessageNavLink>`를 제거, 더 이상 안 쓰는 `currentUserId`/`unreadMessageCount` prop도 함께 제거(메시지 배지 갱신은 헤더 쪽 `MessageNavLink`가 직접 `user.id`/`unreadCount`를 받아 처리)
 - `tsc --noEmit`/`eslint` 통과. 브라우저에서 테스트 계정으로 `/trips` 진입 → 헤더에 "메시지" 버튼이 "내 정보"/"로그아웃"과 같은 줄·같은 스타일로 왼쪽에 뜨는 것, 탭 줄에는 더 이상 메시지 항목이 없는 것, `/messages`로 정상 이동하는 것까지 확인. 테스트 계정은 삭제해 정리
 
+**완료 (2026-09-09, AI 일정 파싱을 Claude에서 Groq로 교체 + 가져오기 화면 2칸 레이아웃)**
+
+사용자 요청 2건: (1) 비용/속도 목적으로 텍스트 분석 API를 Claude → Groq로 교체, (2) `/trips/[tripId]/import` 화면을 "사용자 입력칸"/"AI 분석완료 칸" 두 영역으로 재구성.
+
+- **Groq 전환**([lib/services/aiParse.ts](apps/web/src/lib/services/aiParse.ts)): `@anthropic-ai/sdk` 제거, `groq-sdk` 추가. 모델은 Groq 프로덕션 모델 중 structured outputs strict 모드를 지원하는 `openai/gpt-oss-120b` 선택(Qwen 계열도 strict를 지원하지만 preview라 제외). Groq SDK는 Anthropic의 `messages.parse()`+`zodOutputFormat()` 같은 "zod 스키마 자동 검증" 헬퍼가 없어서, zod v4 내장 **`z.toJSONSchema()`**(별도 패키지 불필요, `zod-to-json-schema` 안 씀)로 스키마를 직접 변환해 `response_format: {type:"json_schema", json_schema:{strict:true, schema}}`로 넘기고, 응답은 `JSON.parse()` 후 같은 zod 스키마로 `safeParse()`해서 직접 검증
+- **스키마를 optional → nullable로 변경**: Groq(OpenAI 계열 공통) strict 모드는 "모든 필드가 `required`, 생략 가능한 값은 `nullable` 유니온"을 요구해서, `category`/`areaHint`/`note`를 `.optional()`에서 `.nullable()`로 바꿈 — `z.toJSONSchema()`가 이걸 자동으로 `required` + `type:["string","null"]`로 변환해줘서 스키마를 손으로 두 벌 관리할 필요가 없어짐. `aiImport.ts`가 받던 값이 `undefined`에서 `null`로 바뀌어 기존 `?? null` 코드를 단순화(동작은 동일)
+- `GROQ_API_KEY` 미설정/Groq 응답이 스키마와 안 맞는 경우 모두 기존과 동일하게 `null` → `ServiceUnavailableError` → `503` 경로(재시도 없음). `.env`/`.env.example`/[docs/AI.md](docs/AI.md)/[docs/API.md](docs/API.md)/[docs/PUBLISHING.md](docs/PUBLISHING.md)의 `ANTHROPIC_API_KEY` 언급을 전부 `GROQ_API_KEY`로 교체
+- **가져오기 화면 2칸 레이아웃**([ImportFlow.tsx](apps/web/src/app/trips/[tripId]/import/ImportFlow.tsx)): 기존엔 "입력 폼"과 "결과(후보 목록+지도)"가 서로를 완전히 대체하는 화면 전환이었는데, 왼쪽 "사용자 입력칸"(텍스트 입력+분석 버튼)은 분석 후에도 그대로 남아있고 오른쪽 "AI 분석완료" 칸에 idle 안내문 → 로딩 스켈레톤 → 에러 메시지 → 후보 목록+지도가 단계별로 표시되는 구조로 변경. 텍스트를 고쳐서 버튼을 다시 누르면("다시 분석하기") 왼쪽은 그대로 두고 오른쪽만 갱신되어 재분석이 더 자연스러워짐
+- `tsc --noEmit`/`eslint` 통과. 이 환경엔 `GROQ_API_KEY`가 없어(카카오/ANTHROPIC 키와 같은 사정) 실제 Groq 응답으로 추출 품질까지는 검증 못 함 — 대신 `z.toJSONSchema()` 출력이 strict 모드 요구사항(모든 필드 required, nullable 유니온, `additionalProperties:false`)을 정확히 만족하는 것을 스크립트로 확인. 브라우저로 테스트 계정을 만들어 새 2칸 레이아웃(idle 안내문 → 텍스트 제출 → `GROQ_API_KEY` 미설정 메시지로 503 폴백 → 왼쪽 입력칸에 텍스트가 그대로 남아있는 것)까지 확인. **다음에 실제 `GROQ_API_KEY`가 생기면 실제 텍스트로 추출 정확도를 한 번 확인 필요**(모델을 오픈모델로 바꿔서 Claude Opus 대비 품질이 떨어질 가능성 있음 — 아래 "다음 세션 할 일" 참고). 테스트 계정/여행은 삭제해 정리
+
 **다음 세션 할 일**
+- (신규) Groq(`openai/gpt-oss-120b`)로 실제 `GROQ_API_KEY`를 넣고 여행 후기 텍스트로 추출 품질을 확인 필요 — Claude Opus 대비 한국어 장소명 추출 정확도가 떨어지면 `openai/gpt-oss-20b`/`120b` 중 조정하거나 다른 모델 재검토
 - **(중요)** 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`)가 스키마를 바꿀 때마다(이번까지 3세션 연속) `migrate dev` 리셋 요구로 이어짐 — 매번 `migrate diff`/`db push` + 손으로 마이그레이션 작성 + `migrate resolve`로 우회하고 있지만 언제까지나 반복할 방식은 아님. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나(체크섬 재계산), 이 우회를 앞으로도 정식 절차로 문서화할지 다음 세션에서 결정 필요
 - **(중요)** 네이버 로그인 콜백에서 `invalid_code` 에러 발생 — 원인은 코드가 아니라 이 PC의 보안 소프트웨어(발급자 "LG CNS Co. Ltd v3")가 아웃바운드 HTTPS를 가로채 자체 인증서로 재서명하고 있어서, 서버가 네이버 토큰 발급 엔드포인트(`nid.naver.com`)로 보내는 코드 교환 요청이 `SELF_SIGNED_CERT_IN_CHAIN`으로 실패하는 것(Node가 Windows가 신뢰하는 이 회사 인증서를 자체적으로는 신뢰하지 않아서). 아래 "카카오모빌리티 경로조회" 항목과 동일한 근본 원인 — 이 PC/사내망 특유의 문제라 실제 배포 서버에선 재현 안 될 가능성이 높음. 사용자가 이 문제가 없는 다른 네트워크 환경(회사 보안 소프트웨어가 안 깔린 PC, 또는 다른 네트워크)에서 카카오/구글/네이버 로그인을 실제 계정으로 끝까지 완료해서 확인하기로 함 — 그때 위에서 고친 두 버그(계정 연결, 카카오 scope)까지 함께 최종 확인 필요
 - (참고) `users.passwordHash` 컬럼은 이제 레거시(로그인은 `accounts.password`를 씀) — 운영 안정성 확인되면 제거하는 마이그레이션 검토

@@ -17,12 +17,13 @@ README 초안에는 `AIParseJob`(비동기 작업 테이블)이 있었지만 실
 - 요청-응답 1왕복으로 파싱부터 지오코딩까지 다 끝내고 결과를 프런트에 바로 돌려준다. 재시도/이력 조회 같은 잡 큐 특유의 요구사항이 없다.
 - 화면 수가 적은 지금 단계에서 잡 상태 테이블+폴링 UI를 만드는 건 조기 추상화라고 판단(README의 다른 "보류" 결정들과 같은 기준).
 
-## Claude API 사용 방식
+## Groq API 사용 방식
 
-- 모델: `claude-opus-5`, `@anthropic-ai/sdk`의 `client.messages.parse()` + `zodOutputFormat()`으로 구조화 출력을 받는다(수동으로 JSON.parse 안 함).
-- 스키마: `{ places: [{ name, category?, areaHint?, note? }] }` — 장소명 이외 필드는 전부 optional.
-- 시스템 프롬프트: "실제로 방문했거나 방문할 예정인 장소만 추출, 원문 순서 유지, 확실하지 않으면 제외."
-- `ANTHROPIC_API_KEY` 미설정 시 `extractPlacesFromText()`가 `null`을 반환 → `aiImport.ts`가 `ServiceUnavailableError`를 던져 API가 `503`을 반환한다. 카카오/ODsay처럼 "키 없으면 조용히 폴백"하지 않는 이유는, 이 기능 자체가 Claude 응답 없이는 아무것도 할 수 없기 때문(대체 경로가 없음).
+- 모델: `openai/gpt-oss-120b`(Groq 프로덕션 모델 중 structured outputs strict 모드를 지원하는 것 — 속도/비용 우선이면 `openai/gpt-oss-20b`로 낮출 수 있음). 2026-09-09 세션에서 Claude(`claude-opus-5`)에서 교체(비용/속도 목적, 사용자 요청).
+- `groq-sdk`의 `chat.completions.create()` + `response_format: { type: "json_schema", json_schema: { strict: true, schema } }`로 구조화 출력을 요청한다. Anthropic SDK의 `messages.parse()`처럼 "zod 스키마 넣으면 자동 검증된 객체로 파싱"해주는 헬퍼가 없어서, `schema`는 zod v4의 **`z.toJSONSchema()`**(내장, 별도 패키지 불필요)로 직접 변환해 넘기고, 응답 문자열은 `JSON.parse()` 후 같은 zod 스키마로 `safeParse()`해서 우리가 직접 검증한다.
+- 스키마: `{ places: [{ name, category, areaHint, note }] }` — `category`/`areaHint`/`note`는 **`nullable`**(optional 아님). Groq strict 모드는 "모든 필드가 `required`, 생략 가능한 값은 `nullable` 유니온으로 표현"을 요구해서(OpenAI 계열 structured outputs 공통 제약), zod의 `.optional()` 대신 `.nullable()`을 쓴 것 — 이러면 `z.toJSONSchema()`가 자동으로 `required`에 넣고 `type: ["string","null"]`로 만들어준다. 소비하는 쪽(`aiImport.ts`)은 `undefined` 대신 `null`을 받는 것 외엔 동일.
+- 시스템 프롬프트: "실제로 방문했거나 방문할 예정인 장소만 추출, 원문 순서 유지, 확실하지 않으면 제외." (기존 그대로)
+- `GROQ_API_KEY` 미설정 시 `extractPlacesFromText()`가 `null`을 반환 → `aiImport.ts`가 `ServiceUnavailableError`를 던져 API가 `503`을 반환한다. 카카오/ODsay처럼 "키 없으면 조용히 폴백"하지 않는 이유는, 이 기능 자체가 응답 없이는 아무것도 할 수 없기 때문(대체 경로가 없음) — Groq 응답이 스키마와 안 맞는 극히 드문 경우도 같은 경로(`null` → 503)로 처리하고 재시도는 하지 않는다.
 
 ## 지오코딩 폴백
 
@@ -30,7 +31,7 @@ README 초안에는 `AIParseJob`(비동기 작업 테이블)이 있었지만 실
 
 ## 시크릿
 
-- `ANTHROPIC_API_KEY` — https://console.anthropic.com 발급, `apps/web/.env`에 설정. 절대 커밋 금지(`.env`는 gitignore 처리됨).
+- `GROQ_API_KEY` — https://console.groq.com 발급, `apps/web/.env`에 설정. 절대 커밋 금지(`.env`는 gitignore 처리됨).
 
 ## 미구현/보류
 
