@@ -4,7 +4,6 @@ import { getCurrentUser, isAdmin } from "@/lib/auth";
 import { listTrips } from "@/lib/services/trips";
 import { listConversations } from "@/lib/services/conversations";
 import { LogoutButton } from "@/components/LogoutButton";
-import { MessageNavLink } from "@/components/MessageNavLink";
 import { TripsTabs } from "./TripsTabs";
 
 export default async function TripsPage() {
@@ -26,7 +25,6 @@ export default async function TripsPage() {
             관리자
           </Link>
         ) : null}
-        <MessageNavLink currentUserId={user.id} initialUnreadCount={unreadCount} />
         <Link
           href="/account"
           className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50"
@@ -41,7 +39,7 @@ export default async function TripsPage() {
         <p className="text-sm text-neutral-500">{user.nickname}님</p>
       </header>
 
-      <TripsTabs trips={trips} />
+      <TripsTabs trips={trips} currentUserId={user.id} unreadMessageCount={unreadCount} />
     </main>
   );
 }

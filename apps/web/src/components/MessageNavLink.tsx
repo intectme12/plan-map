@@ -11,9 +11,11 @@ import { useMessageStream } from "@/hooks/useMessageStream";
 export function MessageNavLink({
   currentUserId,
   initialUnreadCount,
+  className,
 }: {
   currentUserId: string;
   initialUnreadCount: number;
+  className?: string;
 }) {
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
 
@@ -26,7 +28,10 @@ export function MessageNavLink({
   return (
     <Link
       href="/messages"
-      className="relative rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50"
+      className={
+        className ??
+        "relative rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50"
+      }
     >
       메시지
       {unreadCount > 0 ? (
