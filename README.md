@@ -13,7 +13,8 @@
 ./down.sh  # Next.js dev 서버 종료 → Postgres 정지
 ```
 
-- 최초 1회는 `apps/web/.env`를 `apps/web/.env.example`을 복사해서 만들어둬야 한다(`cp apps/web/.env.example apps/web/.env`). 카카오/Anthropic 키는 없어도 앱은 뜨고, 해당 기능만 "키 설정 필요" 안내로 대체된다.
+- Node 버전은 `.nvmrc`(24) 기준 — `nvm install && nvm use`로 맞추는 걸 권장(회사 보안 소프트웨어가 인터셉트하는 인증서 문제를 우회하는 `--use-system-ca`가 Node 24부터 지원됨, 그 미만 버전에서도 `npm run dev` 자체는 정상 동작함 — 아래 "이 환경 관련 참고사항" 참고).
+- 최초 1회는 `apps/web/.env`를 `apps/web/.env.example`을 복사해서 만들어둬야 한다(`cp apps/web/.env.example apps/web/.env`). 카카오/Groq 키는 없어도 앱은 뜨고, 해당 기능만 "키 설정 필요" 안내로 대체된다.
 - `up.sh`가 띄운 dev 서버 로그: `tail -f .dev-server.log`
 - 접속: http://localhost:3000
 
@@ -96,7 +97,7 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 
 ## ⚠️ 이 환경 관련 참고사항
 
-- **Prisma 클라이언트가 최초 `npm install` 시 자동 생성되지 않는다** — npm의 `allow-scripts` 정책이 `@prisma/client`/`prisma`의 postinstall/preinstall 스크립트를 차단해서, 스키마 기반 타입이 생성되지 않은 빈 stub 클라이언트만 남는다. 증상: `trip.places` 등 Prisma 조회 결과가 `any`로 추론되며 `tsc`에서 관련 없어 보이는 implicit-any 에러가 다수 발생. **`npm install` 후에는 반드시 `cd apps/web && npx prisma generate`를 한 번 실행**해야 한다(이번 세션에서 실행 완료).
+- ~~Prisma 클라이언트가 최초 `npm install` 시 자동 생성되지 않는다~~ **(2026-09-10에 자동화로 해결)** — npm 11부터 내장된 `allow-scripts` 보안 기능이 `@prisma/client`/`prisma`의 postinstall/preinstall 스크립트를 기본 차단해서(`npm warn allow-scripts ... Run npm approve-scripts`로 확인 가능), 스키마 기반 타입이 생성되지 않은 빈 stub 클라이언트만 남았었다. `npm approve-scripts`로 매 기기마다 수동 승인하는 대신, **우리 프로젝트 자체의 `postinstall`/`predev`/`prebuild` 스크립트가 `prisma generate`를 직접 호출**하도록 고침(루트 [package.json](../package.json), [apps/web/package.json](apps/web/package.json)) — 이건 의존성 패키지의 설치 스크립트가 아니라 우리 스크립트라서 allow-scripts에 안 걸리고, `npm install` 직후는 물론 `npm run dev`/`npm run build`를 실행할 때마다 매번 최신 스키마로 재생성되어 스키마를 바꾼 뒤 재생성을 깜빡하는 것도 함께 방지된다. 더 이상 수동 실행 불필요.
 - **Next.js 16의 `LayoutProps` 등 전역 라우트 타입은 `next dev`/`next build`를 한 번도 안 돌리면 존재하지 않는다** — `npx next typegen`으로 미리 생성 가능(이번 세션에서 실행 완료). 그 전에는 `layout.tsx`의 `LayoutProps<"/">` 참조가 "Cannot find name" 에러로 뜨는데, 코드 버그가 아니라 타입 생성 누락임.
 - **Docker Desktop이 이 환경에서 실행되지 않는다** — CLI는 설치돼 있지만 WSL(Linux용 Windows 하위 시스템) 자체가 설치 안 되어 있어(`wsl -l -v` → "설치되어 있지 않습니다") Docker Desktop의 엔진이 못 뜬다(`docker info`에 서버 정보 없음, 프로세스도 안 떠 있음). WSL 설치(`wsl --install`)는 관리자 권한+재부팅이 필요해 자동으로 처리하지 않음. **대안(2026-09-07부터 이 방식 사용 중)**: Docker 대신 Neon(neon.tech, 무료 호스티드 Postgres)을 만들어 `apps/web/.env`의 `DATABASE_URL`을 그 연결 문자열로 바꿔서 사용 — 이러면 `docker-compose.yml`/`up.sh` 없이도 DB가 필요한 화면 전부(로그인 제출, `/trips` 이후 전체) 이 환경에서 정상 검증 가능. `.env`는 gitignore 대상이라 각자 알아서 자신의 `DATABASE_URL`을 설정해야 함(Docker든 Neon이든 다른 호스티드 Postgres든 무엇이든 상관없이 `schema.prisma`의 `datasource db { provider = "postgresql" }`와 호환되는 연결 문자열이면 됨).
 - **`npm install`만으로는 Windows용 네이티브 바이너리가 안 깔려서 `next dev` 자체가 빌드 에러로 죽는다** — `lightningcss`, `@tailwindcss/oxide`(Tailwind v4가 쓰는 Rust 바이너리)의 `-win32-x64-msvc` optional dependency가 설치되지 않는 npm 버그. 증상: `next dev` 실행 시 `globals.css` 처리 중 `Cannot find module '...win32-x64-msvc.node'` Build Error. 해결(이번 세션에서 실행 완료, 재현되면 다시 실행):
@@ -521,7 +522,7 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 
 - **근본 원인 특정**: Windows 인증서 저장소(`Cert:\LocalMachine\Root`)를 직접 조회해보니 "LG CNS Co. Ltd v3" 등 자체서명 루트 인증서가 Windows에는 이미 신뢰된 상태로 설치돼 있음(사내 보안 소프트웨어가 설치 시 등록) — 즉 Windows 자체는 이 인터셉트 인증서를 정상으로 취급한다. 문제는 **Node.js가 기본적으로 Windows 인증서 저장소를 안 쓰고 자체 번들 CA 목록만 신뢰**해서, 같은 인증서를 못 믿어 `SELF_SIGNED_CERT_IN_CHAIN`을 내는 것 — 즉 "차단"이 아니라 "신뢰 목록 불일치" 문제였음
 - **해결**: Node 24가 지원하는 `--use-system-ca` 플래그(OS 인증서 저장소를 신뢰 목록에 포함)를 dev 스크립트에 적용 — `apps/web/package.json`의 `"dev"` 스크립트를 `cross-env NODE_OPTIONS=--use-system-ca next dev`로 변경(Windows/macOS/Linux 어디서 실행해도 동일하게 적용되도록 `cross-env` 추가). **이건 보안을 낮추는 우회가 아니라, Node가 Windows와 같은 신뢰 목록을 쓰게 만드는 정상적인 설정** — `NODE_TLS_REJECT_UNAUTHORIZED=0`처럼 인증서 검증 자체를 끄는 것과는 다름
-- `up.sh`/`.claude/launch.json` 둘 다 결국 `npm run dev --workspace=web` → `apps/web`의 `dev` 스크립트를 타므로 별도 수정 없이 자동 적용됨
+- `up.sh`/`.claude/launch.json` 둘 다 결국 `npm run dev --workspace=web` → `apps/web`의 `dev` 스크립트를 타므로 별도 수정 없이 자동 적용됨 (**2026-09-10에 Node 24 미만에서 이 스크립트 자체가 죽는 문제가 발견돼 조건부 적용으로 바뀜 — 아래 해당 날짜 로그 참고**)
 - **검증**: dev 서버 재시작 후 실제 `GROQ_API_KEY`로 `/api/trips/{id}/ai-parse` 호출이 `200`으로 성공(경복궁/봉피양 카카오 지오코딩 후보까지 정상 응답), `/trips/[tripId]/import` 화면에서 강릉 텍스트로 실제 UI 클릭까지 끝까지 정상 동작(오죽헌/경포해변/안목해변 커피거리 후보 목록 + 지도 렌더링) 확인. 테스트 계정/여행은 삭제해 정리
 - **중요한 파급 효과**: 이 근본 원인(Node가 Windows 신뢰 인증서 저장소를 안 씀)은 아래 "네이버 로그인 invalid_code"/"카카오모빌리티 경로조회 미검증" 항목과 **동일한 원인**이었을 가능성이 매우 높음 — 이번에 dev 스크립트 자체를 고쳤으므로 다음 세션에서 네이버/카카오 관련 항목도 함께 재검증 필요(아래로 이동)
 
@@ -534,6 +535,18 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - **문서 불일치 발견**: 2026-09-09 세션에서 AI 파싱을 Claude→Groq로 교체했고 진행 상황 로그(바로 위 항목)에는 정확히 기록돼 있었지만, 그보다 위에 있는 현재-상태 설명 문서들이 갱신이 안 돼 있었음 — [README.md](../README.md)의 스택 표/로드맵(F4 상태 줄), [docs/AI.md](docs/AI.md) 개요, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)의 스택 결정 표·배포 다이어그램에 여전히 "Claude API"/`ANTHROPIC_API_KEY`가 남아 현재 코드(`aiParse.ts`가 실제로 쓰는 `groq-sdk`)와 어긋나 있었음. `docs/API.md`/`docs/PUBLISHING.md`/`.env.example`은 이미 정확했음
 - 수정 범위: 현재 상태를 설명하는 부분(README 스택 표·로드맵, AI.md, ARCHITECTURE.md)은 Groq 기준으로 직접 교체. 과거 특정 세션을 그대로 기록한 로그 항목(README의 Phase 3/2026-09-03/2026-09-04 완료 기록, [docs/ROADMAP.md](docs/ROADMAP.md)의 Phase 3 항목)은 당시엔 실제로 Claude였던 사실 자체를 다시 쓰지 않고, "2026-09-09에 Groq로 교체됨" 안내만 덧붙임 — 이 프로젝트가 기존에 써온 방식(새 사실은 새 날짜 항목으로 추가, 과거 기록은 보존)과 동일하게 처리
 - 검증: 코드 변경이 없어 `tsc`/`eslint`/브라우저 확인 대상 아님. `grep -rn "ANTHROPIC_API_KEY\|Claude API"`로 남은 참조가 전부 의도한 과거-기록용 문구뿐인지 확인
+
+**완료 (2026-09-10, 회사 Windows ↔ 집 macOS 교차 환경에서 반복 발생하던 셋업 문제 2건 근본 수정)**
+
+사용자가 같은 프로젝트를 회사(Windows)와 집(맥) 양쪽에서 진행하는데, 맥에서 `BETTER_AUTH_SECRET` 에러 → Prisma 스키마 불일치 에러 → `--use-system-ca is not allowed in NODE_OPTIONS` 에러가 연쇄로 발생. 앞의 두 개는 그 기기 고유 상태(`.env` 미설정, 오래된 Prisma 클라이언트, `localhost:55432` 로컬 DB에 대한 `prisma generate` 누락)라 그 자리에서 안내로 해결했고, 세 번째(Node 버전 문제)는 코드 자체의 이식성 버그라 다시 안 겪게 코드로 고쳤다.
+
+- **디버깅 과정에서 진짜 원인 특정**: 기존에 "npm의 `allow-scripts` 정책이 prisma 설치 스크립트를 차단한다"고만 적혀있던 걸, 이번에 `npm install` 실행 중 뜨는 `npm warn allow-scripts ... Run npm approve-scripts`로 정확한 정체를 확인 — **npm 11부터 내장된 보안 기능**(서드파티 도구가 아니라 npm 자체)이 기본적으로 의존성 패키지의 설치 스크립트를 막고 `npm approve-scripts`로 기기마다 수동 승인해야 하는 구조였음. 이러니 신규 기기(맥)에서 `npm install`을 해도 `prisma generate`가 조용히 스킵되고, 스키마에 있는 `Session`/`Account`/`Verification` 모델이 빠진 stub 클라이언트만 남아 있었음(Better Auth의 "Prisma schema mismatch" 에러의 정체)
+- **해결(포터블한 방식 선택)**: 기기마다 `npm approve-scripts`를 수동 승인하게 하는 대신, **우리 프로젝트 자체의 스크립트가 `prisma generate`를 직접 호출**하도록 변경 — 의존성 패키지의 설치 스크립트가 아니라 우리 스크립트라서 allow-scripts에 안 걸림. 루트 [package.json](package.json)에 `postinstall`, [apps/web/package.json](apps/web/package.json)에 `predev`/`prebuild`를 추가해 `npm install` 직후는 물론 `npm run dev`/`npm run build`를 실행할 때마다 항상 최신 스키마로 재생성됨 — 앞으로는 스키마를 바꾼 뒤 재생성을 깜빡하는 것도 함께 예방됨. 이 두 기기에서 각각 재현·검증 완료(맥: `node_modules/.prisma/client` 삭제 후 `npm install`로 자동 재생성 확인, 이 환경(Windows): `rm -rf` 후 `npm install`로 동일하게 확인)
+- **`--use-system-ca is not allowed in NODE_OPTIONS`**: 이 플래그는 Node 24부터 `NODE_OPTIONS`로 허용되는데, 맥이 Homebrew로 깐 Node 22.9.0을 쓰고 있어서 `npm run dev` 자체가 즉시 죽었음(exit code 9). `apps/web/package.json`의 `dev`를 새 [apps/web/scripts/dev.mjs](apps/web/scripts/dev.mjs)로 바꿔 **실행 중인 Node의 major 버전이 24 이상일 때만 `NODE_OPTIONS=--use-system-ca`를 붙이도록** 조건부로 만듦 — 이제 어떤 Node 버전에서 `npm run dev`를 돌려도 죽지 않는다(24 미만이면 그냥 그 플래그 없이 뜨고, 24 이상이면 회사 보안 소프트웨어의 인증서 인터셉트 우회가 자동으로 켜짐). `cross-env`는 더 이상 안 써서 의존성에서 제거(`npm uninstall cross-env --workspace=web`)
+- **팀 표준 Node 버전 명시**: 루트에 [.nvmrc](.nvmrc)(`24`) 추가 — `nvm install && nvm use`로 아무 기기에서나 팀이 검증한 버전을 바로 맞출 수 있음(단, 위 스크립트 수정으로 24 미만이어도 더는 하드 에러는 안 남)
+- 이 세션에서 맥 쪽에 직접 발견된 기기별 원인(참고용, 코드 수정 대상 아님): `.env` 없음(다른 기기 값은 gitignore라 공유 안 됨) → `cp .env.example .env` + `BETTER_AUTH_SECRET` 채우기로 해결. `DATABASE_URL`이 로컬 Docker Postgres(`localhost:55432`)를 가리키는데 `_prisma_migrations` 이력은 이미 19개 전부 "적용됨"으로 기록돼 있었고 `\dt`로 실제 테이블(`accounts`/`sessions`/`verifications`)도 다 있는 게 확인돼, 결국 DB 문제가 아니라 위의 Prisma 클라이언트 stub 문제였던 것으로 결론
+- 검증: 이 환경(Windows, Node 24)에서 `node_modules/.prisma/client` 삭제 → `npm install` → `postinstall`이 자동으로 재생성하는 것 확인, `npm run dev`로 `predev`가 매번 재생성 후 dev 서버가 정상 기동(`/login` 200)하는 것 확인. `dev.mjs`에서 최초에 `spawn(cmd, args, {shell:true})` 형태로 짰다가 Node의 `DEP0190` 보안 경고(인자 배열+shell:true 조합이 위험)가 떠서 인자 없는 단일 커맨드 문자열 방식으로 수정 후 경고 사라짐까지 확인
+- 코드 변경은 npm/Node 스크립트뿐이라 `tsc`/`eslint` 대상 아님(둘 다 실행 결과 영향 없음 — 스크립트는 TS 컴파일 대상이 아님)
 
 **다음 세션 할 일**
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음
