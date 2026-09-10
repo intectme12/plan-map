@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { SharedTripCard, type SharedTripCardData } from "./SharedTripCard";
+import { type SharedTripCardData } from "./SharedTripCard";
+import { TripGridCard } from "./TripGridCard";
 
 const PAGE_SIZE = 20;
 
@@ -51,13 +52,11 @@ export function SharedTripBrowser() {
         <p className="text-sm text-neutral-500">공유된 여행이 없습니다.</p>
       ) : null}
 
-      <ul className="flex flex-col gap-2">
+      <div className="grid grid-cols-4 gap-1">
         {trips.map((trip) => (
-          <li key={trip.id}>
-            <SharedTripCard trip={trip} />
-          </li>
+          <TripGridCard key={trip.id} trip={trip} href={`/trips/shared/${trip.id}`} />
         ))}
-      </ul>
+      </div>
 
       {hasMore ? (
         <button

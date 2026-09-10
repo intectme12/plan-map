@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ShareLinkModal } from "./ShareLinkModal";
+import { CoverPhotoModal } from "./CoverPhotoModal";
 
 type TripMeta = {
   id: string;
@@ -12,6 +13,7 @@ type TripMeta = {
   endDate: string | Date;
   personnel: number;
   visibility: string;
+  coverPhotoKey: string | null;
   ownerNickname: string;
 };
 
@@ -39,6 +41,7 @@ export function TripMetaEditor({ trip, isOwner }: { trip: TripMeta; isOwner: boo
   const [error, setError] = useState<string | null>(null);
   const [sharePending, setSharePending] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [coverModalOpen, setCoverModalOpen] = useState(false);
 
   async function onSetVisibility(visibility: string) {
     if (visibility === trip.visibility) return;
@@ -84,6 +87,14 @@ export function TripMetaEditor({ trip, isOwner }: { trip: TripMeta; isOwner: boo
           <div className="flex flex-none items-center gap-1.5">
             {isOwner ? (
               <button
+                onClick={() => setCoverModalOpen(true)}
+                className="rounded-md border border-neutral-200 px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-50"
+              >
+                {trip.coverPhotoKey ? "대표사진 변경" : "대표사진 설정"}
+              </button>
+            ) : null}
+            {isOwner ? (
+              <button
                 onClick={() => {
                   // 링크 공개(UNLISTED)로 전환하면서 동시에 링크/닉네임 공유 팝업을 띄운다
                   if (trip.visibility !== "UNLISTED") onSetVisibility("UNLISTED");
@@ -126,6 +137,13 @@ export function TripMetaEditor({ trip, isOwner }: { trip: TripMeta; isOwner: boo
         ) : null}
         {shareModalOpen ? (
           <ShareLinkModal tripId={trip.id} onClose={() => setShareModalOpen(false)} />
+        ) : null}
+        {coverModalOpen ? (
+          <CoverPhotoModal
+            tripId={trip.id}
+            currentCoverPhotoKey={trip.coverPhotoKey}
+            onClose={() => setCoverModalOpen(false)}
+          />
         ) : null}
       </div>
     );

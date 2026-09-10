@@ -548,9 +548,22 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - 검증: 이 환경(Windows, Node 24)에서 `node_modules/.prisma/client` 삭제 → `npm install` → `postinstall`이 자동으로 재생성하는 것 확인, `npm run dev`로 `predev`가 매번 재생성 후 dev 서버가 정상 기동(`/login` 200)하는 것 확인. `dev.mjs`에서 최초에 `spawn(cmd, args, {shell:true})` 형태로 짰다가 Node의 `DEP0190` 보안 경고(인자 배열+shell:true 조합이 위험)가 떠서 인자 없는 단일 커맨드 문자열 방식으로 수정 후 경고 사라짐까지 확인
 - 코드 변경은 npm/Node 스크립트뿐이라 `tsc`/`eslint` 대상 아님(둘 다 실행 결과 영향 없음 — 스크립트는 TS 컴파일 대상이 아님)
 
+**완료 (2026-09-10, "내 여행계획" 페이지 인스타그램 스타일 리디자인)**
+
+사용자 요청 2건: (1) 여행계획 목록을 인스타그램 게시물처럼 정사각형 4열 스크롤 그리드로(대표사진 있으면 사진, 없으면 이름 텍스트), (2) 페이지 상단 프로필 영역에 인스타그램처럼 팔로워/팔로잉 숫자 + 자기소개 추가. 사전 확인 결과 대표사진은 사용자가 직접 설정하는 방식으로, 그리드 스타일은 "내 여행계획"뿐 아니라 "다른 사람 여행계획"/"팔로잉 피드"/"나에게 공유됨" 4개 탭 전부 통일하기로 결정하고 진행.
+
+- **`Trip.coverPhotoKey String?` 필드 추가**: 장소 사진 중 하나를 참조하는 방식 대신 독립적인 업로드로 구현(참조 방식은 원본 장소사진이 나중에 지워지면 대표사진이 같이 깨지는 문제가 있고, 장소를 아직 안 만든 단계에서도 대표사진을 먼저 정할 수 있어야 해서). 이번에도 `20260907120000_add_trip_visibility_and_shares` 체크섬 드리프트 때문에 `migrate dev`가 막혀(네 번째), 지난 세션들과 동일하게 `migrate diff` → `db execute` → `migrate resolve --applied`로 우회(마이그레이션 `20260910120000_add_trip_cover_photo`)
+- [lib/services/trips.ts](apps/web/src/lib/services/trips.ts): `setTripCoverPhoto`/`removeTripCoverPhoto` 추가 — `visibility`와 동일하게 오너만 바꿀 수 있게 제한(공유받아 편집 권한만 있는 회원은 못 건드림). 업로드/삭제는 기존 `photos.ts`가 쓰는 `lib/upload.ts`의 `saveImageFile`/`deleteStoredFile`을 그대로 재사용(`[tripId, "cover"]` 경로). `listTrips`/`listSharedTrips`/`listFollowingTrips`/`listTripsSharedWithMe`/`getTrip`/`getSharedTrip` 전부 Prisma `include` 기반이라 쿼리 자체는 수정 없이 스칼라 필드가 자동으로 딸려옴 — 프론트 타입만 갱신
+- `POST`/`DELETE /api/trips/[tripId]/cover-photo` 라우트 신설(장소 사진 라우트와 동일 패턴)
+- [TripMetaEditor.tsx](apps/web/src/app/trips/[tripId]/TripMetaEditor.tsx)에 "대표사진 설정/변경" 버튼(오너만) → 새 [CoverPhotoModal.tsx](apps/web/src/app/trips/[tripId]/CoverPhotoModal.tsx)(기존 `Modal.tsx` 셸 재사용, 미리보기+업로드+제거)
+- 새 [TripGridCard.tsx](apps/web/src/app/trips/TripGridCard.tsx): 정사각형 타일 — 대표사진 있으면 이미지, 없으면 트립 id 해시로 고른 그라데이션 + 이름 텍스트. 호버 시 하단 오버레이로 장소 수 + (있으면) `LikeButton`, 다른 사람 탭에서는 좌상단에 항상 소유자 아바타 배지(클릭 시 기존 `UserProfileModal`), "내 여행계획" 탭에서만 우상단 호버 시 휴지통 아이콘(기존 낙관적 삭제+5초 실행취소 토스트 플로우 그대로 연결)
+- [TripList.tsx](apps/web/src/app/trips/TripList.tsx)와 `SharedTripBrowser`/`FollowingTripBrowser`/`SharedWithMeBrowser` 세 브라우저 전부 기존 `<ul className="flex flex-col gap-2">` 텍스트 리스트를 `<div className="grid grid-cols-4 gap-1">` + `TripGridCard`로 교체. `SharedTripCard.tsx` 자체(컴포넌트)는 안 건드림 — `/users/[nickname]` 프로필 페이지의 `UserTripList`/`UserProfileModal`이 아직 이걸 쓰고 있어서 그쪽 화면을 의도치 않게 바꾸지 않기 위함(타입에 `coverPhotoKey`만 추가). "나에게 공유됨"만 다른 두 탭과 링크가 다름을 그대로 유지(`/trips/{id}` 편집 화면 — TripShare는 편집 권한을 주므로, 나머지 둘은 읽기전용 `/trips/shared/{id}`)
+- `trips/page.tsx`: `/users/[nickname]/page.tsx`에 이미 있던 프로필 헤더 패턴(아바타+닉네임+bio+팔로워/팔로잉 링크)을 자기 자신 뷰로 이식 — `getPublicProfile(user.nickname)` + `getFollowState(user.id, user.id)`(viewer===target 스킵 케이스 기존 처리됨) 병렬 조회. `FollowButton`/`SendMessageButton` 대신 우측에 "프로필 편집"(`/account`) 링크, 상단 유틸 바의 중복되던 "내 정보" 링크는 제거
+- `tsc --noEmit`/`eslint` 통과(내가 건드리지 않은 파일들의 기존 경고/에러는 그대로 — `git stash`로 비교해 전부 사전 존재 확인). 브라우저에서 테스트 계정 2개(gridtest_a/b, API로 직접 가입·트립 생성·공개 전환·공유·팔로우까지 세팅)로: 대표사진 없는 트립이 그라데이션+텍스트 타일로 뜨는 것, 업로드 후 실제 사진으로 바뀌는 것, 교체·제거, "내 여행계획"에서 호버 시 휴지통 아이콘으로 삭제+실행취소 토스트, 4개 탭 전부 4열 그리드(`getComputedStyle`로 `grid-template-columns` 4칸 확인)로 실제 데이터(가입돼 있던 실사용자의 공개 트립 포함) 렌더링, 호버 시 소유자 아바타 클릭→프로필 모달, 좋아요 오버레이, "나에게 공유됨"만 `/trips/{id}`로 이동, 비오너는 "대표사진 설정" 버튼 자체가 안 보이는 것까지 확인. 테스트 계정 2개·트립·업로드 파일 전부 삭제해 정리(실사용자의 실 데이터는 읽기만 하고 건드리지 않음)
+
 **다음 세션 할 일**
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음
-- **(중요)** 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`)가 스키마를 바꿀 때마다(이번까지 3세션 연속) `migrate dev` 리셋 요구로 이어짐 — 매번 `migrate diff`/`db push` + 손으로 마이그레이션 작성 + `migrate resolve`로 우회하고 있지만 언제까지나 반복할 방식은 아님. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나(체크섬 재계산), 이 우회를 앞으로도 정식 절차로 문서화할지 다음 세션에서 결정 필요
+- **(중요)** 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`)가 스키마를 바꿀 때마다(이번까지 4세션 연속) `migrate dev` 리셋 요구로 이어짐 — 매번 `migrate diff`/`db push` + 손으로 마이그레이션 작성 + `migrate resolve`로 우회하고 있지만 언제까지나 반복할 방식은 아님. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나(체크섬 재계산), 이 우회를 앞으로도 정식 절차로 문서화할지 다음 세션에서 결정 필요
 - (참고) `users.passwordHash` 컬럼은 이제 레거시(로그인은 `accounts.password`를 씀) — 운영 안정성 확인되면 제거하는 마이그레이션 검토
 - Phase 0 잔여 작업: 유출됐던 카카오 키 재발급(재발급 후 신규 키로 각자 `.env` 갱신 필요) — 사용자 확인/조치 필요해 자동 진행하지 않음
 - (참고, 지금 범위 아님) 나중에 대중교통을 다시 붙이고 싶으면 ODsay 키 발급 + 이번에 지운 코드 복원부터 시작

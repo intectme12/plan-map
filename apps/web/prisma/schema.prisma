@@ -173,6 +173,7 @@ model Trip {
   personnel  Int       @default(1)
   visibility String    @default("PRIVATE") // "PRIVATE" | "UNLISTED" | "PUBLIC"
   sharedAt   DateTime?
+  coverPhotoKey String?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 

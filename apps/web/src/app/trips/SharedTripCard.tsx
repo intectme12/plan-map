@@ -12,6 +12,7 @@ export type SharedTripCardData = {
   startDate: string | Date;
   endDate: string | Date;
   personnel: number;
+  coverPhotoKey: string | null;
   user: { nickname: string; avatarUrl: string | null };
   _count: { places: number };
   likeCount: number;

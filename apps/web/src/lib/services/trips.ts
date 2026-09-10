@@ -1,5 +1,6 @@
 import { prisma } from "../db";
 import { NotFoundError, ForbiddenError } from "../errors";
+import { saveImageFile, deleteStoredFile } from "../upload";
 
 const reviewsInclude = {
   include: { author: { select: { nickname: true } } },
@@ -107,6 +108,27 @@ export async function updateTrip(
 
   const result = await prisma.trip.updateMany({ where: { id: tripId }, data: payload });
   return result.count > 0;
+}
+
+// 대표사진은 공개 범위와 마찬가지로 "이 여행이 남들에게 어떻게 보이는지"를 결정하는 설정이라
+// 오너만 바꿀 수 있게 제한한다(공유받아 편집 권한만 있는 회원은 못 건드림 — updateTrip의 visibility와 동일 정책)
+export async function setTripCoverPhoto(userId: string, tripId: string, file: File) {
+  const trip = await prisma.trip.findFirst({ where: { id: tripId, userId }, select: { coverPhotoKey: true } });
+  if (!trip) throw new NotFoundError("여행을 찾을 수 없습니다.");
+
+  const storageKey = await saveImageFile(file, [tripId, "cover"]);
+  if (trip.coverPhotoKey) await deleteStoredFile(trip.coverPhotoKey);
+
+  return prisma.trip.update({ where: { id: tripId }, data: { coverPhotoKey: storageKey } });
+}
+
+export async function removeTripCoverPhoto(userId: string, tripId: string) {
+  const trip = await prisma.trip.findFirst({ where: { id: tripId, userId }, select: { coverPhotoKey: true } });
+  if (!trip) throw new NotFoundError("여행을 찾을 수 없습니다.");
+  if (!trip.coverPhotoKey) return;
+
+  await deleteStoredFile(trip.coverPhotoKey);
+  await prisma.trip.update({ where: { id: tripId }, data: { coverPhotoKey: null } });
 }
 
 export async function deleteTrip(userId: string, tripId: string) {

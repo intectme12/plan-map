@@ -30,6 +30,7 @@ export default async function TripDetailPage({
         endDate: trip.endDate,
         personnel: trip.personnel,
         visibility: trip.visibility,
+        coverPhotoKey: trip.coverPhotoKey,
         ownerNickname: trip.user.nickname,
       }}
       places={trip.places}

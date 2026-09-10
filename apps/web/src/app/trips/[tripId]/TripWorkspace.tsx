@@ -29,6 +29,7 @@ type TripMeta = {
   endDate: string | Date;
   personnel: number;
   visibility: string;
+  coverPhotoKey: string | null;
   ownerNickname: string;
 };
 
