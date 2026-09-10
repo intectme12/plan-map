@@ -36,6 +36,7 @@ export default async function TripDetailPage({
       places={trip.places}
       activeTab={activeTab}
       isOwner={trip.userId === user.id}
+      currentUserId={user.id}
     />
   );
 }

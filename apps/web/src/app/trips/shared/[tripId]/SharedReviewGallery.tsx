@@ -61,7 +61,10 @@ export function SharedReviewGallery({
                       >
                         {place.name}
                       </button>
-                      <StaticStars rating={place.rating} />
+                      <div className="flex flex-none items-center gap-1">
+                        <StaticStars rating={place.avgRating ?? 0} />
+                        <span className="text-xs text-neutral-400">({place.reviewCount})</span>
+                      </div>
                     </div>
 
                     {place.reviews.length > 0 ? (
@@ -71,7 +74,8 @@ export function SharedReviewGallery({
                             key={review.id}
                             className="rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-2"
                           >
-                            <p className="whitespace-pre-wrap text-xs text-neutral-700">{review.content}</p>
+                            <StaticStars rating={review.rating} />
+                            <p className="mt-1 whitespace-pre-wrap text-xs text-neutral-700">{review.content}</p>
                             <p className="mt-1 text-[11px] text-neutral-400">
                               {review.author.nickname} · {formatDateTime(review.createdAt)}
                             </p>

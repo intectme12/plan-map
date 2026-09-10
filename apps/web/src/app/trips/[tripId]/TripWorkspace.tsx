@@ -38,11 +38,13 @@ export function TripWorkspace({
   places,
   activeTab,
   isOwner,
+  currentUserId,
 }: {
   trip: TripMeta;
   places: PlaceEntry[];
   activeTab: (typeof TABS)[number]["key"];
   isOwner: boolean;
+  currentUserId: string;
 }) {
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -70,7 +72,7 @@ export function TripWorkspace({
         roadAddress: p.roadAddress,
         phone: p.phone,
         placeUrl: p.placeUrl,
-        rating: p.rating,
+        rating: p.avgRating ?? undefined,
       })),
     [items]
   );
@@ -424,6 +426,7 @@ export function TripWorkspace({
               tripId={trip.id}
               trip={{ startDate: trip.startDate, endDate: trip.endDate }}
               places={items}
+              currentUserId={currentUserId}
               selectedPlaceId={selectedPlaceId}
               onSelectPlace={setSelectedPlaceId}
               expandedDays={expandedDays}

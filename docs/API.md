@@ -90,6 +90,15 @@
 | `POST` | `/api/trips/{tripId}/places/{placeId}/photos` | `multipart/form-data`, `file` 필드. jpg/png/webp/gif만 허용, 8MB 제한. `201` |
 | `DELETE` | `/api/trips/{tripId}/places/{placeId}/photos/{photoId}` | 삭제(DB 레코드 + 디스크 파일) |
 
+## 후기 (`/api/trips/{tripId}/places/{placeId}/reviews`, `/api/reviews/{reviewId}`)
+
+`lib/services/reviews.ts`. 카카오맵/네이버지도처럼 **실제 장소 단위로 전체공개**되는 후기 — `Review`는 `PlaceEntry`가 아니라 좌표(`lat`/`lng`)로 실제 장소를 식별하므로, 다른 트립에서 같은 장소를 추가한 사용자끼리도 서로의 후기를 본다. 작성한 트립의 공개설정(PRIVATE 포함)과 무관하게 항상 전체공개. 자세한 설계 이유는 [DATABASE.md](./DATABASE.md#후기review는-좌표-기반) 참고.
+
+| Method | Path | 설명 |
+| --- | --- | --- |
+| `POST` | `/api/trips/{tripId}/places/{placeId}/reviews` | `{ rating: 1~5, content }`. 작성 자격 = 그 좌표의 장소를 자기 트립(오너 또는 공유받아 편집권한)에 추가해본 사람 — `assertPlaceEditAccess`로 증명. 좌표+작성자 기준 upsert라 이미 내 후기가 있으면 수정됨. `201` |
+| `DELETE` | `/api/reviews/{reviewId}` | 본인이 작성한 후기만 삭제 가능(트립/장소 무관) — 아니면 `403` |
+
 ## 메시지 (`/api/conversations`, `/api/messages/stream`)
 
 `lib/services/conversations.ts` + `lib/messageEvents.ts`. 1:1 DM(그룹채팅 없음). 자세한 설계는 [MESSAGING.md](./MESSAGING.md).

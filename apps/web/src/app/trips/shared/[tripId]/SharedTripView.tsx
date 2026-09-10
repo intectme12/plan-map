@@ -57,7 +57,7 @@ export function SharedTripView({
         roadAddress: p.roadAddress,
         phone: p.phone,
         placeUrl: p.placeUrl,
-        rating: p.rating,
+        rating: p.avgRating ?? undefined,
       })),
     [places]
   );

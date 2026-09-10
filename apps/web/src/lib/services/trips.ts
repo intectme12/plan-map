@@ -1,13 +1,23 @@
 import { prisma } from "../db";
 import { NotFoundError, ForbiddenError } from "../errors";
 import { saveImageFile, deleteStoredFile } from "../upload";
-
-const reviewsInclude = {
-  include: { author: { select: { nickname: true } } },
-  orderBy: { createdAt: "desc" },
-} as const;
+import { getReviewsForCoordinates, coordKey } from "./reviews";
 
 const SHARED_PAGE_SIZE = 20;
+
+// 후기는 더 이상 PlaceEntry에 딸린 관계가 아니라 좌표로 조회하는 별도 테이블이라, Prisma include로
+// 못 가져오고 조회 후 한 번에 배치 조회해서 붙여준다(reviews.ts의 getReviewsForCoordinates 참고).
+async function attachReviews<T extends { lat: number; lng: number }>(places: T[]) {
+  const reviewsByCoord = await getReviewsForCoordinates(places.map((p) => ({ lat: p.lat, lng: p.lng })));
+  return places.map((place) => {
+    const entry = reviewsByCoord.get(coordKey(place.lat, place.lng)) ?? {
+      reviews: [],
+      avgRating: null,
+      reviewCount: 0,
+    };
+    return { ...place, reviews: entry.reviews, avgRating: entry.avgRating, reviewCount: entry.reviewCount };
+  });
+}
 
 // 목록 조회 결과에 딸려온 _count.likes/likes(내가 눌렀는지 확인용 1건)를 카드가 바로 쓸 수 있는
 // likeCount/likedByMe로 펼치고, 원본 likes 배열은 응답에서 뺀다(클라이언트가 알 필요 없음)
@@ -68,17 +78,20 @@ export async function createTrip(
 }
 
 // 오너 본인이거나, 오너가 닉네임으로 공유(TripShare)한 회원이면 전체 수정 화면(TripWorkspace)에 들어올 수 있다
-export function getTrip(userId: string, tripId: string) {
-  return prisma.trip.findFirst({
+export async function getTrip(userId: string, tripId: string) {
+  const trip = await prisma.trip.findFirst({
     where: { id: tripId, OR: [{ userId }, { shares: { some: { userId } } }] },
     include: {
       user: { select: { nickname: true } },
       places: {
         orderBy: { order: "asc" },
-        include: { expenses: true, photos: true, reviews: reviewsInclude },
+        include: { expenses: true, photos: true },
       },
     },
   });
+  if (!trip) return null;
+
+  return { ...trip, places: await attachReviews(trip.places) };
 }
 
 export async function updateTrip(
@@ -225,7 +238,7 @@ export async function getSharedTrip(tripId: string, viewerUserId: string) {
       user: { select: { nickname: true } },
       places: {
         orderBy: { order: "asc" },
-        include: { expenses: true, photos: true, reviews: reviewsInclude },
+        include: { expenses: true, photos: true },
       },
       _count: { select: { likes: true } },
       likes: { where: { userId: viewerUserId }, select: { id: true } },
@@ -234,7 +247,12 @@ export async function getSharedTrip(tripId: string, viewerUserId: string) {
   if (!trip) return null;
 
   const { likes, _count, ...rest } = trip;
-  return { ...rest, likeCount: _count.likes, likedByMe: likes.length > 0 };
+  return {
+    ...rest,
+    places: await attachReviews(rest.places),
+    likeCount: _count.likes,
+    likedByMe: likes.length > 0,
+  };
 }
 
 // 특정 회원에게만 공유된(PRIVATE+TripShare) 트립은 더 사적인 공유로 보고 복사는 막고 열람만 허용한다

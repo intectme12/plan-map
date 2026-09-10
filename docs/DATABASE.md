@@ -123,6 +123,13 @@ Prisma에서 native enum 대신 `String` + 애플리케이션 레벨 타입(`"ca
 
 README.md의 "데이터 모델 초안"에는 `AIParseJob`(id, trip_id, raw_text, parsed_json, status)이 있었지만, 실제로는 만들지 않았다. AI 파싱은 요청 1회로 파싱→지오코딩→응답까지 끝나는 동기 흐름이라 잡 상태를 저장할 테이블이 필요 없다 — 자세한 이유는 [AI.md](./AI.md) 참고.
 
+## 후기(Review)는 좌표 기반
+
+`Review`는 `PlaceEntry`(트립 안의 장소 사본)가 아니라 `lat`/`lng` 좌표로 실제 장소를 식별한다(`authorId`+`lat`+`lng` 유니크). 카카오 장소검색 결과는 같은 장소면 항상 같은 좌표를 주므로, 별도의 "실제 장소" 캐논니컬 테이블이나 카카오 장소 ID 수집 없이도 서로 다른 트립/사용자가 추가한 같은 장소를 매칭할 수 있다(2026-09-10). 이 덕분에:
+- 트립이나 `PlaceEntry`를 지워도 이미 쓴 후기는 안 사라진다(실제 장소에 대한 개인 의견이 트립 편집에 딸려 사라지지 않음)
+- 후기 공개범위는 트립의 `visibility`와 무관하게 항상 전체공개(카카오/네이버 방식)
+- 별점은 트립 단위 공용 값이 아니라 후기마다 개인 값(`Review.rating`, 1~5)이고, 장소의 평균 별점은 조회 시점에 매칭되는 후기들로 계산한다(`lib/services/reviews.ts`의 `getReviewsForCoordinates`)
+
 ## 인덱스
 
 - `Trip.userId` — 사용자별 여행 목록 조회

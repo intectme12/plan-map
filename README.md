@@ -570,6 +570,20 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - `trips/page.tsx`의 헤더 `Avatar`를 `EditableAvatar`로 교체
 - `tsc --noEmit`/`eslint` 통과. 브라우저에서 테스트 계정 1개로 로그인 → 헤더 아바타에 + 버튼 렌더링 확인 → (자동화 브라우저라 실제 파일 선택 다이얼로그는 못 열어서) `input.files`에 `DataTransfer`로 테스트 이미지를 직접 넣고 `change` 이벤트를 디스패치하는 방식으로 업로드 트리거 → 아바타가 실제 이미지로 바뀌는 것까지 확인. 테스트 계정 삭제해 정리(업로드 파일도 남은 것 없음 확인)
 
+**완료 (2026-09-10, 장소 후기를 카카오/네이버 방식으로 전체공개 전환)**
+
+기존 후기는 `Review`가 `PlaceEntry`(=한 여행계획 안의 장소 사본)에 종속돼 있어, 서로 다른 사용자가 각자 여행계획에 같은 실제 장소(예: 경복궁)를 추가해도 후기가 완전히 분리돼 있었다. 사용자 요청으로 카카오맵/네이버지도처럼 실제 장소 단위로 후기를 전체공개하도록 재설계. 사전 확인 결과: (1) 후기는 작성한 여행계획의 공개설정과 무관하게 항상 전체공개, (2) 작성 자격은 자기 여행계획에 그 장소를 추가해본 사람만, (3) 별점은 후기마다 개인 값 + 장소는 평균 집계로 결정.
+
+- **새 테이블 없이 좌표(lat/lng)로 실제 장소 식별**: 카카오 검색 결과는 같은 장소면 항상 같은 좌표를 주므로, 별도 `Place` 캐논니컬 테이블이나 카카오 장소 ID 수집 없이 `Review`에 `lat`/`lng`를 직접 저장해 매칭. `Review.placeEntryId`를 완전히 제거하고 `authorId+lat+lng` 유니크로 변경(사람당 같은 장소엔 후기 1개, 재작성 시 upsert로 수정). `PlaceEntry.rating`(트립 단위 공용 별점)도 제거 — 별점은 이제 `Review.rating`(1~5) 개인 값이고 평균은 조회 시점에 계산
+- **부수 효과로 기존 결함도 해결**: 예전엔 `PlaceEntry` 삭제 시 `onDelete: Cascade`로 그 장소의 후기까지 같이 사라졌는데, 좌표 기반으로 바뀌면서 트립/장소를 지워도 이미 쓴 후기는 안 사라짐(실제 장소에 대한 개인 의견이 트립 편집에 딸려 사라지던 문제 자연 해결)
+- 마이그레이션(`20260910130000_review_by_coordinates`)은 이번에도 `20260907120000_add_trip_visibility_and_shares` 체크섬 드리프트 우회 절차 그대로 반복(`migrate diff` → 직접 backfill UPDATE 끼워 넣어 손으로 SQL 작성 → `db execute` → `migrate resolve --applied`) — 실제 운영 리뷰 2건(별점 있는 장소 2건)을 조회해 손실 없이 이관되는 것 확인 후 적용
+- [lib/services/reviews.ts](apps/web/src/lib/services/reviews.ts) 신설: `upsertReview`(좌표+작성자 upsert, `assertPlaceEditAccess`와 동일 조건으로 작성 자격 증명), `deleteReview`(이제 트립 편집권한이 아니라 **본인 작성 후기만** 삭제 가능 — 카카오/네이버와 동일하게 교정, 예전엔 트립 공동편집자가 남의 후기도 지울 수 있었음), `getReviewsForCoordinates`(여러 장소 후기를 한 번에 배치 조회해 N+1 방지, 평균/개수 계산)
+- `trips.ts`의 `getTrip`/`getSharedTrip`, `places.ts`의 `listPlaces`: 후기가 더 이상 Prisma 관계가 아니라서 nested include 대신 조회 후 좌표로 붙이는 후처리(`attachReviews`)로 변경
+- API: 기존 `POST /api/trips/{tripId}/places/{placeId}/reviews`는 URL 그대로 두고 내부만 upsert로 교체, 삭제는 트립/장소에 안 묶이므로 새 `DELETE /api/reviews/{reviewId}`로 이동(본인 확인만 하면 됨) — 기존 중첩 삭제 라우트는 제거
+- 프론트: 후기 작성 폼에 `PlaceRating.tsx`의 `Star`를 재사용한 `StarPicker` 추가(제출 시 rating+content 함께 전송), 이미 내 후기가 있으면 폼이 자동으로 그 값으로 채워지고 버튼이 "수정"으로 바뀜(upsert 특성 그대로 UI에 반영). 삭제 버튼은 본인 작성 후기에만 노출. 트립 편집 화면(`ReviewGallery`)과 읽기전용 공유화면(`SharedReviewGallery`) 둘 다 장소 제목 옆을 평균 별점+개수로 교체, `SharedReviewGallery`는 계획대로 폼은 안 넣음(작성은 항상 자기 트립 컨텍스트에서만)
+- `docs/API.md`에 후기 엔드포인트 섹션 신설(원래 문서화가 아예 안 돼 있었음), `docs/DATABASE.md`에 좌표 기반으로 설계한 이유를 `AIParseJob` 섹션과 같은 패턴으로 추가
+- `tsc --noEmit`/`eslint` 통과(라우트 삭제로 생긴 Next 타입 캐시 stale 참조는 `.next` 삭제 후 `next typegen` 재생성으로 해결). 브라우저 대신 테스트 계정 3개(A/B/C, API로 직접 세팅)로 핵심 시나리오 전부 확인: A가 자기 트립에 경복궁 추가+후기 작성 → B가 **완전히 다른 자기 트립에 독립적으로 같은 경복궁을 카카오 검색으로 추가**했을 때 A의 후기가 그대로 보임(핵심 시나리오) → B도 후기 작성 → 평균이 정확히 (5+3)/2=4로 집계 → A가 자기 트립에서 그 장소를 삭제해도 A의 후기는 DB에 그대로 남음 → A가 B의 후기 삭제 시도 시 403 → A는 본인 후기 삭제 가능 → B의 트립을 PUBLIC 전환 후 아무 관계 없는 계정 C가 `/trips/shared/{id}`에서 B의 후기를 볼 수 있음(비공개 여부 무관 전체공개 확인) → 마지막으로 브라우저 UI로 별점 선택기·평균 별점 표시·"수정" 버튼 전환까지 시각 확인. 테스트 계정 3개와 트립 전부 삭제해 정리(기존 실제 후기 2건은 원본 그대로 남아있는 것 확인)
+
 **다음 세션 할 일**
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음
 - **(중요)** 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`)가 스키마를 바꿀 때마다(이번까지 4세션 연속) `migrate dev` 리셋 요구로 이어짐 — 매번 `migrate diff`/`db push` + 손으로 마이그레이션 작성 + `migrate resolve`로 우회하고 있지만 언제까지나 반복할 방식은 아님. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나(체크섬 재계산), 이 우회를 앞으로도 정식 절차로 문서화할지 다음 세션에서 결정 필요

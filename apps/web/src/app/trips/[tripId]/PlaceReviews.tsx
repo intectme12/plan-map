@@ -2,11 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { StarPicker, StaticStars } from "./PlaceRating";
 
 type Review = {
   id: string;
+  rating: number;
   content: string;
   createdAt: string | Date;
+  authorId: string;
   author: { nickname: string };
 };
 
@@ -17,27 +20,32 @@ function formatDateTime(d: string | Date) {
 export function PlaceReviews({
   tripId,
   placeId,
+  currentUserId,
   initialReviews,
 }: {
   tripId: string;
   placeId: string;
+  currentUserId: string;
   initialReviews: Review[];
 }) {
   const [reviews, setReviews] = useState(initialReviews);
-  const [content, setContent] = useState("");
+  const myReview = reviews.find((r) => r.authorId === currentUserId) ?? null;
+
+  const [rating, setRating] = useState(myReview?.rating ?? 0);
+  const [content, setContent] = useState(myReview?.content ?? "");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!content.trim()) return;
+    if (!content.trim() || rating < 1) return;
     setError(null);
     setPending(true);
     const res = await fetch(`/api/trips/${tripId}/places/${placeId}/reviews`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ rating, content }),
     });
     setPending(false);
     if (!res.ok) {
@@ -46,33 +54,37 @@ export function PlaceReviews({
       return;
     }
     const review: Review = await res.json();
-    setReviews((prev) => [review, ...prev]);
-    setContent("");
+    setReviews((prev) => [review, ...prev.filter((r) => r.authorId !== currentUserId)]);
     router.refresh();
   }
 
   async function onDelete(reviewId: string) {
     setReviews((prev) => prev.filter((r) => r.id !== reviewId));
-    await fetch(`/api/trips/${tripId}/places/${placeId}/reviews/${reviewId}`, { method: "DELETE" });
+    setRating(0);
+    setContent("");
+    await fetch(`/api/reviews/${reviewId}`, { method: "DELETE" });
     router.refresh();
   }
 
   return (
     <div className="flex flex-col gap-2">
-      <form onSubmit={onSubmit} className="flex gap-1.5">
-        <input
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="이 장소에서의 후기를 남겨보세요"
-          className="min-w-0 flex-1 rounded-md border border-neutral-300 px-2 py-1.5 text-xs"
-        />
-        <button
-          type="submit"
-          disabled={pending || !content.trim()}
-          className="flex-none rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-100 disabled:opacity-50"
-        >
-          {pending ? "저장 중..." : "등록"}
-        </button>
+      <form onSubmit={onSubmit} className="flex flex-col gap-1.5">
+        <StarPicker value={rating} onChange={setRating} />
+        <div className="flex gap-1.5">
+          <input
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder="이 장소에서의 후기를 남겨보세요"
+            className="min-w-0 flex-1 rounded-md border border-neutral-300 px-2 py-1.5 text-xs"
+          />
+          <button
+            type="submit"
+            disabled={pending || !content.trim() || rating < 1}
+            className="flex-none rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-100 disabled:opacity-50"
+          >
+            {pending ? "저장 중..." : myReview ? "수정" : "등록"}
+          </button>
+        </div>
       </form>
 
       {error ? <p className="text-xs text-red-600">{error}</p> : null}
@@ -85,17 +97,20 @@ export function PlaceReviews({
               className="group flex items-start justify-between gap-2 rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-2"
             >
               <div className="min-w-0 flex-1">
-                <p className="whitespace-pre-wrap text-xs text-neutral-700">{review.content}</p>
+                <StaticStars rating={review.rating} />
+                <p className="mt-1 whitespace-pre-wrap text-xs text-neutral-700">{review.content}</p>
                 <p className="mt-1 text-[11px] text-neutral-400">
                   {review.author.nickname} · {formatDateTime(review.createdAt)}
                 </p>
               </div>
-              <button
-                onClick={() => onDelete(review.id)}
-                className="flex-none text-[11px] text-neutral-400 opacity-0 hover:text-red-600 group-hover:opacity-100"
-              >
-                삭제
-              </button>
+              {review.authorId === currentUserId ? (
+                <button
+                  onClick={() => onDelete(review.id)}
+                  className="flex-none text-[11px] text-neutral-400 opacity-0 hover:text-red-600 group-hover:opacity-100"
+                >
+                  삭제
+                </button>
+              ) : null}
             </li>
           ))}
         </ul>

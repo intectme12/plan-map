@@ -83,6 +83,7 @@ export const createExpenseSchema = z.object({
 });
 
 export const createReviewSchema = z.object({
+  rating: z.number().int().min(1).max(5),
   content: z.string().min(1).max(2000),
 });
 
@@ -125,7 +126,6 @@ export const updatePlaceSchema = z.object({
   phone: z.string().max(50).optional(),
   scheduledAt: z.coerce.date().optional(),
   order: z.coerce.number().int().optional(),
-  rating: z.coerce.number().int().min(0).max(5).optional(),
 });
 
 export const createConversationSchema = z.object({

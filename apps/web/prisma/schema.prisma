@@ -250,14 +250,12 @@ model PlaceEntry {
   placeUrl    String?
   phone       String?
   scheduledAt DateTime?
-  rating      Int       @default(0) // 0~5, 후기 탭 별점
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   trip     Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
   expenses Expense[]
   photos   Photo[]
-  reviews  Review[]
 
   routesFrom RouteSegment[] @relation("RouteFrom")
   routesTo   RouteSegment[] @relation("RouteTo")
@@ -311,17 +309,22 @@ model Photo {
   @@map("photos")
 }
 
+// 카카오/네이버 장소 리뷰처럼 "실제 장소" 단위로 전체공개되는 후기 — PlaceEntry(트립 안의 장소 사본)에
+// 종속되지 않고 좌표(lat/lng)로 실제 장소를 식별한다(같은 장소면 카카오 검색 결과가 항상 같은 좌표를 주므로
+// 별도의 Place 테이블/카카오 ID 수집 없이도 충분히 매칭됨). 트립/PlaceEntry를 지워도 후기는 안 사라진다.
 model Review {
-  id           String   @id @default(cuid())
-  placeEntryId String
-  authorId     String
-  content      String
-  createdAt    DateTime @default(now())
+  id        String   @id @default(cuid())
+  lat       Float
+  lng       Float
+  authorId  String
+  rating    Int // 1~5
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  placeEntry PlaceEntry @relation(fields: [placeEntryId], references: [id], onDelete: Cascade)
-  author     User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
-  @@index([placeEntryId])
-  @@index([authorId])
+  @@unique([authorId, lat, lng]) // 사람당 같은 장소엔 후기 1개 — 재작성은 upsert로 수정 처리
+  @@index([lat, lng])
   @@map("reviews")
 }

@@ -1,17 +1,24 @@
 import { prisma } from "../db";
 import { NotFoundError } from "../errors";
 import { assertTripEditAccess } from "./tripAccess";
+import { getReviewsForCoordinates, coordKey } from "./reviews";
 
 export async function listPlaces(userId: string, tripId: string) {
   await assertTripEditAccess(userId, tripId);
-  return prisma.placeEntry.findMany({
+  const places = await prisma.placeEntry.findMany({
     where: { tripId },
     orderBy: { order: "asc" },
-    include: {
-      expenses: true,
-      photos: true,
-      reviews: { include: { author: { select: { nickname: true } } }, orderBy: { createdAt: "desc" } },
-    },
+    include: { expenses: true, photos: true },
+  });
+
+  const reviewsByCoord = await getReviewsForCoordinates(places.map((p) => ({ lat: p.lat, lng: p.lng })));
+  return places.map((place) => {
+    const entry = reviewsByCoord.get(coordKey(place.lat, place.lng)) ?? {
+      reviews: [],
+      avgRating: null,
+      reviewCount: 0,
+    };
+    return { ...place, reviews: entry.reviews, avgRating: entry.avgRating, reviewCount: entry.reviewCount };
   });
 }
 
@@ -25,7 +32,6 @@ type PlaceInput = {
   placeUrl?: string;
   phone?: string;
   scheduledAt?: Date;
-  rating?: number;
 };
 
 export async function createPlace(userId: string, tripId: string, data: PlaceInput) {

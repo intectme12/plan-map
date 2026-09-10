@@ -1,5 +1,5 @@
 import { PlaceReviews } from "./PlaceReviews";
-import { PlaceRating } from "./PlaceRating";
+import { StaticStars } from "./PlaceRating";
 import { DayAccordionSection } from "./DayAccordionSection";
 import { getTripDays, groupByDay } from "./days";
 import type { PlaceEntry } from "./types";
@@ -8,6 +8,7 @@ export function ReviewGallery({
   tripId,
   trip,
   places,
+  currentUserId,
   selectedPlaceId,
   onSelectPlace,
   expandedDays,
@@ -16,6 +17,7 @@ export function ReviewGallery({
   tripId: string;
   trip: { startDate: string | Date; endDate: string | Date };
   places: PlaceEntry[];
+  currentUserId: string;
   selectedPlaceId: string | null;
   onSelectPlace: (placeId: string) => void;
   expandedDays: Set<number>;
@@ -60,9 +62,17 @@ export function ReviewGallery({
                       >
                         {place.name}
                       </button>
-                      <PlaceRating tripId={tripId} placeId={place.id} initialRating={place.rating} />
+                      <div className="flex flex-none items-center gap-1">
+                        <StaticStars rating={place.avgRating ?? 0} />
+                        <span className="text-xs text-neutral-400">({place.reviewCount})</span>
+                      </div>
                     </div>
-                    <PlaceReviews tripId={tripId} placeId={place.id} initialReviews={place.reviews} />
+                    <PlaceReviews
+                      tripId={tripId}
+                      placeId={place.id}
+                      currentUserId={currentUserId}
+                      initialReviews={place.reviews}
+                    />
                   </div>
                 ))
               )}

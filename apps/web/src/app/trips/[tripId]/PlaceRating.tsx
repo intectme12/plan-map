@@ -27,47 +27,24 @@ export function StaticStars({ rating }: { rating: number }) {
   );
 }
 
-export function PlaceRating({
-  tripId,
-  placeId,
-  initialRating,
-}: {
-  tripId: string;
-  placeId: string;
-  initialRating: number;
-}) {
-  const [rating, setRating] = useState(initialRating);
+// 후기 작성 폼에서 별점을 고를 때 쓴다 — 별점은 이제 장소가 아니라 각 후기에 딸린 개인 값이라
+// 여기서 값을 들고 있지 않고 부모(PlaceReviews)의 폼 상태를 그대로 조작한다.
+export function StarPicker({ value, onChange }: { value: number; onChange: (value: number) => void }) {
   const [hovered, setHovered] = useState<number | null>(null);
-
-  async function onRate(value: number) {
-    const prev = rating;
-    setRating(value);
-    const res = await fetch(`/api/trips/${tripId}/places/${placeId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rating: value }),
-    });
-    if (!res.ok) setRating(prev);
-  }
-
-  const shown = hovered ?? rating;
+  const shown = hovered ?? value;
 
   return (
-    <div
-      className="flex flex-none items-center gap-0.5"
-      onMouseLeave={() => setHovered(null)}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {[1, 2, 3, 4, 5].map((value) => (
+    <div className="flex flex-none items-center gap-0.5" onMouseLeave={() => setHovered(null)}>
+      {[1, 2, 3, 4, 5].map((v) => (
         <button
-          key={value}
+          key={v}
           type="button"
-          onClick={() => onRate(value)}
-          onMouseEnter={() => setHovered(value)}
-          aria-label={`${value}점`}
+          onClick={() => onChange(v)}
+          onMouseEnter={() => setHovered(v)}
+          aria-label={`${v}점`}
           className="p-0.5"
         >
-          <Star filled={value <= shown} />
+          <Star filled={v <= shown} />
         </button>
       ))}
     </div>
