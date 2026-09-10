@@ -5,7 +5,7 @@ import { listTrips } from "@/lib/services/trips";
 import { listConversations } from "@/lib/services/conversations";
 import { getPublicProfile } from "@/lib/services/users";
 import { getFollowState } from "@/lib/services/follows";
-import { Avatar } from "@/components/Avatar";
+import { EditableAvatar } from "@/components/EditableAvatar";
 import { LogoutButton } from "@/components/LogoutButton";
 import { MessageNavLink } from "@/components/MessageNavLink";
 import { TripsTabs } from "./TripsTabs";
@@ -38,7 +38,7 @@ export default async function TripsPage() {
       </div>
 
       <header className="flex items-center gap-4">
-        <Avatar url={profile?.avatarUrl ?? null} nickname={user.nickname} size={72} />
+        <EditableAvatar url={profile?.avatarUrl ?? null} nickname={user.nickname} size={72} />
         <div>
           <h1 className="text-xl font-bold">{user.nickname}</h1>
           {profile?.bio ? <p className="text-sm text-neutral-600">{profile.bio}</p> : null}

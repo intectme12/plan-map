@@ -561,6 +561,15 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - `trips/page.tsx`: `/users/[nickname]/page.tsx`에 이미 있던 프로필 헤더 패턴(아바타+닉네임+bio+팔로워/팔로잉 링크)을 자기 자신 뷰로 이식 — `getPublicProfile(user.nickname)` + `getFollowState(user.id, user.id)`(viewer===target 스킵 케이스 기존 처리됨) 병렬 조회. `FollowButton`/`SendMessageButton` 대신 우측에 "프로필 편집"(`/account`) 링크, 상단 유틸 바의 중복되던 "내 정보" 링크는 제거
 - `tsc --noEmit`/`eslint` 통과(내가 건드리지 않은 파일들의 기존 경고/에러는 그대로 — `git stash`로 비교해 전부 사전 존재 확인). 브라우저에서 테스트 계정 2개(gridtest_a/b, API로 직접 가입·트립 생성·공개 전환·공유·팔로우까지 세팅)로: 대표사진 없는 트립이 그라데이션+텍스트 타일로 뜨는 것, 업로드 후 실제 사진으로 바뀌는 것, 교체·제거, "내 여행계획"에서 호버 시 휴지통 아이콘으로 삭제+실행취소 토스트, 4개 탭 전부 4열 그리드(`getComputedStyle`로 `grid-template-columns` 4칸 확인)로 실제 데이터(가입돼 있던 실사용자의 공개 트립 포함) 렌더링, 호버 시 소유자 아바타 클릭→프로필 모달, 좋아요 오버레이, "나에게 공유됨"만 `/trips/{id}`로 이동, 비오너는 "대표사진 설정" 버튼 자체가 안 보이는 것까지 확인. 테스트 계정 2개·트립·업로드 파일 전부 삭제해 정리(실사용자의 실 데이터는 읽기만 하고 건드리지 않음)
 
+**완료 (2026-09-10, "내 여행계획" 헤더에 프로필 사진 바로 변경하는 + 버튼 추가)**
+
+바로 앞 세션에서 추가한 프로필 헤더의 아바타 원 오른쪽 하단에 인스타그램처럼 + 버튼을 붙여서, `/account`까지 안 가도 그 자리에서 바로 프로필 사진을 바꿀 수 있게 해달라는 요청.
+
+- 알고 보니 프로필 사진 업로드/삭제 자체는 `/account`([AccountForm.tsx](apps/web/src/app/account/AccountForm.tsx))에 이미 구현돼 있었음(`POST`/`DELETE /api/account/avatar` → `lib/services/avatars.ts`) — 새로 만든 건 그 API를 재사용하는 얇은 UI 레이어뿐
+- 새 [components/EditableAvatar.tsx](apps/web/src/components/EditableAvatar.tsx): 기존 `Avatar.tsx`를 감싸고 우하단에 원형 `+` 버튼(흰 테두리 + 파란 배경) 오버레이 — 클릭 시 숨겨진 `<input type="file">`을 열어 선택 즉시 `/api/account/avatar`로 업로드 후 `router.refresh()`. 삭제 기능은 넣지 않음(그건 여전히 `/account`에서만 — 이 자리는 "빠르게 바꾸기" 용도로 범위를 좁힘)
+- `trips/page.tsx`의 헤더 `Avatar`를 `EditableAvatar`로 교체
+- `tsc --noEmit`/`eslint` 통과. 브라우저에서 테스트 계정 1개로 로그인 → 헤더 아바타에 + 버튼 렌더링 확인 → (자동화 브라우저라 실제 파일 선택 다이얼로그는 못 열어서) `input.files`에 `DataTransfer`로 테스트 이미지를 직접 넣고 `change` 이벤트를 디스패치하는 방식으로 업로드 트리거 → 아바타가 실제 이미지로 바뀌는 것까지 확인. 테스트 계정 삭제해 정리(업로드 파일도 남은 것 없음 확인)
+
 **다음 세션 할 일**
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음
 - **(중요)** 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`)가 스키마를 바꿀 때마다(이번까지 4세션 연속) `migrate dev` 리셋 요구로 이어짐 — 매번 `migrate diff`/`db push` + 손으로 마이그레이션 작성 + `migrate resolve`로 우회하고 있지만 언제까지나 반복할 방식은 아님. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나(체크섬 재계산), 이 우회를 앞으로도 정식 절차로 문서화할지 다음 세션에서 결정 필요
