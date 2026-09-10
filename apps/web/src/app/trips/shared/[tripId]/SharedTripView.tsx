@@ -11,6 +11,7 @@ import { SharedPlaceList } from "./SharedPlaceList";
 import { SharedPhotoGrid } from "./SharedPhotoGrid";
 import { SharedReviewGallery } from "./SharedReviewGallery";
 import { CopyTripButton } from "./CopyTripButton";
+import { PlaceReviewsModal } from "@/app/trips/[tripId]/PlaceReviewsModal";
 
 const TABS = [
   { key: "timeline", label: "타임라인" },
@@ -44,6 +45,7 @@ export function SharedTripView({
 }) {
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [reviewsModalPlaceId, setReviewsModalPlaceId] = useState<string | null>(null);
 
   const points = useMemo(
     () =>
@@ -58,6 +60,7 @@ export function SharedTripView({
         phone: p.phone,
         placeUrl: p.placeUrl,
         rating: p.avgRating ?? undefined,
+        reviewCount: p.reviewCount,
       })),
     [places]
   );
@@ -178,7 +181,12 @@ export function SharedTripView({
   return (
     <main className="relative h-screen w-full overflow-hidden">
       <div className="absolute inset-0">
-        <KakaoMapCanvas points={points} segments={segments} selectedPlaceId={selectedPlaceId} />
+        <KakaoMapCanvas
+          points={points}
+          segments={segments}
+          selectedPlaceId={selectedPlaceId}
+          onOpenReviews={setReviewsModalPlaceId}
+        />
       </div>
 
       <Link
@@ -286,6 +294,20 @@ export function SharedTripView({
           </div>
         )}
       </aside>
+
+      {reviewsModalPlaceId
+        ? (() => {
+            const place = places.find((p) => p.id === reviewsModalPlaceId);
+            if (!place) return null;
+            return (
+              <PlaceReviewsModal
+                placeName={place.name}
+                reviews={place.reviews}
+                onClose={() => setReviewsModalPlaceId(null)}
+              />
+            );
+          })()
+        : null}
     </main>
   );
 }

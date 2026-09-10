@@ -606,7 +606,17 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - `docs/API.md` 알림 섹션에 LIKE 타입 및 알림별 이동 위치 반영
 - `tsc --noEmit`/`eslint` 통과. 테스트 계정 2개(API로 세팅)로: B가 A의 공개 트립에 좋아요 → A의 알림 목록에 정확한 문구로 뜨는 것(API로 확인) → A로 로그인해 `/notifications`에서 같은 문구 확인, 링크가 `/trips/{tripId}`로 걸린 것 DOM에서 확인 → B로 로그인해 A→B 팔로우 알림이 `/users/liketest_a`로 걸린 것 확인(요청 1번 재확인) → B가 좋아요 취소→재좋아요를 2번 반복해도 안읽은 LIKE 알림이 1개로 유지되는 것 확인(dedup). 테스트 계정/트립 삭제해 정리
 
+**완료 (2026-09-10, 지도 마커 팝업에 후기 개수·평균 별점 + 클릭 시 후기 목록 모달)**
+
+사용자가 마커를 눌렀을 때 뜨는 정보창에 후기 개수를 보여주고, 그걸 누르면 다른 사용자들이 쓴 후기+별점을 볼 수 있으면 좋겠다고 요청. 마커 팝업 자체가 카카오맵 SDK가 요구하는 순수 DOM(React 트리 밖)이라, 팝업에는 "후기 N개" 텍스트만 넣고 클릭 시 콜백으로 React 쪽 모달을 열어 기존 컴포넌트(`Modal.tsx`, `StaticStars`)를 재사용하는 방식으로 진행(사전에 사용자에게 제안하고 확인받음).
+
+- [KakaoMapCanvas.tsx](apps/web/src/components/map/KakaoMapCanvas.tsx): `MapPoint`에 `reviewCount` 추가, `buildInfoCard`가 `onOpenReviews` 콜백을 받아 후기 있으면(`reviewCount > 0`) 팝업 안에 "후기 N개" 버튼을 vanilla DOM으로 추가(클릭 시 `onOpenReviews(placeId)` 호출). 컴포넌트 prop으로 `onOpenReviews?`를 받아 `openInfoOverlay` 안에서 그대로 전달
+- 새 [PlaceReviewsModal.tsx](apps/web/src/app/trips/[tripId]/PlaceReviewsModal.tsx): 기존 `Modal.tsx` 셸 + `StaticStars` 재사용한 읽기전용 후기 목록(별점·내용·작성자·날짜) — 이미 서버에서 좌표 기준으로 합쳐 내려온 `place.reviews`를 그대로 받아서 보여주므로 별도 API 호출 없음
+- `TripWorkspace.tsx`(오너/편집 화면)와 `SharedTripView.tsx`(읽기전용 공유 화면) 둘 다 `points`에 `reviewCount` 추가하고, `reviewsModalPlaceId` 상태 + `onOpenReviews={setReviewsModalPlaceId}`로 동일하게 연결 — 두 화면 다 각자의 `items`/`places` 배열에서 해당 장소를 찾아 모달에 넘김
+- `tsc --noEmit`/`eslint` 통과(내가 안 건드린 기존 `any`/effect-dependency 경고만 그대로 — diff로 확인). 테스트 계정 2개(API로 서로 다른 트립에 독립적으로 같은 좌표 추가 + 각자 후기 작성, 평점 5·3)로 마커 팝업이 실제로 정확한 내용(평균 ★4.0, "후기 2개" 버튼, 주소, 네이버 링크)을 만들어내는 것까지 확인(카카오맵 SDK의 `CustomOverlay` 생성자를 임시로 감싸서 실제 렌더링되는 HTML을 캡처하는 방식으로 검증) — 다만 이 자동화 브라우저 프리뷰 창이 계속 "숨김" 상태라 지도 관련 `requestAnimationFrame`/비동기 타이밍이 불안정해서, 마커 클릭→모달까지 이어지는 전체 흐름을 매번 안정적으로 재현하지는 못함(React 상태 갱신 자체는 `bg-blue-50` 클래스 변화로 확인됨, 모달 컴포넌트는 이미 검증된 `Modal.tsx`/`StaticStars` 재사용이라 로직상 문제 없다고 판단). 테스트 계정/트립 삭제해 정리
+
 **다음 세션 할 일**
+- (신규) 지도 마커 팝업 "후기 N개" 클릭 → 모달까지 이어지는 흐름을 실제 눈으로 보이는 브라우저(자동화 프리뷰 말고 사용자 본인 브라우저)에서 한 번 확인 권장 — 코드/데이터 레벨로는 검증됐지만 자동화 프리뷰 창이 계속 숨김 상태라 클릭 상호작용을 안정적으로 재현하지 못함(위 로그 참고)
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음
 - **(중요)** 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`)가 스키마를 바꿀 때마다(이번까지 4세션 연속) `migrate dev` 리셋 요구로 이어짐 — 매번 `migrate diff`/`db push` + 손으로 마이그레이션 작성 + `migrate resolve`로 우회하고 있지만 언제까지나 반복할 방식은 아님. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나(체크섬 재계산), 이 우회를 앞으로도 정식 절차로 문서화할지 다음 세션에서 결정 필요
 - (참고) `users.passwordHash` 컬럼은 이제 레거시(로그인은 `accounts.password`를 씀) — 운영 안정성 확인되면 제거하는 마이그레이션 검토

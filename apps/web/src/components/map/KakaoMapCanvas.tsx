@@ -14,6 +14,7 @@ type MapPoint = {
   phone?: string | null;
   placeUrl?: string | null;
   rating?: number;
+  reviewCount?: number;
 };
 type MapSegment = {
   fromLat: number;
@@ -35,7 +36,7 @@ const KAKAO_JS_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
 // 장소를 선택했을 때 확대할 레벨. 카카오맵 축척 표시가 "100m"로 뜨는 레벨.
 const SELECTED_PLACE_ZOOM_LEVEL = 4;
 
-function buildInfoCard(point: MapPoint, onClose: () => void): HTMLElement {
+function buildInfoCard(point: MapPoint, onClose: () => void, onOpenReviews?: (placeId: string) => void): HTMLElement {
   const card = document.createElement("div");
   card.style.cssText =
     "position:relative; min-width:210px; max-width:270px; padding:10px 12px; background:#fff; border-radius:10px; box-shadow:0 4px 16px rgba(15,23,42,0.2); font-family:inherit; font-size:12px; color:#334155; line-height:1.5;";
@@ -70,6 +71,16 @@ function buildInfoCard(point: MapPoint, onClose: () => void): HTMLElement {
   }
 
   card.appendChild(titleRow);
+
+  if (point.reviewCount && point.reviewCount > 0 && onOpenReviews) {
+    const reviewBtn = document.createElement("button");
+    reviewBtn.type = "button";
+    reviewBtn.textContent = `후기 ${point.reviewCount}개`;
+    reviewBtn.style.cssText =
+      "display:block; color:#2563eb; font-weight:600; font-size:11px; background:transparent; border:none; padding:0; margin-bottom:4px; cursor:pointer; text-decoration:underline;";
+    reviewBtn.onclick = () => onOpenReviews(point.id);
+    card.appendChild(reviewBtn);
+  }
 
   if (point.category) {
     const cat = document.createElement("div");
@@ -130,10 +141,12 @@ export function KakaoMapCanvas({
   points,
   segments = [],
   selectedPlaceId,
+  onOpenReviews,
 }: {
   points: MapPoint[];
   segments?: MapSegment[];
   selectedPlaceId?: string | null;
+  onOpenReviews?: (placeId: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [sdkReady, setSdkReady] = useState(false);
@@ -155,7 +168,7 @@ export function KakaoMapCanvas({
 
     const overlay = new window.kakao.maps.CustomOverlay({
       position: marker.getPosition(),
-      content: buildInfoCard(point, () => overlay.setMap(null)),
+      content: buildInfoCard(point, () => overlay.setMap(null), onOpenReviews),
       xAnchor: 0.5,
       yAnchor: 1.35,
       zIndex: 10,

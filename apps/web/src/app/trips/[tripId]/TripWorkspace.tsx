@@ -10,6 +10,7 @@ import { PlaceList, parseDayContainerId } from "./PlaceList";
 import { ExpenseSummary } from "./ExpenseSummary";
 import { PhotoGallery } from "./PhotoGallery";
 import { ReviewGallery } from "./ReviewGallery";
+import { PlaceReviewsModal } from "./PlaceReviewsModal";
 import { getTripDays, groupByDay, dayColor, dayIndexForPlace } from "./days";
 import { useToast } from "@/components/toast/ToastProvider";
 import { SharedTripsModal } from "./SharedTripsModal";
@@ -49,6 +50,7 @@ export function TripWorkspace({
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sharedModalOpen, setSharedModalOpen] = useState(false);
+  const [reviewsModalPlaceId, setReviewsModalPlaceId] = useState<string | null>(null);
   const toast = useToast();
 
   // 타임라인(순서 변경/삭제)과 지도가 같은 장소 목록을 공유해야 드래그 정렬이 이동경로에 바로 반영된다
@@ -73,6 +75,7 @@ export function TripWorkspace({
         phone: p.phone,
         placeUrl: p.placeUrl,
         rating: p.avgRating ?? undefined,
+        reviewCount: p.reviewCount,
       })),
     [items]
   );
@@ -318,7 +321,12 @@ export function TripWorkspace({
     <main className="relative h-screen w-full overflow-hidden">
       {/* 지도가 바탕: 화면 전체를 채우고, 타임라인 패널이 그 위 오른쪽에 붙는다 */}
       <div className="absolute inset-0">
-        <KakaoMapCanvas points={points} segments={segments} selectedPlaceId={selectedPlaceId} />
+        <KakaoMapCanvas
+          points={points}
+          segments={segments}
+          selectedPlaceId={selectedPlaceId}
+          onOpenReviews={setReviewsModalPlaceId}
+        />
       </div>
 
       <div className="absolute left-4 top-4 z-10 flex gap-2">
@@ -339,6 +347,20 @@ export function TripWorkspace({
       {sharedModalOpen ? (
         <SharedTripsModal onClose={() => setSharedModalOpen(false)} />
       ) : null}
+
+      {reviewsModalPlaceId
+        ? (() => {
+            const place = items.find((p) => p.id === reviewsModalPlaceId);
+            if (!place) return null;
+            return (
+              <PlaceReviewsModal
+                placeName={place.name}
+                reviews={place.reviews}
+                onClose={() => setReviewsModalPlaceId(null)}
+              />
+            );
+          })()
+        : null}
 
       <button
         onClick={() => setSidebarOpen((v) => !v)}
