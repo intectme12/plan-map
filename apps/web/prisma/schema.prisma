@@ -184,6 +184,7 @@ model Trip {
   shares       TripShare[]
   participants TripParticipant[]
   likes        TripLike[]
+  notifications Notification[]
 
   @@index([userId])
   @@index([visibility, sharedAt])
@@ -206,18 +207,21 @@ model TripLike {
   @@map("trip_likes")
 }
 
-// 지금은 "팔로우당함" 한 종류뿐이지만 나중에 다른 유형이 생길 걸 대비해 type을 문자열로 둔다
-// (Trip.visibility와 같은 패턴 — 값 종류가 적어서 native enum 도입 이득이 아직 없음).
+// type을 문자열로 두는 이유는 Trip.visibility와 같은 패턴 — 값 종류가 적어서 native enum
+// 도입 이득이 아직 없음. tripId는 "LIKE"일 때만 쓰고("어떤 여행에 좋아요를 눌렀는지"),
+// "FOLLOW"일 때는 null.
 model Notification {
   id        String    @id @default(cuid())
   userId    String // 알림을 받는 사람
   actorId   String // 알림을 발생시킨 사람
-  type      String    @default("FOLLOW") // "FOLLOW"
+  type      String    @default("FOLLOW") // "FOLLOW" | "LIKE"
+  tripId    String?
   readAt    DateTime?
   createdAt DateTime  @default(now())
 
-  user  User @relation("NotificationsReceived", fields: [userId], references: [id], onDelete: Cascade)
-  actor User @relation("NotificationsSent", fields: [actorId], references: [id], onDelete: Cascade)
+  user  User  @relation("NotificationsReceived", fields: [userId], references: [id], onDelete: Cascade)
+  actor User  @relation("NotificationsSent", fields: [actorId], references: [id], onDelete: Cascade)
+  trip  Trip? @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@map("notifications")

@@ -115,7 +115,7 @@
 
 ## 알림 (`/api/notifications`)
 
-`lib/services/notifications.ts`. 지금은 "누가 나를 팔로우함" 한 종류뿐(`type: "FOLLOW"`), `followUser()` 안에서 자동 생성된다. 실시간(SSE) 아님 — `/trips` 헤더의 "알림" 링크가 서버에서 내려준 안읽음 개수 배지만 보여주고, `/notifications` 페이지에 들어가면 그 시점에 전부 읽음 처리된다. 짧은 시간에 언팔로우→재팔로우를 반복해도 같은 사람에게서 온 안읽은 알림이 이미 있으면 중복 생성 안 함.
+`lib/services/notifications.ts`. `type: "FOLLOW"`(누가 나를 팔로우함, `followUser()`에서 생성) / `type: "LIKE"`(누가 내 여행계획에 좋아요, `likeTrip()`에서 생성 — `tripId`도 같이 저장). 실시간(SSE) 아님 — `/trips` 헤더의 "알림" 링크가 서버에서 내려준 안읽음 개수 배지만 보여주고, `/notifications` 페이지에 들어가면 그 시점에 전부 읽음 처리된다. 짧은 시간에 언팔로우→재팔로우, 좋아요 취소→재좋아요를 반복해도 같은 사람·같은 대상에서 온 안읽은 알림이 이미 있으면 중복 생성 안 함. 알림 클릭 시 FOLLOW는 상대 프로필(`/users/{nickname}`)로, LIKE는 좋아요 받은 내 여행계획(`/trips/{tripId}`)으로 이동.
 
 | Method | Path | 설명 |
 | --- | --- | --- |

@@ -595,6 +595,17 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - `docs/API.md`에 알림 엔드포인트 섹션 신설(참고로 팔로우 자체 엔드포인트도 원래 문서화가 안 돼 있었는데 그건 이번 범위 밖이라 안 건드림)
 - `tsc --noEmit`/`eslint` 통과. 테스트 계정 2개로: A가 B를 팔로우 → B 헤더의 "알림" 배지에 1 뜨는 것, `/notifications`에서 "notiftest_a님이 팔로우하였습니다" 뜨는 것, 읽은 뒤 배지 사라지는 것, 읽은 알림이 있는 상태에서 다시 팔로우하면 새 알림이 생기는 것(정상), 안읽은 상태에서 언팔로우→재팔로우를 4번 반복해도 안읽은 알림이 1개로 유지되는 것(dedup 확인)까지 브라우저+API로 확인. 테스트 계정 삭제해 정리(알림도 cascade로 같이 삭제됨 확인)
 
+**완료 (2026-09-10, 알림에 좋아요 추가 + 팔로우 알림 클릭 시 프로필 이동 확인)**
+
+사용자 요청 2건: (1) 팔로우 알림 클릭 시 상대 프로필로 이동(확인해보니 지난 세션에 이미 구현돼 있었음), (2) 다른 사용자가 내 여행계획에 하트(좋아요)를 누르면 알림에 포함.
+
+- `Notification`에 `tripId String?` 추가(마이그레이션 `20260910150000_add_notification_trip_like`, 새 nullable 컬럼이라 순수 DDL) — "LIKE" 타입일 때만 어떤 여행계획인지 참조, 그 여행계획이 삭제되면 알림도 같이 삭제(`onDelete: Cascade`)
+- [lib/services/notifications.ts](apps/web/src/lib/services/notifications.ts): `createFollowNotification`/`createLikeNotification` 둘 다 공통 헬퍼 `createNotificationIfNotDuplicate`로 통합 — 본인이 자기 행동에 대한 알림을 받지 않도록(자기 트립에 자기가 좋아요 눌러도 알림 안 감) 방어 추가, 중복 방지 조건에 `tripId`도 포함해서 좋아요 취소→재좋아요 반복도 안 쌓이게
+- [lib/services/tripLikes.ts](apps/web/src/lib/services/tripLikes.ts)의 `likeTrip`을 upsert에서 `findUnique` 후 없을 때만 `create`하는 방식으로 바꿈 — 원래 upsert라 이미 좋아요한 상태에서 다시 눌러도 "성공"만 하고 알림을 쏠지 판단할 방법이 없었는데, 실제로 새로 생성될 때만 `createLikeNotification` 호출하도록
+- `/notifications` 페이지: 알림 타입별로 클릭 시 이동 위치를 분기(`notificationHref`) — FOLLOW는 `/users/{nickname}`(상대 프로필), LIKE는 `/trips/{tripId}`(좋아요 받은 내 여행계획). 메시지 문구도 타입별 분기(`notificationText`), LIKE는 여행계획 이름까지 포함(`OO님이 회원님의 여행계획 "이름"을(를) 좋아합니다`)
+- `docs/API.md` 알림 섹션에 LIKE 타입 및 알림별 이동 위치 반영
+- `tsc --noEmit`/`eslint` 통과. 테스트 계정 2개(API로 세팅)로: B가 A의 공개 트립에 좋아요 → A의 알림 목록에 정확한 문구로 뜨는 것(API로 확인) → A로 로그인해 `/notifications`에서 같은 문구 확인, 링크가 `/trips/{tripId}`로 걸린 것 DOM에서 확인 → B로 로그인해 A→B 팔로우 알림이 `/users/liketest_a`로 걸린 것 확인(요청 1번 재확인) → B가 좋아요 취소→재좋아요를 2번 반복해도 안읽은 LIKE 알림이 1개로 유지되는 것 확인(dedup). 테스트 계정/트립 삭제해 정리
+
 **다음 세션 할 일**
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음
 - **(중요)** 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`)가 스키마를 바꿀 때마다(이번까지 4세션 연속) `migrate dev` 리셋 요구로 이어짐 — 매번 `migrate diff`/`db push` + 손으로 마이그레이션 작성 + `migrate resolve`로 우회하고 있지만 언제까지나 반복할 방식은 아님. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나(체크섬 재계산), 이 우회를 앞으로도 정식 절차로 문서화할지 다음 세션에서 결정 필요
