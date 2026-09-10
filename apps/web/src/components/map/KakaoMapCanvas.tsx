@@ -70,17 +70,17 @@ function buildInfoCard(point: MapPoint, onClose: () => void, onOpenReviews?: (pl
     titleRow.appendChild(ratingBadge);
   }
 
-  card.appendChild(titleRow);
-
   if (point.reviewCount && point.reviewCount > 0 && onOpenReviews) {
     const reviewBtn = document.createElement("button");
     reviewBtn.type = "button";
     reviewBtn.textContent = `후기 ${point.reviewCount}개`;
     reviewBtn.style.cssText =
-      "display:block; color:#2563eb; font-weight:600; font-size:11px; background:transparent; border:none; padding:0; margin-bottom:4px; cursor:pointer; text-decoration:underline;";
+      "color:#2563eb; font-weight:600; font-size:11px; background:transparent; border:none; padding:0; cursor:pointer; text-decoration:underline; flex:none;";
     reviewBtn.onclick = () => onOpenReviews(point.id);
-    card.appendChild(reviewBtn);
+    titleRow.appendChild(reviewBtn);
   }
+
+  card.appendChild(titleRow);
 
   if (point.category) {
     const cat = document.createElement("div");
@@ -133,6 +133,12 @@ function buildInfoCard(point: MapPoint, onClose: () => void, onOpenReviews?: (pl
   links.appendChild(naverLink);
 
   card.appendChild(links);
+
+  // CustomOverlay 안의 클릭이 지도 자체의 click 이벤트로도 같이 전달돼서(카카오맵 SDK 특성),
+  // "후기 N개" 버튼을 눌러도 지도의 click 리스너(정보창 닫기)가 동시에 발동해 버튼 동작이
+  // 무시된 것처럼 보이는 문제가 있었다 — preventMap으로 이 카드 안의 클릭이 지도까지
+  // 전파되지 않게 막는다(카카오맵 공식 API가 커스텀 오버레이용으로 제공하는 함수).
+  window.kakao.maps.event.preventMap(card);
 
   return card;
 }
