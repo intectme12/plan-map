@@ -76,7 +76,15 @@ function buildInfoCard(point: MapPoint, onClose: () => void, onOpenReviews?: (pl
     reviewBtn.textContent = `후기 ${point.reviewCount}개`;
     reviewBtn.style.cssText =
       "color:#2563eb; font-weight:600; font-size:11px; background:transparent; border:none; padding:0; cursor:pointer; text-decoration:underline; flex:none;";
-    reviewBtn.onclick = () => onOpenReviews(point.id);
+    reviewBtn.onclick = () => {
+      // kakao.maps.event.preventMap()는 인자를 받는 함수가 아니라, 호출된 시점부터 다음
+      // tick까지만 지도의 클릭/드래그 처리를 잠깐 억제하는 전역 플래그다(카드를 만들 때
+      // 한 번 호출해두는 식으로는 효과가 없음 — 실제로 클릭이 일어나는 이 핸들러 안에서
+      // 매번 호출해야, 이 클릭이 버블링돼 지도의 "빈 곳 클릭 시 정보창 닫기" 리스너까지
+      // 전파되는 걸 막을 수 있다).
+      window.kakao.maps.event.preventMap();
+      onOpenReviews(point.id);
+    };
     titleRow.appendChild(reviewBtn);
   }
 
@@ -133,12 +141,6 @@ function buildInfoCard(point: MapPoint, onClose: () => void, onOpenReviews?: (pl
   links.appendChild(naverLink);
 
   card.appendChild(links);
-
-  // CustomOverlay 안의 클릭이 지도 자체의 click 이벤트로도 같이 전달돼서(카카오맵 SDK 특성),
-  // "후기 N개" 버튼을 눌러도 지도의 click 리스너(정보창 닫기)가 동시에 발동해 버튼 동작이
-  // 무시된 것처럼 보이는 문제가 있었다 — preventMap으로 이 카드 안의 클릭이 지도까지
-  // 전파되지 않게 막는다(카카오맵 공식 API가 커스텀 오버레이용으로 제공하는 함수).
-  window.kakao.maps.event.preventMap(card);
 
   return card;
 }
