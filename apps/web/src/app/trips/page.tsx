@@ -5,20 +5,23 @@ import { listTrips } from "@/lib/services/trips";
 import { listConversations } from "@/lib/services/conversations";
 import { getPublicProfile } from "@/lib/services/users";
 import { getFollowState } from "@/lib/services/follows";
+import { countUnreadNotifications } from "@/lib/services/notifications";
 import { EditableAvatar } from "@/components/EditableAvatar";
 import { LogoutButton } from "@/components/LogoutButton";
 import { MessageNavLink } from "@/components/MessageNavLink";
+import { NotificationNavLink } from "@/components/NotificationNavLink";
 import { TripsTabs } from "./TripsTabs";
 
 export default async function TripsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [trips, conversations, profile, followState] = await Promise.all([
+  const [trips, conversations, profile, followState, unreadNotificationCount] = await Promise.all([
     listTrips(user.id),
     listConversations(user.id),
     getPublicProfile(user.nickname),
     getFollowState(user.id, user.id),
+    countUnreadNotifications(user.id),
   ]);
   const unreadCount = conversations.filter((c) => c.unread).length;
 
@@ -33,6 +36,7 @@ export default async function TripsPage() {
             관리자
           </Link>
         ) : null}
+        <NotificationNavLink initialUnreadCount={unreadNotificationCount} />
         <MessageNavLink currentUserId={user.id} initialUnreadCount={unreadCount} />
         <LogoutButton />
       </div>

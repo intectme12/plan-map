@@ -584,6 +584,17 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - `docs/API.md`에 후기 엔드포인트 섹션 신설(원래 문서화가 아예 안 돼 있었음), `docs/DATABASE.md`에 좌표 기반으로 설계한 이유를 `AIParseJob` 섹션과 같은 패턴으로 추가
 - `tsc --noEmit`/`eslint` 통과(라우트 삭제로 생긴 Next 타입 캐시 stale 참조는 `.next` 삭제 후 `next typegen` 재생성으로 해결). 브라우저 대신 테스트 계정 3개(A/B/C, API로 직접 세팅)로 핵심 시나리오 전부 확인: A가 자기 트립에 경복궁 추가+후기 작성 → B가 **완전히 다른 자기 트립에 독립적으로 같은 경복궁을 카카오 검색으로 추가**했을 때 A의 후기가 그대로 보임(핵심 시나리오) → B도 후기 작성 → 평균이 정확히 (5+3)/2=4로 집계 → A가 자기 트립에서 그 장소를 삭제해도 A의 후기는 DB에 그대로 남음 → A가 B의 후기 삭제 시도 시 403 → A는 본인 후기 삭제 가능 → B의 트립을 PUBLIC 전환 후 아무 관계 없는 계정 C가 `/trips/shared/{id}`에서 B의 후기를 볼 수 있음(비공개 여부 무관 전체공개 확인) → 마지막으로 브라우저 UI로 별점 선택기·평균 별점 표시·"수정" 버튼 전환까지 시각 확인. 테스트 계정 3개와 트립 전부 삭제해 정리(기존 실제 후기 2건은 원본 그대로 남아있는 것 확인)
 
+**완료 (2026-09-10, 팔로우 알림 추가)**
+
+사용자 요청으로 "누가 나를 팔로우하면 메시지로 알려주는 거 어떠냐"는 제안 → DM(1:1 대화) 시스템에 자동 시스템 메시지를 섞으면 "시스템과의 대화방"이 생기는 셈이라 어색하고 안읽음 배지 로직도 꼬이니, DM과는 별도의 가벼운 알림 레코드로 만들자고 역제안해 확인받고 진행.
+
+- 새 `Notification` 모델(`userId`=받는 사람, `actorId`=발생시킨 사람, `type`="FOLLOW"만 있지만 나중을 대비해 문자열, `readAt`) — 마이그레이션 `20260910140000_add_notifications`는 새 테이블이라 순수 DDL이라서 백필 없이 바로 `migrate diff`→`db execute`→`migrate resolve --applied`로 적용
+- [lib/services/notifications.ts](apps/web/src/lib/services/notifications.ts): `createFollowNotification`은 같은 사람에게서 온 **안읽은** FOLLOW 알림이 이미 있으면 새로 안 만듦(언팔로우→재팔로우를 빠르게 반복해도 알림이 안 쌓이게) — `followUser()`(`lib/services/follows.ts`) 안에서 호출
+- API: `GET /api/notifications`(내 알림 목록), `POST /api/notifications/read`(전부 읽음 처리)
+- UI: `MessageNavLink.tsx`와 같은 자리에 [components/NotificationNavLink.tsx](apps/web/src/components/NotificationNavLink.tsx) 추가(서버가 내려준 안읽음 개수 배지만 보여주는 정적 링크, 메시지처럼 SSE 실시간 갱신은 안 함 — 팔로우는 그만큼 빈번하지 않아서 과할 것 같아 범위 줄임) → 새 [/notifications 페이지](apps/web/src/app/notifications/page.tsx)에서 목록을 보여주고 그 자리에서 바로 전부 읽음 처리
+- `docs/API.md`에 알림 엔드포인트 섹션 신설(참고로 팔로우 자체 엔드포인트도 원래 문서화가 안 돼 있었는데 그건 이번 범위 밖이라 안 건드림)
+- `tsc --noEmit`/`eslint` 통과. 테스트 계정 2개로: A가 B를 팔로우 → B 헤더의 "알림" 배지에 1 뜨는 것, `/notifications`에서 "notiftest_a님이 팔로우하였습니다" 뜨는 것, 읽은 뒤 배지 사라지는 것, 읽은 알림이 있는 상태에서 다시 팔로우하면 새 알림이 생기는 것(정상), 안읽은 상태에서 언팔로우→재팔로우를 4번 반복해도 안읽은 알림이 1개로 유지되는 것(dedup 확인)까지 브라우저+API로 확인. 테스트 계정 삭제해 정리(알림도 cascade로 같이 삭제됨 확인)
+
 **다음 세션 할 일**
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음
 - **(중요)** 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`)가 스키마를 바꿀 때마다(이번까지 4세션 연속) `migrate dev` 리셋 요구로 이어짐 — 매번 `migrate diff`/`db push` + 손으로 마이그레이션 작성 + `migrate resolve`로 우회하고 있지만 언제까지나 반복할 방식은 아님. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나(체크섬 재계산), 이 우회를 앞으로도 정식 절차로 문서화할지 다음 세션에서 결정 필요

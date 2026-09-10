@@ -37,6 +37,8 @@ model User {
   following          Follow[]          @relation("Following")
   followers          Follow[]          @relation("Followers")
   tripLikes          TripLike[]
+  notificationsReceived Notification[] @relation("NotificationsReceived")
+  notificationsSent     Notification[] @relation("NotificationsSent")
 
   @@map("users")
 }
@@ -202,6 +204,23 @@ model TripLike {
   @@unique([tripId, userId])
   @@index([tripId])
   @@map("trip_likes")
+}
+
+// 지금은 "팔로우당함" 한 종류뿐이지만 나중에 다른 유형이 생길 걸 대비해 type을 문자열로 둔다
+// (Trip.visibility와 같은 패턴 — 값 종류가 적어서 native enum 도입 이득이 아직 없음).
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String // 알림을 받는 사람
+  actorId   String // 알림을 발생시킨 사람
+  type      String    @default("FOLLOW") // "FOLLOW"
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user  User @relation("NotificationsReceived", fields: [userId], references: [id], onDelete: Cascade)
+  actor User @relation("NotificationsSent", fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("notifications")
 }
 
 // 오너가 특정 회원에게 명시적으로 공유함 — visibility와 무관하게 항상 열람을 허용하고,

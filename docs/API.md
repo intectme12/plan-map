@@ -113,6 +113,15 @@
 | `POST` | `/api/conversations/{conversationId}/typing` | 입력 중 신호를 상대에게만 전달(DB 저장 안 함, `typing` SSE 이벤트) |
 | `GET` | `/api/messages/stream` | SSE. 로그인 사용자당 연결 하나로 내가 속한 모든 대화의 새 메시지(`message`)/타이핑(`typing`)/읽음(`read`) 이벤트를 받는다 |
 
+## 알림 (`/api/notifications`)
+
+`lib/services/notifications.ts`. 지금은 "누가 나를 팔로우함" 한 종류뿐(`type: "FOLLOW"`), `followUser()` 안에서 자동 생성된다. 실시간(SSE) 아님 — `/trips` 헤더의 "알림" 링크가 서버에서 내려준 안읽음 개수 배지만 보여주고, `/notifications` 페이지에 들어가면 그 시점에 전부 읽음 처리된다. 짧은 시간에 언팔로우→재팔로우를 반복해도 같은 사람에게서 온 안읽은 알림이 이미 있으면 중복 생성 안 함.
+
+| Method | Path | 설명 |
+| --- | --- | --- |
+| `GET` | `/api/notifications?cursor=0` | 내 알림 목록(`actor` 닉네임/아바타 포함), `createdAt desc` |
+| `POST` | `/api/notifications/read` | 내 안읽은 알림 전부 읽음 처리 |
+
 ## 관련 문서
 
 - [DATABASE.md](./DATABASE.md)

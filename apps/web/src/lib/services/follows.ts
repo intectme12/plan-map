@@ -1,5 +1,6 @@
 import { prisma } from "../db";
 import { NotFoundError, ForbiddenError } from "../errors";
+import { createFollowNotification } from "./notifications";
 
 const FOLLOW_PAGE_SIZE = 20;
 
@@ -25,6 +26,8 @@ export async function followUser(followerId: string, targetNickname: string) {
     create: { followerId, followingId: target.id },
     update: {},
   });
+
+  await createFollowNotification(followerId, target.id);
 }
 
 export async function unfollowUser(followerId: string, targetNickname: string) {
