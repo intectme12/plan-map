@@ -37,6 +37,7 @@ model User {
   following          Follow[]          @relation("Following")
   followers          Follow[]          @relation("Followers")
   tripLikes          TripLike[]
+  tripViews          TripView[]
   notificationsReceived Notification[] @relation("NotificationsReceived")
   notificationsSent     Notification[] @relation("NotificationsSent")
 
@@ -176,6 +177,7 @@ model Trip {
   visibility String    @default("PRIVATE") // "PRIVATE" | "UNLISTED" | "PUBLIC"
   sharedAt   DateTime?
   coverPhotoKey String?
+  tags       String[] @default([]) // 홈 화면 카테고리 필터용(바다/맛집/카페/액티비티/자연/도시). 생성 시 선택, 선택 안 해도 됨.
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
@@ -184,6 +186,7 @@ model Trip {
   shares       TripShare[]
   participants TripParticipant[]
   likes        TripLike[]
+  views        TripView[]
   notifications Notification[]
 
   @@index([userId])
@@ -205,6 +208,22 @@ model TripLike {
   @@unique([tripId, userId])
   @@index([tripId])
   @@map("trip_likes")
+}
+
+// 홈 화면 "최근 본 여행"용 조회 기록 — 사람당 여행 하나에 최근 조회 시각 한 건만 유지(upsert).
+// 열람 권한 검증은 각 여행 상세 페이지(내 여행/공유받은 여행/공개 여행)가 이미 하므로 여기서는 기록만 한다.
+model TripView {
+  id       String   @id @default(cuid())
+  tripId   String
+  userId   String
+  viewedAt DateTime @default(now()) @updatedAt
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tripId])
+  @@index([userId, viewedAt])
+  @@map("trip_views")
 }
 
 // type을 문자열로 두는 이유는 Trip.visibility와 같은 패턴 — 값 종류가 적어서 native enum

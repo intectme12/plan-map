@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
+import { tripCategories } from "@/lib/validation";
 
 type UserResult = { id: string; nickname: string; bio: string | null; avatarUrl: string | null };
 type Participant = { key: string; name: string; userId?: string };
@@ -15,6 +16,7 @@ export function TripCreateForm() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [personnel, setPersonnel] = useState(1);
+  const [tags, setTags] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -76,6 +78,7 @@ export function TripCreateForm() {
         endDate,
         personnel,
         participants: participants.map(({ name, userId }) => ({ name, userId })),
+        tags,
       }),
     });
     setPending(false);
@@ -89,6 +92,7 @@ export function TripCreateForm() {
     setStartDate("");
     setEndDate("");
     setPersonnel(1);
+    setTags([]);
     setParticipants([]);
     setParticipantQuery("");
     router.push(`/trips/${trip.id}`);
@@ -138,6 +142,33 @@ export function TripCreateForm() {
         onChange={(e) => setPersonnel(Number(e.target.value))}
         className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
       />
+
+      <div className="flex flex-col gap-1.5">
+        <p className="text-xs font-semibold text-neutral-500">여행 태그 (홈 화면 카테고리에 노출, 선택)</p>
+        <div className="flex flex-wrap gap-1.5">
+          {tripCategories.map((category) => {
+            const active = tags.includes(category);
+            return (
+              <button
+                key={category}
+                type="button"
+                onClick={() =>
+                  setTags((prev) =>
+                    prev.includes(category) ? prev.filter((t) => t !== category) : [...prev, category]
+                  )
+                }
+                className={`rounded-full border px-2.5 py-1 text-xs ${
+                  active
+                    ? "border-blue-600 bg-blue-50 text-blue-600"
+                    : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+                }`}
+              >
+                #{category}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="flex flex-col gap-1.5">
         <p className="text-xs font-semibold text-neutral-500">함께할 사람</p>

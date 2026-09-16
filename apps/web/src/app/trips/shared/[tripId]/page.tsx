@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getSharedTrip } from "@/lib/services/trips";
+import { recordTripView } from "@/lib/services/tripViews";
 import { SharedTripView } from "./SharedTripView";
 
 export default async function SharedTripDetailPage({
@@ -20,6 +21,8 @@ export default async function SharedTripDetailPage({
 
   const trip = await getSharedTrip(tripId, user.id);
   if (!trip) notFound();
+
+  await recordTripView(user.id, tripId);
 
   return (
     <SharedTripView

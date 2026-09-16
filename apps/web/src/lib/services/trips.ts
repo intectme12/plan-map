@@ -49,6 +49,7 @@ export async function createTrip(
     endDate: Date;
     personnel: number;
     participants?: { name: string; userId?: string }[];
+    tags?: string[];
   }
 ) {
   const { participants, ...tripData } = data;
@@ -155,7 +156,8 @@ export async function listSharedTrips(
   q: string | undefined,
   cursor: number,
   userId?: string,
-  viewerUserId?: string
+  viewerUserId?: string,
+  tag?: string
 ) {
   if (userId && userId !== viewerUserId) {
     const target = await prisma.user.findUnique({
@@ -171,6 +173,7 @@ export async function listSharedTrips(
     where: {
       visibility: "PUBLIC",
       ...(userId ? { userId } : {}),
+      ...(tag ? { tags: { has: tag } } : {}),
       ...(term
         ? {
             OR: [
@@ -201,6 +204,51 @@ export async function listSharedTrips(
   });
 
   return trips.map(withLikeInfo);
+}
+
+// 홈 화면 "추천 여행지" 그리드용 — listSharedTrips(다른 사람 여행계획 탭)와 달리 최신순이 아니라
+// 좋아요 많은 순으로 정렬해서 "지금 가장 인기 있는 여행지"를 보여준다. 기존 탭 정렬은 건드리지 않기 위해 별도 함수로 둔다.
+export async function listPopularSharedTrips(tag: string | undefined, viewerUserId: string, limit = 8) {
+  const trips = await prisma.trip.findMany({
+    where: {
+      visibility: "PUBLIC",
+      ...(tag ? { tags: { has: tag } } : {}),
+    },
+    orderBy: [{ likes: { _count: "desc" } }, { sharedAt: "desc" }],
+    take: limit,
+    include: {
+      user: { select: { nickname: true, avatarUrl: true } },
+      ...likesInclude(viewerUserId),
+    },
+  });
+
+  return trips.map(withLikeInfo);
+}
+
+// 홈 화면 "내 여행계획" 지도 위젯용 — 가장 가까운 예정 여행이 있으면 그것을, 없으면 가장 최근 여행을 보여준다.
+export function getFeaturedTripForHome(userId: string) {
+  const now = new Date();
+  return prisma.trip
+    .findFirst({
+      where: { userId, endDate: { gte: now } },
+      orderBy: { startDate: "asc" },
+      include: {
+        places: { select: { id: true, name: true, lat: true, lng: true } },
+        _count: { select: { places: true } },
+      },
+    })
+    .then(
+      (upcoming) =>
+        upcoming ??
+        prisma.trip.findFirst({
+          where: { userId },
+          orderBy: { startDate: "desc" },
+          include: {
+            places: { select: { id: true, name: true, lat: true, lng: true } },
+            _count: { select: { places: true } },
+          },
+        })
+    );
 }
 
 // 내가 팔로우하는 회원들이 전체공개한 여행 — "게시물" 피드. listSharedTrips와 동일 구조지만

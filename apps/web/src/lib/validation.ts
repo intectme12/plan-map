@@ -16,12 +16,15 @@ export const tripParticipantInputSchema = z.object({
   userId: z.string().optional(),
 });
 
+export const tripCategories = ["바다", "맛집", "카페", "액티비티", "자연", "도시"] as const;
+
 export const createTripSchema = z.object({
   name: z.string().min(1).max(100),
   startDate: z.coerce.date(),
   endDate: z.coerce.date(),
   personnel: z.coerce.number().int().min(1).max(50).default(1),
   participants: z.array(tripParticipantInputSchema).max(50).optional(),
+  tags: z.array(z.enum(tripCategories)).max(tripCategories.length).optional(),
 });
 
 export const tripVisibilities = ["PRIVATE", "UNLISTED", "PUBLIC"] as const;
@@ -42,6 +45,7 @@ export const sharedTripsQuerySchema = z.object({
   q: z.string().max(100).optional(),
   cursor: z.coerce.number().int().min(0).default(0),
   userId: z.string().optional(),
+  tag: z.enum(tripCategories).optional(),
 });
 
 export const userSearchQuerySchema = z.object({

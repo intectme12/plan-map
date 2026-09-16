@@ -10,12 +10,13 @@ export async function GET(request: Request) {
     if (!user) return unauthorized();
 
     const { searchParams } = new URL(request.url);
-    const { q, cursor, userId } = sharedTripsQuerySchema.parse({
+    const { q, cursor, userId, tag } = sharedTripsQuerySchema.parse({
       q: searchParams.get("q") ?? undefined,
       cursor: searchParams.get("cursor") ?? undefined,
       userId: searchParams.get("userId") ?? undefined,
+      tag: searchParams.get("tag") ?? undefined,
     });
-    const trips = await listSharedTrips(q, cursor, userId, user.id);
+    const trips = await listSharedTrips(q, cursor, userId, user.id, tag);
     return NextResponse.json(trips);
   } catch (err) {
     return handleRouteError(err);

@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getTrip } from "@/lib/services/trips";
+import { recordTripView } from "@/lib/services/tripViews";
 import { TripWorkspace } from "./TripWorkspace";
 
 export default async function TripDetailPage({
@@ -20,6 +21,8 @@ export default async function TripDetailPage({
 
   const trip = await getTrip(user.id, tripId);
   if (!trip) notFound();
+
+  await recordTripView(user.id, tripId);
 
   return (
     <TripWorkspace

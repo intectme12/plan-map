@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { type SharedTripCardData } from "./SharedTripCard";
 import { TripGridCard } from "./TripGridCard";
 
 const PAGE_SIZE = 20;
 
 export function SharedTripBrowser() {
-  const [q, setQ] = useState("");
+  const searchParams = useSearchParams();
+  // 홈 화면 검색창에서 `/trips?tab=shared&q=...`로 넘어온 경우 그 검색어로 바로 시작한다.
+  const [q, setQ] = useState(() => searchParams.get("q") ?? "");
   const [trips, setTrips] = useState<SharedTripCardData[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
