@@ -31,7 +31,13 @@ function gradientFor(id: string) {
   return PLACEHOLDER_GRADIENTS[Math.abs(hash) % PLACEHOLDER_GRADIENTS.length];
 }
 
-export function DestinationCard({ trip }: { trip: DestinationCardData }) {
+export function DestinationCard({
+  trip,
+  viewerLoggedIn = true,
+}: {
+  trip: DestinationCardData;
+  viewerLoggedIn?: boolean;
+}) {
   return (
     <Link
       href={`/trips/shared/${trip.id}`}
@@ -58,12 +64,19 @@ export function DestinationCard({ trip }: { trip: DestinationCardData }) {
           <span className="rounded-full bg-black/50 px-2.5 py-1 text-xs font-medium text-white backdrop-blur">
             📍 {trip.name}
           </span>
-          <LikeButton
-            tripId={trip.id}
-            initialLiked={trip.likedByMe}
-            initialCount={trip.likeCount}
-            className="flex items-center gap-1 rounded-full bg-black/40 px-2 py-1 text-xs text-white backdrop-blur"
-          />
+          {viewerLoggedIn ? (
+            <LikeButton
+              tripId={trip.id}
+              initialLiked={trip.likedByMe}
+              initialCount={trip.likeCount}
+              className="flex items-center gap-1 rounded-full bg-black/40 px-2 py-1 text-xs text-white backdrop-blur"
+            />
+          ) : (
+            <span className="flex items-center gap-1 rounded-full bg-black/40 px-2 py-1 text-xs text-white backdrop-blur">
+              <span aria-hidden>♡</span>
+              <span>{trip.likeCount}</span>
+            </span>
+          )}
         </div>
       </div>
 

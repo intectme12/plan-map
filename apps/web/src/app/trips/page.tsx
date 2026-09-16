@@ -26,7 +26,7 @@ export default async function TripsPage({
   searchParams: Promise<{ sort?: string }>;
 }) {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/");
 
   const { sort: rawSort } = await searchParams;
   const sort: TripSortOption = tripSortOptions.includes(rawSort as TripSortOption)

@@ -15,7 +15,7 @@ export default async function UserProfilePage({
   params: Promise<{ nickname: string }>;
 }) {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/");
 
   const { nickname: rawNickname } = await params;
   // Next.js가 [nickname] 동적 세그먼트의 비-ASCII(한글 등) 값을 percent-encoding된 상태 그대로 넘겨줘서 직접 디코딩해야 한다.

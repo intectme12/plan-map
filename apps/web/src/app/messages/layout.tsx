@@ -6,7 +6,7 @@ import { ConversationListPane } from "./ConversationListPane";
 
 export default async function MessagesLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/");
 
   const conversations = await listConversations(user.id);
 

@@ -9,7 +9,7 @@ export default async function ConversationPage({
   params: Promise<{ conversationId: string }>;
 }) {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/");
 
   const { conversationId } = await params;
   const conversation = await getConversationSummary(user.id, conversationId);

@@ -276,7 +276,7 @@ export async function listSharedTrips(
 
 // 홈 화면 "추천 여행지" 그리드용 — listSharedTrips(다른 사람 여행계획 탭)와 달리 최신순이 아니라
 // 좋아요 많은 순으로 정렬해서 "지금 가장 인기 있는 여행지"를 보여준다. 기존 탭 정렬은 건드리지 않기 위해 별도 함수로 둔다.
-export async function listPopularSharedTrips(tag: string | undefined, viewerUserId: string, limit = 8) {
+export async function listPopularSharedTrips(tag: string | undefined, viewerUserId: string | undefined, limit = 8) {
   const trips = await prisma.trip.findMany({
     where: {
       visibility: "PUBLIC",

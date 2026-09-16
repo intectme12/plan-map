@@ -10,7 +10,7 @@ import { KakaoMapCanvas } from "@/components/map/KakaoMapCanvas";
 
 export default async function SavedPlacesPage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/");
 
   const [conversations, unreadNotificationCount, featuredTrip, places] = await Promise.all([
     listConversations(user.id),

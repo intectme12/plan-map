@@ -12,7 +12,7 @@ export default async function TripDetailPage({
   searchParams: Promise<{ tab?: string }>;
 }) {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/");
 
   const { tripId } = await params;
   const { tab } = await searchParams;

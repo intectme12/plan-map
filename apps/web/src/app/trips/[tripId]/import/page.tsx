@@ -10,7 +10,7 @@ export default async function AiImportPage({
   params: Promise<{ tripId: string }>;
 }) {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/");
 
   const { tripId } = await params;
   const trip = await getTrip(user.id, tripId);

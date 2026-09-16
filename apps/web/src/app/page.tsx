@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { listConversations } from "@/lib/services/conversations";
 import { countUnreadNotifications } from "@/lib/services/notifications";
@@ -7,13 +6,17 @@ import { todaysDestination } from "@/lib/destinations";
 import { fetchCurrentWeather } from "@/lib/weather";
 import { tripCategories } from "@/lib/validation";
 import { HomeHeader } from "@/components/home/HomeHeader";
+import { GuestHomeHeader } from "@/components/home/GuestHomeHeader";
 import { HomeHero } from "@/components/home/HomeHero";
+import { GuestHeroSearchBox } from "@/components/home/GuestHeroSearchBox";
 import { CategoryNav } from "@/components/home/CategoryNav";
 import { RecommendedDestinations } from "@/components/home/RecommendedDestinations";
 import { MyTripsPanel } from "@/components/home/MyTripsPanel";
 import { QuickStartCards } from "@/components/home/QuickStartCards";
 import { RecentlyViewed } from "@/components/home/RecentlyViewed";
 import { AIPlanCTA } from "@/components/home/AIPlanCTA";
+import { GuestAIPlanButton } from "@/components/home/GuestAIPlanButton";
+import { LoginPopupProvider } from "@/components/auth/LoginPopupContext";
 
 export default async function HomePage({
   searchParams,
@@ -21,7 +24,6 @@ export default async function HomePage({
   searchParams: Promise<{ category?: string }>;
 }) {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
 
   const { category: rawCategory } = await searchParams;
   const category = tripCategories.includes(rawCategory as (typeof tripCategories)[number])
@@ -29,6 +31,36 @@ export default async function HomePage({
     : undefined;
 
   const destination = todaysDestination();
+
+  if (!user) {
+    const [topTrips, weather] = await Promise.all([
+      listPopularSharedTrips(undefined, undefined, 1),
+      fetchCurrentWeather(destination.lat, destination.lng),
+    ]);
+
+    return (
+      <LoginPopupProvider>
+        <main className="min-h-screen bg-slate-50">
+          <GuestHomeHeader />
+
+          <div className="mx-auto max-w-[1440px] px-4 pb-16 sm:px-6">
+            <HomeHero
+              destination={destination}
+              weather={weather}
+              heroImageUrl={topTrips[0]?.coverPhotoKey ?? null}
+              searchBox={<GuestHeroSearchBox />}
+            />
+
+            <CategoryNav active={category} />
+
+            <RecommendedDestinations category={category} />
+
+            <AIPlanCTA cta={<GuestAIPlanButton />} />
+          </div>
+        </main>
+      </LoginPopupProvider>
+    );
+  }
 
   const [conversations, unreadNotificationCount, featuredTrip, topTrips, weather] = await Promise.all([
     listConversations(user.id),

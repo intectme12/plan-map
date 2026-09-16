@@ -1,7 +1,13 @@
 import { listPopularSharedTrips } from "@/lib/services/trips";
 import { DestinationCard } from "./DestinationCard";
 
-export async function RecommendedDestinations({ userId, category }: { userId: string; category?: string }) {
+export async function RecommendedDestinations({
+  userId,
+  category,
+}: {
+  userId?: string;
+  category?: string;
+}) {
   const trips = await listPopularSharedTrips(category, userId, 8);
 
   return (
@@ -20,7 +26,7 @@ export async function RecommendedDestinations({ userId, category }: { userId: st
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {trips.map((trip) => (
-            <DestinationCard key={trip.id} trip={trip} />
+            <DestinationCard key={trip.id} trip={trip} viewerLoggedIn={!!userId} />
           ))}
         </div>
       )}

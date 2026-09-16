@@ -5,7 +5,7 @@ import { AccountForm } from "./AccountForm";
 
 export default async function AccountPage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/");
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col gap-6 px-4 py-8">

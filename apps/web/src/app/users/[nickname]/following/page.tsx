@@ -11,7 +11,7 @@ export default async function FollowingPage({
   params: Promise<{ nickname: string }>;
 }) {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/");
 
   const { nickname: rawNickname } = await params;
   const nickname = decodeURIComponent(rawNickname);

@@ -30,7 +30,7 @@ function notificationHref(n: NotificationItem) {
 
 export default async function NotificationsPage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/");
 
   const notifications = await listNotifications(user.id, 0);
   await markAllNotificationsRead(user.id);

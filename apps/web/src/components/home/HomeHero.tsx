@@ -11,10 +11,12 @@ export function HomeHero({
   destination,
   weather,
   heroImageUrl,
+  searchBox,
 }: {
   destination: CuratedDestination;
   weather: WeatherSummary | null;
   heroImageUrl?: string | null;
+  searchBox?: React.ReactNode;
 }) {
   return (
     <section className="relative mt-6 overflow-hidden rounded-3xl">
@@ -40,24 +42,26 @@ export function HomeHero({
           AI가 제안하는 나만의 여행 계획
         </p>
 
-        <form action="/trips" method="GET" className="mt-8 flex w-full max-w-xl">
-          <input type="hidden" name="tab" value="shared" />
-          <div className="flex w-full items-center gap-2 rounded-2xl bg-white p-1.5 pl-4 shadow-lg">
-            <Search className="h-5 w-5 flex-none text-neutral-400" />
-            <input
-              name="q"
-              placeholder="어디로 여행을 떠나고 싶으세요?"
-              className="min-w-0 flex-1 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
-            />
-            <button
-              type="submit"
-              aria-label="검색"
-              className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-blue-600 text-white hover:bg-blue-700"
-            >
-              <Search className="h-4 w-4" />
-            </button>
-          </div>
-        </form>
+        {searchBox ?? (
+          <form action="/trips" method="GET" className="mt-8 flex w-full max-w-xl">
+            <input type="hidden" name="tab" value="shared" />
+            <div className="flex w-full items-center gap-2 rounded-2xl bg-white p-1.5 pl-4 shadow-lg">
+              <Search className="h-5 w-5 flex-none text-neutral-400" />
+              <input
+                name="q"
+                placeholder="어디로 여행을 떠나고 싶으세요?"
+                className="min-w-0 flex-1 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
+              />
+              <button
+                type="submit"
+                aria-label="검색"
+                className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-blue-600 text-white hover:bg-blue-700"
+              >
+                <Search className="h-4 w-4" />
+              </button>
+            </div>
+          </form>
+        )}
 
         <div className="mt-8 w-full max-w-[220px] rounded-2xl bg-white/90 p-4 shadow-lg backdrop-blur lg:absolute lg:top-10 lg:right-10 lg:mt-0">
           <p className="flex items-center gap-1 text-xs font-medium text-neutral-500">
