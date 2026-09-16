@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 
-type NavLink = { label: string; href: string };
+export type HomeNavActive = "home" | "trips" | "saved";
+
+type NavLink = { key?: HomeNavActive; label: string; href: string };
 
 function NavLinkItem({ link, active, onClick }: { link: NavLink; active?: boolean; onClick?: () => void }) {
   return (
@@ -20,47 +22,32 @@ function NavLinkItem({ link, active, onClick }: { link: NavLink; active?: boolea
   );
 }
 
-// "저장한 장소"는 아직 실제 기능(찜한 장소 저장)이 없어서, 다른 메뉴처럼 페이지로 보내는 대신
-// 클릭 시 준비중 안내만 보여준다 — 없는 페이지를 새로 만들어 채우지 않기 위한 임시 처리.
-function SavedPlacesItem({ mobile }: { mobile?: boolean }) {
-  const [hint, setHint] = useState(false);
-  return (
-    <span className="relative inline-block">
-      <button
-        type="button"
-        onClick={() => setHint((v) => !v)}
-        className={`text-sm font-medium text-neutral-400 ${mobile ? "" : "cursor-default"}`}
-      >
-        저장한 장소
-      </button>
-      {hint ? (
-        <span className="absolute left-1/2 top-full z-30 mt-1.5 w-max -translate-x-1/2 rounded-md bg-neutral-900 px-2 py-1 text-[11px] whitespace-nowrap text-white shadow-lg">
-          준비 중인 기능이에요
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
-export function HomeTopNav({ mapHref, aiPlanHref }: { mapHref: string; aiPlanHref: string }) {
+export function HomeTopNav({
+  active,
+  mapHref,
+  aiPlanHref,
+}: {
+  active: HomeNavActive;
+  mapHref: string;
+  aiPlanHref: string;
+}) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const links: NavLink[] = [
     { label: "지도", href: mapHref },
     { label: "둘러보기", href: "/trips?tab=shared" },
-    { label: "내 여행계획", href: "/trips" },
+    { key: "trips", label: "내 여행계획", href: "/trips" },
+    { key: "saved", label: "저장한 장소", href: "/saved-places" },
+    { label: "AI 여행계획", href: aiPlanHref },
   ];
-  const aiLink: NavLink = { label: "AI 여행계획", href: aiPlanHref };
 
   return (
     <>
       <nav className="hidden items-center gap-6 md:flex">
-        <NavLinkItem link={{ label: "홈", href: "/" }} active />
+        <NavLinkItem link={{ key: "home", label: "홈", href: "/" }} active={active === "home"} />
         {links.map((link) => (
-          <NavLinkItem key={link.label} link={link} />
+          <NavLinkItem key={link.label} link={link} active={link.key ? active === link.key : false} />
         ))}
-        <SavedPlacesItem />
-        <NavLinkItem link={aiLink} />
       </nav>
 
       <button
@@ -77,7 +64,9 @@ export function HomeTopNav({ mapHref, aiPlanHref }: { mapHref: string; aiPlanHre
           <Link
             href="/"
             onClick={() => setMobileOpen(false)}
-            className="rounded-md px-2 py-2.5 text-sm font-medium text-blue-600"
+            className={`rounded-md px-2 py-2.5 text-sm font-medium ${
+              active === "home" ? "text-blue-600" : "text-neutral-700 hover:bg-neutral-50"
+            }`}
           >
             홈
           </Link>
@@ -86,21 +75,13 @@ export function HomeTopNav({ mapHref, aiPlanHref }: { mapHref: string; aiPlanHre
               key={link.label}
               href={link.href}
               onClick={() => setMobileOpen(false)}
-              className="rounded-md px-2 py-2.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              className={`rounded-md px-2 py-2.5 text-sm font-medium ${
+                link.key && active === link.key ? "text-blue-600" : "text-neutral-700 hover:bg-neutral-50"
+              }`}
             >
               {link.label}
             </Link>
           ))}
-          <div className="px-2 py-2.5">
-            <SavedPlacesItem mobile />
-          </div>
-          <Link
-            href={aiLink.href}
-            onClick={() => setMobileOpen(false)}
-            className="rounded-md px-2 py-2.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-          >
-            {aiLink.label}
-          </Link>
         </div>
       ) : null}
     </>

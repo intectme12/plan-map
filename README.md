@@ -684,6 +684,21 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - [trips/page.tsx](apps/web/src/app/trips/page.tsx): 헤더 첫 줄을 `justify-end` → `justify-between`으로 바꾸고 좌측에 "← 홈" 링크, 우측 그룹(관리자/알림/메시지/로그아웃)은 별도 `div`로 묶음
 - `tsc`/`eslint` 통과. 테스트 계정으로 `/trips` 진입 → "← 홈" 링크가 `/`로 걸린 것 확인 후 테스트 계정 삭제
 
+**완료 (2026-09-16, `/trips`를 홈과 같은 톤의 "내 여행계획" 대시보드로 리뉴얼)**
+
+사용자가 홈 화면 톤에 맞춘 `/trips` 목업 이미지를 제공하며 동일한 구성으로 바꿔달라고 요청. 스키마 변경 없이(찜 기능 새로 안 만들고 기존 `PlaceEntry`를 재활용) 아래처럼 구현했다 — 사전에 범위를 확인해 "저장한 장소/방문한 지역 통계 구현", "카드 '...' 메뉴 구현", "상단 네비 /trips까지 확장"을 전부 이번에 포함하기로 함.
+
+- **네비 확장**: `HomeTopNav`/`HomeHeader`에 `active` prop 추가(home/trips/saved) — 지난 세션엔 홈에만 적용했던 네비를 `/trips`·`/saved-places`에도 재사용. "저장한 장소"는 더 이상 "준비중" 안내가 아니라 실제 링크로 전환
+- **프로필 히어로**: [TripsProfileHero.tsx](apps/web/src/app/trips/TripsProfileHero.tsx) 신규 — 기존 아바타/바이오/팔로워 정보를 홈 Hero와 같은 배경 이미지 카드로 재구성(배경은 내 트립 대표사진 있으면 사용, 없으면 그라디언트 — 외부 스톡 이미지 사용 안 함)
+- **여행 카드**: [MyTripCard.tsx](apps/web/src/app/trips/MyTripCard.tsx) 신규(홈의 `DestinationCard`와 같은 이미지 우선 톤) + [TripCardMenu.tsx](apps/web/src/app/trips/TripCardMenu.tsx)의 "..." 메뉴 — "수정·공유·공개범위"는 새로 안 만들고 트립 상세에서 이미 검증된 `TripMetaEditor`(이름수정+`ShareLinkModal`+공개범위 토글 전부 포함)를 모달에 그대로 재사용, "삭제"만 기존 실행취소 토스트 로직 재사용. `TripCreateForm`도 인라인 확장 폼 대신 그리드 안의 카드형 CTA로 바꾸고 폼은 `Modal`로 감쌈
+- **정렬**: `listTrips(userId, sort)`에 최신순/오래된순/이름순 추가, [TripSortSelect.tsx](apps/web/src/app/trips/TripSortSelect.tsx)가 `/trips?sort=`로 반영
+- **여행 통계**: `getTravelStats()` 신규 — "저장한 장소"는 별도 찜 기능이 아니라 내 모든 트립의 `PlaceEntry` 총합, "방문한 지역"은 장소 주소 첫 토큰(시/도)의 distinct 개수로 계산(휴리스틱, 스키마 변경 없음)
+- **내 여행 지도**: `getMapOverviewForUser()`로 내 모든 트립의 장소를 한 지도에 합쳐 [AllTripsMapWidget.tsx](apps/web/src/app/trips/AllTripsMapWidget.tsx)에 표시(홈의 "가장 가까운 여행 하나만" 위젯과 다른 신규 집계) — `KakaoMapCanvas`는 그대로 재사용
+- **/saved-places 신규 페이지**: `listAllPlacesForUser()`로 내 모든 장소를 트립별로 묶어 지도+목록으로 보여줌 — 네비의 "저장한 장소"가 실제로 가는 곳이 됨
+- **범위 유지**: "다른 사람 여행계획/팔로잉 피드/나에게 공유됨/회원검색" 4개 탭은 기존 `TripGridCard`/브라우저 컴포넌트 그대로 안 건드림(요청 범위가 "내 여행계획" 섹션이라 다른 탭 스타일 변경은 하지 않음). 이제 안 쓰는 `TripList.tsx`는 삭제
+- 모바일 확인 중 탭 줄("내 여행계획/다른 사람 여행계획/...")이 좁은 화면에서 글자 단위로 줄바꿈되는 걸 발견 → 가로 스크롤(`overflow-x-auto whitespace-nowrap`)로 수정(CategoryNav와 동일 패턴)
+- `tsc`/`eslint` 전체 통과. 테스트 계정으로 브라우저 E2E: 빈 상태(0/0/0 통계, 지도 없음) 확인 → `#맛집` 태그로 여행 생성 + 장소(경복궁) 추가 + 전체공개 전환 → 카드에 태그/좋아요/작성자/상대시각/장소수/기간 전부 정상 표시, 통계가 1/1/1로 즉시 반영, 내 여행 지도에 실제 마커로 뜨는 것, `/saved-places`에 트립별로 묶여 나오는 것까지 확인 → 카드 "..." 메뉴에서 `TripMetaEditor`가 정상 오픈되는 것, "삭제" 클릭 시 그리드에서 즉시 사라지고(낙관적 갱신) 5초 뒤 실제 `DELETE` 요청이 나가는 것(네트워크 로그로 확인) → "다른 사람 여행계획" 탭이 기존 그대로 동작하는 것, 모바일(375px)에서 탭이 가로 스크롤되는 것까지 확인. 테스트 계정 2개는 정리 완료
+
 **다음 세션 할 일**
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음
 - **(중요)** 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`)가 스키마를 바꿀 때마다(이번까지 4세션 연속) `migrate dev` 리셋 요구로 이어짐 — 매번 `migrate diff`/`db push` + 손으로 마이그레이션 작성 + `migrate resolve`로 우회하고 있지만 언제까지나 반복할 방식은 아님. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나(체크섬 재계산), 이 우회를 앞으로도 정식 절차로 문서화할지 다음 세션에서 결정 필요

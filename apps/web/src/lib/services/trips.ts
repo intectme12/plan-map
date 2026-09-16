@@ -33,11 +33,79 @@ const likesInclude = (viewerUserId: string | undefined) => ({
   likes: { where: { userId: viewerUserId ?? "" }, select: { id: true } },
 });
 
-export function listTrips(userId: string) {
-  return prisma.trip.findMany({
+export const tripSortOptions = ["latest", "oldest", "name"] as const;
+export type TripSortOption = (typeof tripSortOptions)[number];
+
+const TRIP_SORT_ORDER_BY: Record<TripSortOption, { startDate?: "asc" | "desc"; name?: "asc" }> = {
+  latest: { startDate: "desc" },
+  oldest: { startDate: "asc" },
+  name: { name: "asc" },
+};
+
+export async function listTrips(userId: string, sort: TripSortOption = "latest") {
+  const trips = await prisma.trip.findMany({
     where: { userId },
-    orderBy: { startDate: "desc" },
-    include: { _count: { select: { places: true } } },
+    orderBy: TRIP_SORT_ORDER_BY[sort],
+    include: { ...likesInclude(userId), _count: { select: { places: true, likes: true } } },
+  });
+  return trips.map(withLikeInfo);
+}
+
+// 홈/트립 목록 사이드바의 "빠른 시작"·"AI 여행계획" 링크가 참조할 대표 트립을 고르는 것과
+// 별개로, "여행 통계"(내 여행계획/저장한 장소/방문한 지역) 카드용 집계.
+// "저장한 장소"는 별도 찜 기능이 아니라 내가 여행에 담아둔 장소(PlaceEntry) 총합이고,
+// "방문한 지역"은 장소 주소의 첫 토큰(시/도 단위)을 지역으로 보고 distinct 개수를 센다.
+export async function getTravelStats(userId: string) {
+  const [tripCount, places] = await Promise.all([
+    prisma.trip.count({ where: { userId } }),
+    prisma.placeEntry.findMany({
+      where: { trip: { userId } },
+      select: { address: true, roadAddress: true },
+    }),
+  ]);
+
+  const regions = new Set(
+    places
+      .map((p) => (p.address ?? p.roadAddress ?? "").trim().split(/\s+/)[0])
+      .filter(Boolean)
+  );
+
+  return { tripCount, savedPlaceCount: places.length, visitedRegionCount: regions.size };
+}
+
+// 홈 지도 위젯("가장 가까운 여행 하나")과 달리, /trips의 "내 여행 지도"는 내 모든 여행의
+// 장소를 한 지도에 함께 보여준다 — 마커 팝업 카테고리 자리에 트립 이름을 넣어 구분한다.
+export async function getMapOverviewForUser(userId: string) {
+  const trips = await prisma.trip.findMany({
+    where: { userId },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, name: true, places: { select: { id: true, name: true, lat: true, lng: true } } },
+  });
+
+  const points = trips.flatMap((trip) =>
+    trip.places.map((place) => ({ ...place, category: trip.name }))
+  );
+
+  return { points, tripCount: trips.length, placeCount: points.length };
+}
+
+// /saved-places — 내 모든 여행에 담긴 장소를 트립별로 묶어 하나의 목록으로 보여준다.
+// 별도 찜(북마크) 테이블이 아니라 기존 PlaceEntry를 재활용(위 getTravelStats의 "저장한 장소"와 동일 집계 기준).
+export function listAllPlacesForUser(userId: string) {
+  return prisma.placeEntry.findMany({
+    where: { trip: { userId } },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      name: true,
+      lat: true,
+      lng: true,
+      address: true,
+      roadAddress: true,
+      category: true,
+      createdAt: true,
+      trip: { select: { id: true, name: true } },
+    },
   });
 }
 

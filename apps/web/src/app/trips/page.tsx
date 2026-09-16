@@ -1,77 +1,101 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser, isAdmin } from "@/lib/auth";
-import { listTrips } from "@/lib/services/trips";
+import {
+  listTrips,
+  getFeaturedTripForHome,
+  getTravelStats,
+  getMapOverviewForUser,
+  tripSortOptions,
+  type TripSortOption,
+} from "@/lib/services/trips";
 import { listConversations } from "@/lib/services/conversations";
-import { getPublicProfile } from "@/lib/services/users";
 import { getFollowState } from "@/lib/services/follows";
 import { countUnreadNotifications } from "@/lib/services/notifications";
-import { EditableAvatar } from "@/components/EditableAvatar";
-import { LogoutButton } from "@/components/LogoutButton";
-import { MessageNavLink } from "@/components/MessageNavLink";
-import { NotificationNavLink } from "@/components/NotificationNavLink";
+import { HomeHeader } from "@/components/home/HomeHeader";
+import { RecentlyViewed } from "@/components/home/RecentlyViewed";
+import { QuickStartCards } from "@/components/home/QuickStartCards";
+import { AIPlanCTA } from "@/components/home/AIPlanCTA";
+import { TripsProfileHero } from "./TripsProfileHero";
 import { TripsTabs } from "./TripsTabs";
+import { TravelStatsCard } from "./TravelStatsCard";
+import { AllTripsMapWidget } from "./AllTripsMapWidget";
 
-export default async function TripsPage() {
+export default async function TripsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sort?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [trips, conversations, profile, followState, unreadNotificationCount] = await Promise.all([
-    listTrips(user.id),
-    listConversations(user.id),
-    getPublicProfile(user.nickname),
-    getFollowState(user.id, user.id),
-    countUnreadNotifications(user.id),
-  ]);
-  const unreadCount = conversations.filter((c) => c.unread).length;
+  const { sort: rawSort } = await searchParams;
+  const sort: TripSortOption = tripSortOptions.includes(rawSort as TripSortOption)
+    ? (rawSort as TripSortOption)
+    : "latest";
+
+  const [trips, conversations, followState, unreadNotificationCount, featuredTrip, stats, mapOverview] =
+    await Promise.all([
+      listTrips(user.id, sort),
+      listConversations(user.id),
+      getFollowState(user.id, user.id),
+      countUnreadNotifications(user.id),
+      getFeaturedTripForHome(user.id),
+      getTravelStats(user.id),
+      getMapOverviewForUser(user.id),
+    ]);
+  const unreadMessageCount = conversations.filter((c) => c.unread).length;
+  const mapHref = featuredTrip ? `/trips/${featuredTrip.id}` : "/trips";
+  const aiPlanHref = featuredTrip ? `/trips/${featuredTrip.id}/import` : "/trips";
+  const heroBackground = trips.find((t) => t.coverPhotoKey)?.coverPhotoKey ?? null;
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 px-4 py-8">
-      <div className="flex items-center justify-between gap-2">
-        <Link
-          href="/"
-          className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50"
-        >
-          ← 홈
-        </Link>
-        <div className="flex items-center gap-2">
-          {isAdmin(user) ? (
-            <Link
-              href="/admin"
-              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50"
-            >
-              관리자
-            </Link>
-          ) : null}
-          <NotificationNavLink initialUnreadCount={unreadNotificationCount} />
-          <MessageNavLink currentUserId={user.id} initialUnreadCount={unreadCount} />
-          <LogoutButton />
-        </div>
+    <main className="min-h-screen bg-slate-50">
+      <HomeHeader
+        active="trips"
+        nickname={user.nickname}
+        avatarUrl={user.avatarUrl}
+        isAdmin={isAdmin(user)}
+        unreadNotificationCount={unreadNotificationCount}
+        unreadMessageCount={unreadMessageCount}
+        currentUserId={user.id}
+        mapHref={mapHref}
+        aiPlanHref={aiPlanHref}
+      />
+
+      <div className="mx-auto max-w-[1440px] px-4 pb-16 sm:px-6">
+        <TripsProfileHero
+          nickname={user.nickname}
+          avatarUrl={user.avatarUrl}
+          bio={user.bio}
+          followerCount={followState.followerCount}
+          followingCount={followState.followingCount}
+          backgroundImageUrl={heroBackground}
+        />
+
+        <TripsTabs
+          trips={trips}
+          sort={sort}
+          nickname={user.nickname}
+          avatarUrl={user.avatarUrl}
+          aiBanner={<AIPlanCTA href={aiPlanHref} />}
+          sidebar={
+            <>
+              <TravelStatsCard
+                tripCount={stats.tripCount}
+                savedPlaceCount={stats.savedPlaceCount}
+                visitedRegionCount={stats.visitedRegionCount}
+              />
+              <QuickStartCards mapHref={mapHref} aiPlanHref={aiPlanHref} />
+              <AllTripsMapWidget
+                points={mapOverview.points}
+                tripCount={mapOverview.tripCount}
+                placeCount={mapOverview.placeCount}
+              />
+              <RecentlyViewed userId={user.id} />
+            </>
+          }
+        />
       </div>
-
-      <header className="flex items-center gap-4">
-        <EditableAvatar url={profile?.avatarUrl ?? null} nickname={user.nickname} size={72} />
-        <div>
-          <h1 className="text-xl font-bold">{user.nickname}</h1>
-          {profile?.bio ? <p className="text-sm text-neutral-600">{profile.bio}</p> : null}
-          <p className="mt-1 flex gap-3 text-sm">
-            <Link href={`/users/${user.nickname}/followers`} className="hover:underline">
-              팔로워 <span className="font-semibold">{followState.followerCount}</span>
-            </Link>
-            <Link href={`/users/${user.nickname}/following`} className="hover:underline">
-              팔로잉 <span className="font-semibold">{followState.followingCount}</span>
-            </Link>
-          </p>
-        </div>
-        <Link
-          href="/account"
-          className="ml-auto flex-none rounded-md border border-neutral-300 px-3 py-1.5 text-xs text-neutral-600 hover:bg-neutral-50"
-        >
-          프로필 편집
-        </Link>
-      </header>
-
-      <TripsTabs trips={trips} />
     </main>
   );
 }

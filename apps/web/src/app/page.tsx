@@ -45,6 +45,7 @@ export default async function HomePage({
   return (
     <main className="min-h-screen bg-slate-50">
       <HomeHeader
+        active="home"
         nickname={user.nickname}
         avatarUrl={user.avatarUrl}
         isAdmin={user.role === "ADMIN"}

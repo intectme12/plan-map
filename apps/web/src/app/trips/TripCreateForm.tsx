@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Sparkles } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/Modal";
 import { tripCategories } from "@/lib/validation";
 
 type UserResult = { id: string; nickname: string; bio: string | null; avatarUrl: string | null };
@@ -100,16 +102,23 @@ export function TripCreateForm() {
 
   if (!open) {
     return (
-      <Button onClick={() => setOpen(true)} className="h-auto rounded-md px-4 py-2 text-sm font-semibold">
-        새 여행 만들기
-      </Button>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/40 text-blue-600 transition-colors hover:border-blue-400 hover:bg-blue-50"
+      >
+        <Sparkles className="h-6 w-6" />
+        <span className="text-sm font-semibold">새 여행 만들기</span>
+        <span className="text-xs text-blue-400">AI가 추천하는 나만의 여행 코스</span>
+      </button>
     );
   }
 
   return (
+    <Modal onClose={() => setOpen(false)} title="새 여행 만들기" scrollable>
     <form
       onSubmit={onSubmit}
-      className="flex flex-col gap-3 rounded-lg border border-neutral-200 p-4"
+      className="flex flex-col gap-3"
     >
       <input
         required
@@ -268,5 +277,6 @@ export function TripCreateForm() {
         </Button>
       </div>
     </form>
+    </Modal>
   );
 }
