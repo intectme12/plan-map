@@ -27,18 +27,26 @@ export default async function TripsPage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 px-4 py-8">
-      <div className="flex items-center justify-end gap-2">
-        {isAdmin(user) ? (
-          <Link
-            href="/admin"
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50"
-          >
-            관리자
-          </Link>
-        ) : null}
-        <NotificationNavLink initialUnreadCount={unreadNotificationCount} />
-        <MessageNavLink currentUserId={user.id} initialUnreadCount={unreadCount} />
-        <LogoutButton />
+      <div className="flex items-center justify-between gap-2">
+        <Link
+          href="/"
+          className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50"
+        >
+          ← 홈
+        </Link>
+        <div className="flex items-center gap-2">
+          {isAdmin(user) ? (
+            <Link
+              href="/admin"
+              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50"
+            >
+              관리자
+            </Link>
+          ) : null}
+          <NotificationNavLink initialUnreadCount={unreadNotificationCount} />
+          <MessageNavLink currentUserId={user.id} initialUnreadCount={unreadCount} />
+          <LogoutButton />
+        </div>
       </div>
 
       <header className="flex items-center gap-4">
