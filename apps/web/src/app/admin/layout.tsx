@@ -5,7 +5,7 @@ import { getCurrentUser, isAdmin } from "@/lib/auth";
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (!isAdmin(user)) redirect("/trips");
+  if (!isAdmin(user)) redirect("/");
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-5xl gap-6 px-4 py-8">
@@ -18,10 +18,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           공지사항
         </Link>
         <Link
-          href="/trips"
+          href="/"
           className="mt-4 rounded-md px-3 py-2 text-neutral-500 hover:bg-neutral-100"
         >
-          ← 대시보드
+          ← 홈
         </Link>
       </nav>
       <main className="flex-1">{children}</main>

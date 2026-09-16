@@ -666,6 +666,17 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - [OAuthButtons.tsx](apps/web/src/components/OAuthButtons.tsx): 카카오/구글/네이버 로그인의 `callbackURL: "/trips"` → `"/"`
 - 클라이언트 컴포넌트의 리다이렉트 목적지 문자열만 바꾼 것이라 서버 재시작 불필요(Fast Refresh로 바로 반영). `tsc`/`eslint` 통과 확인
 
+**후속 요청(같은 세션, 2026-09-16) — "/trips로 연결된 것들 전부 바꿔줘, 계속 잘못 이동되네"**
+
+로그인/회원가입/OAuth 목적지만 고쳤더니, 부가 화면(알림/메시지/내정보/관리자)에 남아있던 "← 대시보드"/"여행계획으로"/"← 내 여행계획" 같은 **범용 "뒤로가기" 링크**가 여전히 옛 허브였던 `/trips`를 가리키고 있어 계속 엉뚱한 곳으로 이동했다. `/trips`를 쓰는 곳 전체를 grep해서 하나씩 "이 링크가 가리키는 게 트립 목록 기능 자체인지, 아니면 그냥 '메인으로 돌아가기'인지" 구분한 뒤 후자만 고쳤다:
+
+- [notifications/page.tsx](apps/web/src/app/notifications/page.tsx) "← 내 여행계획" → "← 홈"(`/`)
+- [messages/layout.tsx](apps/web/src/app/messages/layout.tsx) "여행계획으로" → "홈으로"(`/`)
+- [account/page.tsx](apps/web/src/app/account/page.tsx) "← 대시보드" → "← 홈"(`/`)
+- [admin/layout.tsx](apps/web/src/app/admin/layout.tsx) 관리자 아닌 사용자 접근 시 리다이렉트, "← 대시보드" 링크 모두 `/`로 변경
+- 반대로 **그대로 둔 것**: 홈 화면의 "내 여행계획" 네비/빠른시작/전체보기, `TripWorkspace.tsx`의 "← 내 여행계획"(트립 상세에서 트립 목록으로) — 이것들은 실제로 트립 목록 기능을 가리키는 게 맞아서 유지
+- `tsc`/`eslint` 통과. 테스트 계정으로 회원가입 직후 홈 진입, `/account`·`/notifications`·`/messages`의 뒤로가기 링크가 전부 `/`로 걸린 것, 관리자 아닌 계정으로 `/admin` 접근 시 홈으로 리다이렉트되는 것까지 확인 후 테스트 계정 삭제
+
 **다음 세션 할 일**
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음
 - **(중요)** 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`)가 스키마를 바꿀 때마다(이번까지 4세션 연속) `migrate dev` 리셋 요구로 이어짐 — 매번 `migrate diff`/`db push` + 손으로 마이그레이션 작성 + `migrate resolve`로 우회하고 있지만 언제까지나 반복할 방식은 아님. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나(체크섬 재계산), 이 우회를 앞으로도 정식 절차로 문서화할지 다음 세션에서 결정 필요

@@ -37,8 +37,8 @@ export default async function NotificationsPage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-lg flex-col gap-4 px-4 py-8">
-      <Link href="/trips" className="text-sm text-neutral-500 hover:underline">
-        ← 내 여행계획
+      <Link href="/" className="text-sm text-neutral-500 hover:underline">
+        ← 홈
       </Link>
 
       <h1 className="text-xl font-bold">알림</h1>

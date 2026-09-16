@@ -15,8 +15,8 @@ export default async function MessagesLayout({ children }: { children: React.Rea
       <aside className="flex w-full max-w-xs flex-none flex-col border-r border-neutral-200">
         <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
           <h1 className="text-lg font-bold">메시지</h1>
-          <Link href="/trips" className="text-sm text-neutral-500 hover:underline">
-            여행계획으로
+          <Link href="/" className="text-sm text-neutral-500 hover:underline">
+            홈으로
           </Link>
         </div>
         <ConversationListPane initialConversations={conversations} currentUserId={user.id} />
