@@ -56,7 +56,7 @@ export default function RegisterPage() {
       setError(message);
       return;
     }
-    router.push("/trips");
+    router.push("/");
     router.refresh();
   }
 

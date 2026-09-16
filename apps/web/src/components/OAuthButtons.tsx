@@ -25,7 +25,7 @@ export function OAuthButtons() {
     setPending(provider);
     const { error: signInError } = await authClient.signIn.social({
       provider,
-      callbackURL: "/trips",
+      callbackURL: "/",
     });
     setPending(null);
     if (signInError) {

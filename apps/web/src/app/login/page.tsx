@@ -28,7 +28,7 @@ export default function LoginPage() {
       setError(typeof data?.error === "string" ? data.error : "로그인에 실패했습니다.");
       return;
     }
-    router.push("/trips");
+    router.push("/");
     router.refresh();
   }
 
