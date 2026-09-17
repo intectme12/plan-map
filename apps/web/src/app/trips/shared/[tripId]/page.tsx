@@ -33,6 +33,7 @@ export default async function SharedTripDetailPage({
         endDate: trip.endDate,
         personnel: trip.personnel,
         visibility: trip.visibility,
+        coverPhotoKey: trip.coverPhotoKey,
         ownerNickname: trip.user.nickname,
         likeCount: trip.likeCount,
         likedByMe: trip.likedByMe,

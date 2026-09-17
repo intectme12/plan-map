@@ -48,9 +48,9 @@ export function RouteSegmentRow({
   }, [tripId, fromPlaceId, toPlaceId]);
 
   return (
-    <div className="ml-7 flex items-center gap-x-3 gap-y-0.5 py-1.5 text-xs text-neutral-500">
+    <div className="flex items-center gap-x-3 gap-y-0.5 border-t border-dashed border-neutral-200 px-3 py-2 text-xs text-neutral-500">
       <span className="inline-flex items-center gap-1">
-        🚗 자차{" "}
+        🚗{" "}
         {state === "loading" ? (
           "조회 중..."
         ) : state === "unavailable" ? (

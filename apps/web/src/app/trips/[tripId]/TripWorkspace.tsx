@@ -6,6 +6,9 @@ import type { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { KakaoMapCanvas } from "@/components/map/KakaoMapCanvas";
 import { TripMetaEditor } from "./TripMetaEditor";
+import { TripHeroBanner } from "./TripHeroBanner";
+import { AIAssistantCard } from "./AIAssistantCard";
+import { TripSummaryCard } from "./TripSummaryCard";
 import { PlaceList, parseDayContainerId } from "./PlaceList";
 import { ExpenseSummary } from "./ExpenseSummary";
 import { PhotoGallery } from "./PhotoGallery";
@@ -48,10 +51,16 @@ export function TripWorkspace({
   currentUserId: string;
 }) {
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
+  const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sharedModalOpen, setSharedModalOpen] = useState(false);
   const [reviewsModalPlaceId, setReviewsModalPlaceId] = useState<string | null>(null);
   const toast = useToast();
+
+  // 경로 라벨을 다시 클릭하면 선택 해제(같은 구간이면 토글)
+  function handleSelectSegment(id: string) {
+    setSelectedSegmentId((prev) => (prev === id ? null : id));
+  }
 
   // 타임라인(순서 변경/삭제)과 지도가 같은 장소 목록을 공유해야 드래그 정렬이 이동경로에 바로 반영된다
   const [items, setItems] = useState(places);
@@ -62,30 +71,38 @@ export function TripWorkspace({
     setItems(places.filter((p) => !pendingDeletes.current.has(p.id)));
   }, [places]);
 
-  const points = useMemo(
-    () =>
-      items.map((p) => ({
-        id: p.id,
-        name: p.name,
-        lat: p.lat,
-        lng: p.lng,
-        category: p.category,
-        address: p.address,
-        roadAddress: p.roadAddress,
-        phone: p.phone,
-        placeUrl: p.placeUrl,
-        rating: p.avgRating ?? undefined,
-        reviewCount: p.reviewCount,
-      })),
-    [items]
-  );
-
   // 여행 시작일~종료일 기준 날짜 목록과, 그 날짜별로 묶은 장소 그룹(지도 이동경로/아코디언이 공유)
   const days = useMemo(
     () => getTripDays(trip.startDate, trip.endDate),
     [trip.startDate, trip.endDate]
   );
   const groups = useMemo(() => groupByDay(items, days), [items, days]);
+
+  // 지도 마커 번호·색을 타임라인 카드와 똑같이(그 날짜 안에서 몇 번째인지) 맞추기 위해
+  // 평평한 items가 아니라 day별로 묶은 groups에서 points를 만든다.
+  const points = useMemo(
+    () =>
+      groups.flatMap((group, dayIndex) =>
+        group.map((p, i) => ({
+          id: p.id,
+          name: p.name,
+          lat: p.lat,
+          lng: p.lng,
+          category: p.category,
+          address: p.address,
+          roadAddress: p.roadAddress,
+          phone: p.phone,
+          placeUrl: p.placeUrl,
+          rating: p.avgRating ?? undefined,
+          reviewCount: p.reviewCount,
+          label: i + 1,
+          markerColor: dayColor(dayIndex),
+          photoUrl: p.photos[0]?.storageKey ?? null,
+          costWon: p.expenses.reduce((sum, e) => sum + e.amount, 0) || undefined,
+        }))
+      ),
+    [groups]
+  );
 
   const [expandedDays, setExpandedDays] = useState<Set<number>>(
     () => new Set(days.map((_, i) => i).filter((i) => i === 0 || groups[i].length > 0))
@@ -104,12 +121,16 @@ export function TripWorkspace({
   const pairKey = groups
     .flatMap((group, dayIndex) => group.slice(0, -1).map((p, i) => `${dayIndex}:${p.id}-${group[i + 1].id}`))
     .join(",");
-  const [routePaths, setRoutePaths] = useState<Record<string, { lat: number; lng: number }[]>>({});
+  // path 외에 durationSec/distanceM도 같이 들고 있는다 — 지도 위 경로 라벨과 "여행 요약"
+  // 카드가 같은 값을 쓴다(사이드바의 RouteSegmentRow는 그 카드 안에서 독립적으로 표시만
+  // 하던 그대로 유지 — 여기서는 지도/요약용으로 별도 보관).
+  type RouteDetail = { path?: { lat: number; lng: number }[]; durationSec?: number; distanceM?: number };
+  const [routeDetails, setRouteDetails] = useState<Record<string, RouteDetail>>({});
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadRoutePaths() {
+    async function loadRouteDetails() {
       const pairs: (readonly [string, string])[] = [];
       groups.forEach((group) => {
         for (let i = 0; i < group.length - 1; i++) {
@@ -126,17 +147,20 @@ export function TripWorkspace({
       );
       if (cancelled) return;
 
-      const next: Record<string, { lat: number; lng: number }[]> = {};
+      const next: Record<string, RouteDetail> = {};
       pairs.forEach(([fromId, toId], i) => {
-        const path = results[i]?.path;
-        if (Array.isArray(path) && path.length > 1) {
-          next[`${fromId}-${toId}`] = path;
-        }
+        const result = results[i];
+        const path = result?.path;
+        next[`${fromId}-${toId}`] = {
+          path: Array.isArray(path) && path.length > 1 ? path : undefined,
+          durationSec: typeof result?.durationSec === "number" ? result.durationSec : undefined,
+          distanceM: typeof result?.distanceM === "number" ? result.distanceM : undefined,
+        };
       });
-      setRoutePaths(next);
+      setRouteDetails(next);
     }
 
-    loadRoutePaths();
+    loadRouteDetails();
     return () => {
       cancelled = true;
     };
@@ -146,30 +170,49 @@ export function TripWorkspace({
   // 이동경로 선은 펼쳐진 날짜의 것만, 날짜별로 다른 색으로 표시
   const segments = useMemo(() => {
     const result: {
+      id: string;
       fromLat: number;
       fromLng: number;
       toLat: number;
       toLng: number;
       path?: { lat: number; lng: number }[];
       color: string;
+      durationSec?: number;
+      distanceM?: number;
     }[] = [];
     groups.forEach((group, dayIndex) => {
       if (!expandedDays.has(dayIndex)) return;
       for (let i = 0; i < group.length - 1; i++) {
         const from = group[i];
         const to = group[i + 1];
+        const detail = routeDetails[`${from.id}-${to.id}`];
         result.push({
+          id: `${from.id}-${to.id}`,
           fromLat: from.lat,
           fromLng: from.lng,
           toLat: to.lat,
           toLng: to.lng,
-          path: routePaths[`${from.id}-${to.id}`],
+          path: detail?.path,
           color: dayColor(dayIndex),
+          durationSec: detail?.durationSec,
+          distanceM: detail?.distanceM,
         });
       }
     });
     return result;
-  }, [groups, expandedDays, routePaths]);
+  }, [groups, expandedDays, routeDetails]);
+
+  const routeSummary = useMemo(
+    () =>
+      segments.reduce(
+        (acc, s) => ({
+          durationSec: acc.durationSec + (s.durationSec ?? 0),
+          distanceM: acc.distanceM + (s.distanceM ?? 0),
+        }),
+        { durationSec: 0, distanceM: 0 }
+      ),
+    [segments]
+  );
 
   const { expenseTotal, byCategory, placeTotals } = useMemo(() => {
     const totals = items.map((place) => ({
@@ -318,31 +361,28 @@ export function TripWorkspace({
   }
 
   return (
-    <main className="relative h-screen w-full overflow-hidden">
-      {/* 지도가 바탕: 화면 전체를 채우고, 타임라인 패널이 그 위 오른쪽에 붙는다 */}
-      <div className="absolute inset-0">
-        <KakaoMapCanvas
-          points={points}
-          segments={segments}
-          selectedPlaceId={selectedPlaceId}
-          onOpenReviews={setReviewsModalPlaceId}
-        />
-      </div>
-
-      <div className="absolute left-4 top-4 z-10 flex gap-2">
+    <main className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6">
+      <div className="mb-4 flex flex-wrap gap-2">
         <Link
           href="/trips"
-          className="rounded-md bg-white px-3 py-1.5 text-sm font-semibold shadow"
+          className="rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-neutral-700 shadow-sm ring-1 ring-neutral-200"
         >
           ← 내 여행계획
         </Link>
         <button
           onClick={() => setSharedModalOpen(true)}
-          className="rounded-md bg-white px-3 py-1.5 text-sm font-semibold shadow hover:bg-neutral-50"
+          className="rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-neutral-700 shadow-sm ring-1 ring-neutral-200 hover:bg-neutral-50"
         >
           다른 사람 여행계획
         </button>
       </div>
+
+      <TripHeroBanner
+        coverPhotoKey={trip.coverPhotoKey}
+        aside={<AIAssistantCard href={`/trips/${trip.id}/import`} />}
+      >
+        <TripMetaEditor trip={trip} isOwner={isOwner} />
+      </TripHeroBanner>
 
       {sharedModalOpen ? (
         <SharedTripsModal onClose={() => setSharedModalOpen(false)} />
@@ -362,101 +402,106 @@ export function TripWorkspace({
           })()
         : null}
 
-      <button
-        onClick={() => setSidebarOpen((v) => !v)}
-        aria-label={sidebarOpen ? "패널 숨기기" : "패널 열기"}
-        className={`absolute top-1/2 z-20 flex h-12 w-6 -translate-y-1/2 items-center justify-center rounded-l-md border border-r-0 border-neutral-200 bg-white text-neutral-400 shadow transition-[right] duration-200 hover:bg-neutral-50 hover:text-neutral-600 ${
-          sidebarOpen ? "right-[380px]" : "right-0"
-        }`}
-      >
-        {sidebarOpen ? "›" : "‹"}
-      </button>
+      {/* 지도 72% : 타임라인 패널 28% — 데스크톱은 좌우로, 모바일은 지도가 위/패널이 아래로 쌓인다 */}
+      <div className="relative mt-6 flex flex-col gap-4 lg:h-[680px] lg:flex-row">
+        <div className="relative h-[420px] overflow-hidden rounded-3xl border border-neutral-100 shadow-sm lg:h-full lg:flex-1">
+          <KakaoMapCanvas
+            points={points}
+            segments={segments}
+            selectedPlaceId={selectedPlaceId}
+            selectedSegmentId={selectedSegmentId}
+            onOpenReviews={setReviewsModalPlaceId}
+            onSelectSegment={handleSelectSegment}
+          />
+        </div>
 
-      <aside
-        className={`absolute right-0 top-0 z-10 flex h-full w-[380px] flex-col border-l border-neutral-200 bg-white shadow-xl transition-transform duration-200 ${
-          sidebarOpen ? "translate-x-0" : "translate-x-full"
-        }`}
-      >
-        <header className="border-b border-neutral-200 p-4">
-          <TripMetaEditor trip={trip} isOwner={isOwner} />
-        </header>
+        <button
+          onClick={() => setSidebarOpen((v) => !v)}
+          aria-label={sidebarOpen ? "패널 숨기기" : "패널 열기"}
+          className="hidden h-12 w-6 flex-none items-center justify-center self-center rounded-md border border-neutral-200 bg-white text-neutral-400 shadow hover:bg-neutral-50 hover:text-neutral-600 lg:flex"
+        >
+          {sidebarOpen ? "›" : "‹"}
+        </button>
 
-        <nav className="flex gap-1 border-b border-neutral-200 px-3">
-          {TABS.map((t) => (
-            <Link
-              key={t.key}
-              href={t.key === "timeline" ? `/trips/${trip.id}` : `/trips/${trip.id}?tab=${t.key}`}
-              className={`border-b-2 px-3 py-2 text-sm font-semibold ${
-                activeTab === t.key
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-neutral-500 hover:text-neutral-700"
-              }`}
-            >
-              {t.label}
-            </Link>
-          ))}
-        </nav>
+        {sidebarOpen ? (
+          <aside className="flex h-[560px] flex-col overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-sm lg:h-full lg:w-[420px] lg:flex-none">
+            <nav className="flex gap-1 border-b border-neutral-100 px-3 pt-2">
+              {TABS.map((t) => (
+                <Link
+                  key={t.key}
+                  href={t.key === "timeline" ? `/trips/${trip.id}` : `/trips/${trip.id}?tab=${t.key}`}
+                  className={`border-b-2 px-3 py-2 text-sm font-semibold ${
+                    activeTab === t.key
+                      ? "border-blue-600 text-blue-600"
+                      : "border-transparent text-neutral-500 hover:text-neutral-700"
+                  }`}
+                >
+                  {t.label}
+                </Link>
+              ))}
+            </nav>
 
-        {activeTab === "timeline" ? (
-          <>
-            <Link
-              href={`/trips/${trip.id}/import`}
-              className="mx-3 mt-3 rounded-md border border-dashed border-blue-300 px-3 py-2 text-center text-sm font-semibold text-blue-600 hover:bg-blue-50"
-            >
-              ✨ AI로 일정 가져오기
-            </Link>
-
-            <div className="min-h-0 flex-1">
-              <PlaceList
-                tripId={trip.id}
-                trip={{ startDate: trip.startDate, endDate: trip.endDate }}
-                places={items}
-                selectedPlaceId={selectedPlaceId}
-                onSelectPlace={setSelectedPlaceId}
-                expandedDays={expandedDays}
-                onToggleDay={toggleDay}
-                onDeletePlace={handleDeletePlace}
-                onDragEnd={handleDragEnd}
-              />
-            </div>
-          </>
-        ) : activeTab === "expense" ? (
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <ExpenseSummary
-              total={expenseTotal}
-              byCategory={byCategory}
-              places={placeTotals}
-              selectedPlaceId={selectedPlaceId}
-              onSelectPlace={setSelectedPlaceId}
-            />
-          </div>
-        ) : activeTab === "photos" ? (
-          <div className="min-h-0 flex-1">
-            <PhotoGallery
-              tripId={trip.id}
-              trip={{ startDate: trip.startDate, endDate: trip.endDate }}
-              places={items}
-              selectedPlaceId={selectedPlaceId}
-              onSelectPlace={setSelectedPlaceId}
-              expandedDays={expandedDays}
-              onToggleDay={toggleDay}
-            />
-          </div>
-        ) : (
-          <div className="min-h-0 flex-1">
-            <ReviewGallery
-              tripId={trip.id}
-              trip={{ startDate: trip.startDate, endDate: trip.endDate }}
-              places={items}
-              currentUserId={currentUserId}
-              selectedPlaceId={selectedPlaceId}
-              onSelectPlace={setSelectedPlaceId}
-              expandedDays={expandedDays}
-              onToggleDay={toggleDay}
-            />
-          </div>
-        )}
-      </aside>
+            {activeTab === "timeline" ? (
+              <div className="flex min-h-0 flex-1 flex-col">
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  <PlaceList
+                    tripId={trip.id}
+                    trip={{ startDate: trip.startDate, endDate: trip.endDate }}
+                    places={items}
+                    selectedPlaceId={selectedPlaceId}
+                    onSelectPlace={setSelectedPlaceId}
+                    expandedDays={expandedDays}
+                    onToggleDay={toggleDay}
+                    onDeletePlace={handleDeletePlace}
+                    onDragEnd={handleDragEnd}
+                  />
+                </div>
+                <TripSummaryCard
+                  placeCount={items.length}
+                  totalDurationSec={routeSummary.durationSec}
+                  totalDistanceM={routeSummary.distanceM}
+                  totalExpense={expenseTotal}
+                />
+              </div>
+            ) : activeTab === "expense" ? (
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <ExpenseSummary
+                  total={expenseTotal}
+                  byCategory={byCategory}
+                  places={placeTotals}
+                  selectedPlaceId={selectedPlaceId}
+                  onSelectPlace={setSelectedPlaceId}
+                />
+              </div>
+            ) : activeTab === "photos" ? (
+              <div className="min-h-0 flex-1">
+                <PhotoGallery
+                  tripId={trip.id}
+                  trip={{ startDate: trip.startDate, endDate: trip.endDate }}
+                  places={items}
+                  selectedPlaceId={selectedPlaceId}
+                  onSelectPlace={setSelectedPlaceId}
+                  expandedDays={expandedDays}
+                  onToggleDay={toggleDay}
+                />
+              </div>
+            ) : (
+              <div className="min-h-0 flex-1">
+                <ReviewGallery
+                  tripId={trip.id}
+                  trip={{ startDate: trip.startDate, endDate: trip.endDate }}
+                  places={items}
+                  currentUserId={currentUserId}
+                  selectedPlaceId={selectedPlaceId}
+                  onSelectPlace={setSelectedPlaceId}
+                  expandedDays={expandedDays}
+                  onToggleDay={toggleDay}
+                />
+              </div>
+            )}
+          </aside>
+        ) : null}
+      </div>
     </main>
   );
 }

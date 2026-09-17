@@ -39,9 +39,9 @@ export function ExpenseSummary({
 
   return (
     <div className="flex flex-col gap-6 p-4">
-      <div>
+      <div className="rounded-2xl border border-amber-100 bg-amber-50/50 p-4">
         <p className="text-xs text-neutral-500">여행 총 지출</p>
-        <p className="text-3xl font-bold tabular-nums">{total.toLocaleString()}원</p>
+        <p className="text-3xl font-bold tabular-nums text-amber-600">{total.toLocaleString()}원</p>
       </div>
 
       {byCategory.length === 0 ? (
@@ -74,15 +74,18 @@ export function ExpenseSummary({
       {placesWithExpense.length > 0 ? (
         <div>
           <p className="mb-2 text-xs font-semibold text-neutral-500">장소별 지출</p>
-          <ul className="flex flex-col gap-1">
+          <ul className="flex flex-col gap-1.5">
             {placesWithExpense.map((p) => (
-              <li key={p.id}>
+              <li
+                key={p.id}
+                className={`overflow-hidden rounded-xl border ${
+                  selectedPlaceId === p.id ? "border-blue-300 bg-blue-50/40" : "border-neutral-100 bg-white"
+                }`}
+              >
                 <button
                   type="button"
                   onClick={() => handleClickPlace(p)}
-                  className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-neutral-50 ${
-                    selectedPlaceId === p.id ? "bg-blue-50" : ""
-                  }`}
+                  className="flex w-full items-center justify-between px-3 py-2 text-left text-sm"
                 >
                   <span className="truncate">{p.name}</span>
                   <span className="flex-none tabular-nums text-neutral-600">
@@ -91,7 +94,7 @@ export function ExpenseSummary({
                 </button>
 
                 {expandedId === p.id ? (
-                  <ul className="ml-2 mt-1 flex flex-col gap-1 border-l border-neutral-200 py-0.5 pl-2">
+                  <ul className="mx-3 mb-2 flex flex-col gap-1 border-l border-neutral-200 py-0.5 pl-2">
                     {p.expenses.map((exp) => (
                       <li key={exp.id} className="flex items-center justify-between gap-2 text-xs">
                         <span className="flex min-w-0 items-center gap-1.5">

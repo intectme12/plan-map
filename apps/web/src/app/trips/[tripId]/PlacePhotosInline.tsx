@@ -57,7 +57,7 @@ export function PlacePhotosInline({
 
   return (
     <div
-      className="ml-7 mt-1.5 flex flex-col gap-1.5 rounded-md border border-neutral-200 bg-neutral-50 p-2"
+      className="mt-1.5 flex flex-col gap-1.5 rounded-md border border-neutral-200 bg-neutral-50 p-2"
       onClick={(e) => e.stopPropagation()}
     >
       {photos.length > 0 ? (

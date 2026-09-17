@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Trash2, Camera } from "lucide-react";
 import {
   DndContext,
   PointerSensor,
@@ -19,7 +20,7 @@ import { ExpenseButton } from "./ExpenseButton";
 import { PlacePhotosInline } from "./PlacePhotosInline";
 import { PlaceForm } from "./PlaceForm";
 import { DayAccordionSection } from "./DayAccordionSection";
-import { getTripDays, groupByDay } from "./days";
+import { getTripDays, groupByDay, dayColor } from "./days";
 import type { PlaceEntry } from "./types";
 
 export const DAY_CONTAINER_PREFIX = "day-container-";
@@ -67,6 +68,7 @@ function SortablePlaceRow({
   tripId,
   place,
   index,
+  dayIndex,
   nextPlace,
   selected,
   onDelete,
@@ -75,6 +77,7 @@ function SortablePlaceRow({
   tripId: string;
   place: PlaceEntry;
   index: number;
+  dayIndex: number;
   nextPlace: PlaceEntry | null;
   selected: boolean;
   onDelete: (place: PlaceEntry) => void;
@@ -84,30 +87,41 @@ function SortablePlaceRow({
     id: place.id,
   });
   const [photosOpen, setPhotosOpen] = useState(false);
+  const thumbnail = place.photos[0]?.storageKey;
 
   return (
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={isDragging ? "bg-neutral-50 opacity-70" : ""}
+      className={`overflow-hidden rounded-2xl border shadow-[0_2px_10px_rgba(15,23,42,0.05)] transition-colors ${
+        isDragging ? "border-blue-300 bg-blue-50/60 opacity-70" : selected ? "border-blue-300 bg-blue-50/40" : "border-neutral-100 bg-white"
+      }`}
     >
-      <div
-        className={`flex items-start gap-1 rounded-md px-1 py-2 hover:bg-neutral-50 ${
-          selected ? "bg-blue-50" : ""
-        }`}
-      >
+      <div className="flex items-start gap-2 px-3 py-3">
         <DragHandle {...attributes} {...listeners} />
-        <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full border border-neutral-300 text-[11px] font-semibold text-neutral-600">
+        <span
+          className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full text-[11px] font-bold text-white"
+          style={{ background: dayColor(dayIndex) }}
+        >
           {index + 1}
         </span>
+        {thumbnail ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={thumbnail} alt="" className="h-12 w-12 flex-none rounded-lg object-cover" />
+        ) : null}
         <button
           type="button"
           onClick={() => onSelect(place.id)}
           className="min-w-0 flex-1 text-left"
         >
-          <p className="truncate text-sm font-semibold">{place.name}</p>
+          <p className="truncate text-sm font-semibold text-neutral-900">{place.name}</p>
           {place.address ? (
             <p className="truncate text-xs text-neutral-400">{place.address}</p>
+          ) : null}
+          {place.category ? (
+            <span className="mt-1 inline-block rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-500">
+              {place.category}
+            </span>
           ) : null}
         </button>
         <button
@@ -117,25 +131,28 @@ function SortablePlaceRow({
             setPhotosOpen((v) => !v);
           }}
           aria-label="사진"
-          className="flex-none rounded px-1.5 py-0.5 text-xs text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600"
+          className="flex flex-none items-center gap-0.5 rounded px-1.5 py-0.5 text-xs text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600"
         >
-          📷{place.photos.length > 0 ? ` ${place.photos.length}` : ""}
+          <Camera className="h-3.5 w-3.5" />
+          {place.photos.length > 0 ? place.photos.length : ""}
         </button>
         <button
           onClick={() => onDelete(place)}
           aria-label="삭제"
-          className="flex-none rounded px-1.5 py-0.5 text-xs text-neutral-400 hover:bg-neutral-100 hover:text-red-600"
+          className="flex-none rounded p-1 text-neutral-300 hover:bg-red-50 hover:text-red-600"
         >
-          삭제
+          <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
-      <ExpenseButton tripId={tripId} placeId={place.id} expenses={place.expenses} />
-      <PlacePhotosInline
-        tripId={tripId}
-        placeId={place.id}
-        initialPhotos={place.photos}
-        open={photosOpen}
-      />
+      <div className="px-3 pb-3">
+        <ExpenseButton tripId={tripId} placeId={place.id} expenses={place.expenses} />
+        <PlacePhotosInline
+          tripId={tripId}
+          placeId={place.id}
+          initialPhotos={place.photos}
+          open={photosOpen}
+        />
+      </div>
       {nextPlace ? (
         <RouteSegmentRow tripId={tripId} fromPlaceId={place.id} toPlaceId={nextPlace.id} />
       ) : null}
@@ -177,19 +194,20 @@ function DaySection({
       open={open}
       onToggle={onToggle}
     >
-      <div className="border-t border-neutral-200 p-2">
+      <div className="p-2">
         <DayDropZone dayIndex={dayIndex}>
           {places.length === 0 ? (
             <p className="px-1 py-2 text-xs text-neutral-400">등록된 장소가 없습니다. 다른 날짜의 장소를 여기로 끌어다 놓을 수 있습니다.</p>
           ) : (
             <SortableContext items={places.map((p) => p.id)} strategy={verticalListSortingStrategy}>
-              <ol className="flex flex-col gap-1">
+              <ol className="flex flex-col gap-2">
                 {places.map((place, index) => (
                   <SortablePlaceRow
                     key={place.id}
                     tripId={tripId}
                     place={place}
                     index={index}
+                    dayIndex={dayIndex}
                     nextPlace={places[index + 1] ?? nextAfterLast}
                     selected={selectedPlaceId === place.id}
                     onDelete={onDelete}

@@ -2,7 +2,7 @@
 
 import { DayAccordionSection } from "@/app/trips/[tripId]/DayAccordionSection";
 import { RouteSegmentRow } from "@/app/trips/[tripId]/RouteSegmentRow";
-import { getTripDays, groupByDay } from "@/app/trips/[tripId]/days";
+import { getTripDays, groupByDay, dayColor } from "@/app/trips/[tripId]/days";
 import type { PlaceEntry } from "@/app/trips/[tripId]/types";
 
 export function SharedPlaceList({
@@ -42,29 +42,45 @@ export function SharedPlaceList({
             open={open}
             onToggle={() => onToggleDay(dayIndex)}
           >
-            <div className="border-t border-neutral-200 p-2">
+            <div className="p-2">
               {dayPlaces.length === 0 ? (
                 <p className="px-1 py-2 text-xs text-neutral-400">등록된 장소가 없습니다.</p>
               ) : (
-                <ol className="flex flex-col gap-1">
+                <ol className="flex flex-col gap-2">
                   {dayPlaces.map((place, index) => {
                     const nextPlace = dayPlaces[index + 1] ?? nextGroup?.[0] ?? null;
+                    const thumbnail = place.photos[0]?.storageKey;
                     return (
-                      <li key={place.id}>
+                      <li
+                        key={place.id}
+                        className={`overflow-hidden rounded-2xl border shadow-[0_2px_10px_rgba(15,23,42,0.05)] ${
+                          selectedPlaceId === place.id ? "border-blue-300 bg-blue-50/40" : "border-neutral-100 bg-white"
+                        }`}
+                      >
                         <button
                           type="button"
                           onClick={() => onSelectPlace(place.id)}
-                          className={`flex w-full items-start gap-2 rounded-md px-1 py-2 text-left hover:bg-neutral-50 ${
-                            selectedPlaceId === place.id ? "bg-blue-50" : ""
-                          }`}
+                          className="flex w-full items-start gap-2 px-3 py-3 text-left"
                         >
-                          <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full border border-neutral-300 text-[11px] font-semibold text-neutral-600">
+                          <span
+                            className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full text-[11px] font-bold text-white"
+                            style={{ background: dayColor(dayIndex) }}
+                          >
                             {index + 1}
                           </span>
+                          {thumbnail ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={thumbnail} alt="" className="h-12 w-12 flex-none rounded-lg object-cover" />
+                          ) : null}
                           <span className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold">{place.name}</p>
+                            <p className="truncate text-sm font-semibold text-neutral-900">{place.name}</p>
                             {place.address ? (
                               <p className="truncate text-xs text-neutral-400">{place.address}</p>
+                            ) : null}
+                            {place.category ? (
+                              <span className="mt-1 inline-block rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-500">
+                                {place.category}
+                              </span>
                             ) : null}
                           </span>
                         </button>

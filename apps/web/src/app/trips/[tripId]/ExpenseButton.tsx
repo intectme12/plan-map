@@ -60,7 +60,7 @@ export function ExpenseButton({
   }
 
   return (
-    <div className="ml-7 py-0.5 text-xs text-neutral-500" onClick={(e) => e.stopPropagation()}>
+    <div className="py-0.5 text-xs text-neutral-500" onClick={(e) => e.stopPropagation()}>
       <div className="flex items-center justify-end gap-2">
         <span>
           💰 {total > 0 ? `${total.toLocaleString()}원` : "지출 없음"}
