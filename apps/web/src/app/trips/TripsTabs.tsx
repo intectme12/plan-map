@@ -52,13 +52,11 @@ export function TripsTabs({
 
   return (
     <div className="mt-8 flex flex-col gap-6">
-      {/* 사용자 요청 순서: 내 여행계획 / 다른 사람 여행계획 / 팔로잉 피드 / 나에게 공유됨 / 회원검색 (메시지는 헤더의 아이콘으로 이동) */}
+      {/* "다른 사람 여행계획" 탭은 상단 네비의 "둘러보기"(/trips?tab=shared)로 이동해서 여기서는 삭제 —
+          그 링크로 들어왔을 때 내용은 그대로 보여야 하니 tab==="shared" 렌더링 분기 자체는 남겨둔다. */}
       <nav className="scrollbar-none flex gap-1 overflow-x-auto whitespace-nowrap border-b border-neutral-200">
         <TabButton active={tab === "mine"} onClick={() => setTab("mine")}>
           내 여행계획
-        </TabButton>
-        <TabButton active={tab === "shared"} onClick={() => setTab("shared")}>
-          다른 사람 여행계획
         </TabButton>
         <TabButton active={tab === "following"} onClick={() => setTab("following")}>
           팔로잉 피드
