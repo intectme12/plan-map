@@ -217,7 +217,7 @@ export function SharedTripView({
   }, [places]);
 
   return (
-    <main className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6">
+    <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6">
       <Link
         href="/trips?tab=shared"
         className="mb-4 inline-block rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-neutral-700 shadow-sm ring-1 ring-neutral-200"
@@ -225,31 +225,38 @@ export function SharedTripView({
         ← 다른 사람 여행계획
       </Link>
 
-      <TripHeroBanner
-        coverPhotoKey={trip.coverPhotoKey ?? null}
-        aside={isOwnTrip ? <AIAssistantCard href={`/trips/${trip.id}/import`} /> : undefined}
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <h1 className="text-lg font-bold text-neutral-900">{trip.name}</h1>
-            <p className="text-sm text-neutral-500">
-              {new Date(trip.startDate).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })}{" "}
-              – {new Date(trip.endDate).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })} ·{" "}
-              {trip.personnel}명 · {trip.ownerNickname}
-            </p>
-          </div>
-          <LikeButton tripId={trip.id} initialLiked={trip.likedByMe} initialCount={trip.likeCount} />
+      {/* 히어로(지도와 같은 폭)와 AI 카드(패널과 같은 폭)를 아래 지도/패널 행과 같은 비율로 나란히 배치 */}
+      <div className="flex flex-col gap-4 lg:flex-row">
+        <div className="lg:flex-1">
+          <TripHeroBanner coverPhotoKey={trip.coverPhotoKey ?? null}>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h1 className="text-lg font-bold text-neutral-900">{trip.name}</h1>
+                <p className="text-sm text-neutral-500">
+                  {new Date(trip.startDate).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })}{" "}
+                  – {new Date(trip.endDate).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })} ·{" "}
+                  {trip.personnel}명 · {trip.ownerNickname}
+                </p>
+              </div>
+              <LikeButton tripId={trip.id} initialLiked={trip.likedByMe} initialCount={trip.likeCount} />
+            </div>
+            {isOwnTrip ? (
+              <span className="mt-2 inline-block rounded-md bg-neutral-100 px-2 py-1 text-xs text-neutral-500">
+                내가 만든 여행입니다
+              </span>
+            ) : trip.visibility !== "PRIVATE" ? (
+              <div className="mt-2">
+                <CopyTripButton tripId={trip.id} />
+              </div>
+            ) : null}
+          </TripHeroBanner>
         </div>
         {isOwnTrip ? (
-          <span className="mt-2 inline-block rounded-md bg-neutral-100 px-2 py-1 text-xs text-neutral-500">
-            내가 만든 여행입니다
-          </span>
-        ) : trip.visibility !== "PRIVATE" ? (
-          <div className="mt-2">
-            <CopyTripButton tripId={trip.id} />
+          <div className="lg:w-[420px] lg:flex-none">
+            <AIAssistantCard href={`/trips/${trip.id}/import`} />
           </div>
         ) : null}
-      </TripHeroBanner>
+      </div>
 
       {reviewsModalPlaceId
         ? (() => {
@@ -359,6 +366,6 @@ export function SharedTripView({
           </aside>
         ) : null}
       </div>
-    </main>
+    </div>
   );
 }

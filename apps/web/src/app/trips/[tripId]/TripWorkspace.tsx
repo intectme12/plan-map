@@ -361,7 +361,7 @@ export function TripWorkspace({
   }
 
   return (
-    <main className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6">
+    <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6">
       <div className="mb-4 flex flex-wrap gap-2">
         <Link
           href="/trips"
@@ -377,12 +377,17 @@ export function TripWorkspace({
         </button>
       </div>
 
-      <TripHeroBanner
-        coverPhotoKey={trip.coverPhotoKey}
-        aside={<AIAssistantCard href={`/trips/${trip.id}/import`} />}
-      >
-        <TripMetaEditor trip={trip} isOwner={isOwner} />
-      </TripHeroBanner>
+      {/* 히어로(지도와 같은 폭)와 AI 카드(패널과 같은 폭)를 아래 지도/패널 행과 같은 비율로 나란히 배치 */}
+      <div className="flex flex-col gap-4 lg:flex-row">
+        <div className="lg:flex-1">
+          <TripHeroBanner coverPhotoKey={trip.coverPhotoKey}>
+            <TripMetaEditor trip={trip} isOwner={isOwner} />
+          </TripHeroBanner>
+        </div>
+        <div className="lg:w-[420px] lg:flex-none">
+          <AIAssistantCard href={`/trips/${trip.id}/import`} />
+        </div>
+      </div>
 
       {sharedModalOpen ? (
         <SharedTripsModal onClose={() => setSharedModalOpen(false)} />
@@ -502,6 +507,6 @@ export function TripWorkspace({
           </aside>
         ) : null}
       </div>
-    </main>
+    </div>
   );
 }
