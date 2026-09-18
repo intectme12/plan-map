@@ -741,6 +741,14 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - 여행 상세(`TripWorkspace.tsx`)의 "다른 사람 여행계획" 버튼(공유 트립 선택 모달을 여는 별개 기능)은 이번 요청 범위가 아니라 그대로 둠
 - `tsc`/`eslint` 통과. 테스트 계정으로 `/trips`에 탭이 "내 여행계획/팔로잉 피드/나에게 공유됨/회원검색" 4개만 남은 것, 헤더의 "둘러보기" 클릭(=`/trips?tab=shared`)이 여전히 다른 사람 공개 트립 목록을 정상적으로 보여주는 것까지 확인. 테스트 계정 정리 완료
 
+**완료 (2026-09-18, 상단 네비 활성 표시가 "내 여행계획"에 고정돼있던 버그 수정)**
+
+사용자 신고: 상단 메뉴를 클릭해도 클릭한 메뉴가 파란색이 되는 게 아니라 "내 여행계획" 글씨가 계속 파란색으로 남아있음.
+
+- **원인**: `HomeTopNav`가 어떤 메뉴를 파랗게 켤지 각 `page.tsx`가 넘겨주는 고정 문자열 `active`("home"/"trips"/"saved")로만 판단했는데, "지도"/"AI 여행계획"은 애초에 그 문자열 체계에 없어서(매번 다른 트립으로 연결되니 값이 고정될 수 없음) 절대 안 켜지도록 만들어져 있었고, 트립 상세 페이지들은 전부 `active="trips"`를 넘기고 있어서 "지도"로 들어가도 "내 여행계획"만 계속 켜져 있었던 것
+- **수정**: `HomeTopNav.tsx`가 더 이상 `active` prop을 받지 않고, `usePathname()`/`useSearchParams()`로 지금 URL을 각 메뉴의 실제 href(지도/AI여행계획은 그 트립의 실제 경로, 둘러보기는 `tab=shared` 쿼리 유무)와 직접 비교해서 스스로 판단하도록 변경 — `HomeHeader`와 이를 쓰는 5개 페이지(`app/page.tsx`, `app/trips/page.tsx`, `app/saved-places/page.tsx`, `app/trips/[tripId]/page.tsx`, `app/trips/shared/[tripId]/page.tsx`)에서 이제 필요 없어진 `active="..."` prop 전달을 제거
+- `tsc`/`eslint` 통과(회귀 없음). 테스트 계정으로 홈(홈 파랑)→`/trips`(내 여행계획 파랑)→`/trips?tab=shared`(둘러보기 파랑)→새 트립 생성 후 트립 상세(지도 파랑, 내 여행계획은 회색으로 정상 전환)→`/saved-places`(저장한 장소 파랑)까지 스크린샷으로 하나씩 확인. 테스트 계정 정리 완료
+
 **다음 세션 할 일**
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음
 - **(중요)** 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`)가 스키마를 바꿀 때마다(이번까지 4세션 연속) `migrate dev` 리셋 요구로 이어짐 — 매번 `migrate diff`/`db push` + 손으로 마이그레이션 작성 + `migrate resolve`로 우회하고 있지만 언제까지나 반복할 방식은 아님. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나(체크섬 재계산), 이 우회를 앞으로도 정식 절차로 문서화할지 다음 세션에서 결정 필요

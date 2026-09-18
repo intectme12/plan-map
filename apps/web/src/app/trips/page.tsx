@@ -51,7 +51,6 @@ export default async function TripsPage({
   return (
     <main className="min-h-screen bg-slate-50">
       <HomeHeader
-        active="trips"
         nickname={user.nickname}
         avatarUrl={user.avatarUrl}
         isAdmin={isAdmin(user)}

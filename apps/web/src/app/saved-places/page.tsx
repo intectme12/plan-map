@@ -32,7 +32,6 @@ export default async function SavedPlacesPage() {
   return (
     <main className="min-h-screen bg-slate-50">
       <HomeHeader
-        active="saved"
         nickname={user.nickname}
         avatarUrl={user.avatarUrl}
         isAdmin={user.role === "ADMIN"}

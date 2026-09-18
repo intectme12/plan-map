@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { Search } from "lucide-react";
-import { HomeTopNav, type HomeNavActive } from "./HomeTopNav";
+import { HomeTopNav } from "./HomeTopNav";
 import { HomeNotificationLink } from "./HomeNotificationLink";
 import { HomeMessageLink } from "./HomeMessageLink";
 import { ProfileMenu } from "./ProfileMenu";
 
 export function HomeHeader({
-  active,
   nickname,
   avatarUrl,
   isAdmin,
@@ -16,7 +15,6 @@ export function HomeHeader({
   mapHref,
   aiPlanHref,
 }: {
-  active: HomeNavActive;
   nickname: string;
   avatarUrl: string | null;
   isAdmin: boolean;
@@ -34,7 +32,7 @@ export function HomeHeader({
         </Link>
 
         <div className="flex flex-1 items-center justify-between">
-          <HomeTopNav active={active} mapHref={mapHref} aiPlanHref={aiPlanHref} />
+          <HomeTopNav mapHref={mapHref} aiPlanHref={aiPlanHref} />
 
           <div className="flex items-center gap-1.5">
             <Link
