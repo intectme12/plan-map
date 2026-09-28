@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { Info, PanelRightOpen, X } from "lucide-react";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { KakaoMapCanvas } from "@/components/map/KakaoMapCanvas";
@@ -52,6 +53,7 @@ export function TripWorkspace({
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [heroOpen, setHeroOpen] = useState(true);
   const [sharedModalOpen, setSharedModalOpen] = useState(false);
   const [reviewsModalPlaceId, setReviewsModalPlaceId] = useState<string | null>(null);
   const toast = useToast();
@@ -348,24 +350,7 @@ export function TripWorkspace({
   }
 
   return (
-    <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6">
-      {/* "내 여행계획"/"다른 사람 여행계획" 버튼 — 사용하지 않아 주석 처리
-      <div className="mb-4 flex flex-wrap gap-2">
-        <Link
-          href="/trips"
-          className="rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-neutral-700 shadow-sm ring-1 ring-neutral-200"
-        >
-          ← 내 여행계획
-        </Link>
-        <button
-          onClick={() => setSharedModalOpen(true)}
-          className="rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-neutral-700 shadow-sm ring-1 ring-neutral-200 hover:bg-neutral-50"
-        >
-          다른 사람 여행계획
-        </button>
-      </div>
-      */}
-
+    <div className="relative h-[calc(100vh-4rem)] w-full overflow-hidden">
       {sharedModalOpen ? (
         <SharedTripsModal onClose={() => setSharedModalOpen(false)} />
       ) : null}
@@ -384,108 +369,139 @@ export function TripWorkspace({
           })()
         : null}
 
-      {/* 왼쪽(히어로+지도, 지도와 같은 폭) : 오른쪽 패널 — 오른쪽 패널은 높이를 따로
-          지정하지 않고 flex 기본 stretch로 왼쪽 열(히어로+지도) 전체 높이에 맞춰 늘어난다 */}
-      <div className="relative mt-6 flex flex-col gap-4 lg:flex-row">
-        <div className="flex flex-col gap-4 lg:flex-1">
-          <TripHeroBanner coverPhotoKey={trip.coverPhotoKey}>
-            <TripMetaEditor trip={trip} isOwner={isOwner} />
-          </TripHeroBanner>
+      {/* 카카오맵을 페이지 전체 배경으로 깔고, 히어로 카드와 오른쪽 패널은 그 위에 뜨는
+          오버레이로 바꿔서 버튼으로 열고 닫을 수 있게 한다 */}
+      <div className="absolute inset-0">
+        <KakaoMapCanvas
+          points={points}
+          segments={segments}
+          selectedPlaceId={selectedPlaceId}
+          selectedSegmentId={selectedSegmentId}
+          onOpenReviews={setReviewsModalPlaceId}
+          onSelectSegment={handleSelectSegment}
+        />
+      </div>
 
-          <div className="relative h-[420px] overflow-hidden rounded-3xl border border-neutral-100 shadow-sm lg:h-[560px]">
-            <KakaoMapCanvas
-              points={points}
-              segments={segments}
-              selectedPlaceId={selectedPlaceId}
-              selectedSegmentId={selectedSegmentId}
-              onOpenReviews={setReviewsModalPlaceId}
-              onSelectSegment={handleSelectSegment}
-            />
+      {/* 히어로 카드 — 모바일에서는 상단 전체 폭 바, sm 이상에서는 왼쪽 위 고정폭 카드
+          (오른쪽 패널이 모바일에서 하단 시트로 내려가 서로 겹치지 않는다) */}
+      {heroOpen ? (
+        <div className="absolute left-4 right-4 top-4 z-20 sm:right-auto sm:w-[380px]">
+          <div className="relative overflow-hidden rounded-3xl shadow-xl">
+            <TripHeroBanner coverPhotoKey={trip.coverPhotoKey}>
+              <TripMetaEditor trip={trip} isOwner={isOwner} />
+            </TripHeroBanner>
+            <button
+              type="button"
+              onClick={() => setHeroOpen(false)}
+              aria-label="여행 정보 닫기"
+              className="absolute left-2 top-2 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
         </div>
-
-        {/* 지도 넓히는(패널 접기) 버튼 — 사용하지 않아 주석 처리
+      ) : (
         <button
-          onClick={() => setSidebarOpen((v) => !v)}
-          aria-label={sidebarOpen ? "패널 숨기기" : "패널 열기"}
-          className="hidden h-12 w-6 flex-none items-center justify-center self-center rounded-md border border-neutral-200 bg-white text-neutral-400 shadow hover:bg-neutral-50 hover:text-neutral-600 lg:flex"
+          type="button"
+          onClick={() => setHeroOpen(true)}
+          aria-label="여행 정보 열기"
+          className="absolute left-4 top-4 z-20 flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2.5 text-sm font-semibold text-neutral-700 shadow-lg ring-1 ring-neutral-200 hover:bg-neutral-50"
         >
-          {sidebarOpen ? "›" : "‹"}
+          <Info className="h-4 w-4" /> 여행 정보
         </button>
-        */}
+      )}
 
-        {sidebarOpen ? (
-          <aside className="flex h-[560px] flex-col overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-sm lg:h-auto lg:w-[420px] lg:flex-none">
-            <div className="flex-none border-b border-neutral-100 p-3">
+      {/* 오른쪽 패널 — 모바일에서는 하단 시트, sm 이상에서는 오른쪽 위~아래 전체 높이 */}
+      {sidebarOpen ? (
+        <aside className="absolute inset-x-4 bottom-4 z-20 flex h-[55vh] flex-col overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-xl sm:inset-x-auto sm:right-4 sm:top-4 sm:h-auto sm:w-[380px] lg:w-[420px]">
+          <div className="flex flex-none items-center gap-2 border-b border-neutral-100 p-3">
+            <div className="min-w-0 flex-1">
               <AIAssistantCard href={`/trips/${trip.id}/import`} />
             </div>
-            <nav className="flex gap-1 border-b border-neutral-100 px-3 pt-2">
-              {TABS.map((t) => (
-                <Link
-                  key={t.key}
-                  href={t.key === "timeline" ? `/trips/${trip.id}` : `/trips/${trip.id}?tab=${t.key}`}
-                  className={`border-b-2 px-3 py-2 text-sm font-semibold ${
-                    activeTab === t.key
-                      ? "border-blue-600 text-blue-600"
-                      : "border-transparent text-neutral-500 hover:text-neutral-700"
-                  }`}
-                >
-                  {t.label}
-                </Link>
-              ))}
-            </nav>
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(false)}
+              aria-label="패널 닫기"
+              className="flex h-8 w-8 flex-none items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <nav className="flex gap-1 border-b border-neutral-100 px-3 pt-2">
+            {TABS.map((t) => (
+              <Link
+                key={t.key}
+                href={t.key === "timeline" ? `/trips/${trip.id}` : `/trips/${trip.id}?tab=${t.key}`}
+                className={`border-b-2 px-3 py-2 text-sm font-semibold ${
+                  activeTab === t.key
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-neutral-500 hover:text-neutral-700"
+                }`}
+              >
+                {t.label}
+              </Link>
+            ))}
+          </nav>
 
-            {activeTab === "timeline" ? (
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                <PlaceList
-                  tripId={trip.id}
-                  trip={{ startDate: trip.startDate, endDate: trip.endDate }}
-                  places={items}
-                  dayStats={dayStats}
-                  selectedDay={safeSelectedDay}
-                  onSelectDay={setSelectedDay}
-                  selectedPlaceId={selectedPlaceId}
-                  onSelectPlace={setSelectedPlaceId}
-                  onDeletePlace={handleDeletePlace}
-                  onDragEnd={handleDragEnd}
-                  onMoveToDay={moveToDay}
-                />
-              </div>
-            ) : activeTab === "expense" ? (
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                <ExpenseSummary
-                  total={expenseTotal}
-                  byCategory={byCategory}
-                  places={placeTotals}
-                  selectedPlaceId={selectedPlaceId}
-                  onSelectPlace={setSelectedPlaceId}
-                />
-              </div>
-            ) : activeTab === "photos" ? (
-              <div className="min-h-0 flex-1">
-                <PhotoGallery
-                  tripId={trip.id}
-                  trip={{ startDate: trip.startDate, endDate: trip.endDate }}
-                  places={items}
-                  selectedPlaceId={selectedPlaceId}
-                  onSelectPlace={setSelectedPlaceId}
-                />
-              </div>
-            ) : (
-              <div className="min-h-0 flex-1">
-                <ReviewGallery
-                  tripId={trip.id}
-                  trip={{ startDate: trip.startDate, endDate: trip.endDate }}
-                  places={items}
-                  currentUserId={currentUserId}
-                  selectedPlaceId={selectedPlaceId}
-                  onSelectPlace={setSelectedPlaceId}
-                />
-              </div>
-            )}
-          </aside>
-        ) : null}
-      </div>
+          {activeTab === "timeline" ? (
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <PlaceList
+                tripId={trip.id}
+                trip={{ startDate: trip.startDate, endDate: trip.endDate }}
+                places={items}
+                dayStats={dayStats}
+                selectedDay={safeSelectedDay}
+                onSelectDay={setSelectedDay}
+                selectedPlaceId={selectedPlaceId}
+                onSelectPlace={setSelectedPlaceId}
+                onDeletePlace={handleDeletePlace}
+                onDragEnd={handleDragEnd}
+                onMoveToDay={moveToDay}
+              />
+            </div>
+          ) : activeTab === "expense" ? (
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <ExpenseSummary
+                total={expenseTotal}
+                byCategory={byCategory}
+                places={placeTotals}
+                selectedPlaceId={selectedPlaceId}
+                onSelectPlace={setSelectedPlaceId}
+              />
+            </div>
+          ) : activeTab === "photos" ? (
+            <div className="min-h-0 flex-1">
+              <PhotoGallery
+                tripId={trip.id}
+                trip={{ startDate: trip.startDate, endDate: trip.endDate }}
+                places={items}
+                selectedPlaceId={selectedPlaceId}
+                onSelectPlace={setSelectedPlaceId}
+              />
+            </div>
+          ) : (
+            <div className="min-h-0 flex-1">
+              <ReviewGallery
+                tripId={trip.id}
+                trip={{ startDate: trip.startDate, endDate: trip.endDate }}
+                places={items}
+                currentUserId={currentUserId}
+                selectedPlaceId={selectedPlaceId}
+                onSelectPlace={setSelectedPlaceId}
+              />
+            </div>
+          )}
+        </aside>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          aria-label="여행 계획 패널 열기"
+          className="absolute bottom-4 right-4 z-20 flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2.5 text-sm font-semibold text-neutral-700 shadow-lg ring-1 ring-neutral-200 hover:bg-neutral-50 sm:bottom-auto sm:top-4"
+        >
+          <PanelRightOpen className="h-4 w-4" /> 여행 계획
+        </button>
+      )}
     </div>
   );
 }
