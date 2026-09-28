@@ -785,6 +785,16 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - `HomeNotificationLink.tsx`(단순 링크)를 [HomeNotificationBell.tsx](apps/web/src/components/home/HomeNotificationBell.tsx)(신규, 클라이언트 컴포넌트)로 교체 — `ProfileMenu`/`TripMetaEditor` "더보기"와 같은 클릭아웃사이드 드롭다운 패턴으로 팝업을 열고, 처음 열 때만 `GET /api/notifications`로 최신 10개를 가져와 보여줌. 개별 알림 클릭 시 읽음 처리 요청을 기다리지 않고(fire-and-forget) 바로 이동 — 안읽음 배지는 기존처럼 다음 페이지가 서버에서 새로 받아오는 카운트로 자연히 갱신(실시간 갱신 안 하는 기존 정책 그대로)
 - `tsc`/`eslint` 전체 통과. 테스트 계정으로 브라우저 E2E: 벨 클릭 시 팝업이 뜨고 "아직 알림이 없습니다" 빈 상태가 정상 표시되는 것, `GET /api/notifications`가 200으로 응답하는 것(네트워크 로그), "전체 확인" 클릭 시 `/notifications`로 정상 이동하는 것까지 확인. **미확인**: 이 테스트 계정엔 실제 알림(팔로우/좋아요)이 없어 목록에 항목이 있을 때의 렌더링·읽음 처리 클릭 동작은 실제 데이터로 확인 못 함 — 팔로우/좋아요를 발생시켜 알림이 쌓인 계정으로 한 번 더 확인 권장
 
+**완료 (2026-09-18, 사진/후기 탭도 타임라인과 같은 "날짜 하나만 선택하는 탭" 방식으로 통일)**
+
+사용자 요청: 방금 타임라인 탭에 적용한 날짜 탭 방식을 사진/후기 탭에도 동일하게 적용.
+
+- [DayTabSelector.tsx](apps/web/src/app/trips/[tripId]/DayTabSelector.tsx) 신규 — `PlaceList.tsx`에 인라인으로 있던 날짜 pill 탭 마크업을 공용 컴포넌트로 추출해 타임라인/사진/후기 세 탭이 완전히 같은 룩으로 렌더링되도록 함(각 탭은 자기만의 `selectedDay` 로컬 state를 따로 가짐 — 탭끼리 보고 있는 날짜가 서로 다를 수 있음)
+- [PhotoGallery.tsx](apps/web/src/app/trips/[tripId]/PhotoGallery.tsx), [ReviewGallery.tsx](apps/web/src/app/trips/[tripId]/ReviewGallery.tsx): `DayAccordionSection` 기반 아코디언(여러 날짜 동시 확장)을 걷어내고 `DayTabSelector` + 선택된 날짜 하나의 콘텐츠만 보여주도록 재작성
+- **연쇄 정리**: 사진/후기 탭이 마지막까지 쓰던 `expandedDays`(Set)/`toggleDay`가 이제 아무 데서도 안 쓰이게 돼서, [TripWorkspace.tsx](apps/web/src/app/trips/[tripId]/TripWorkspace.tsx)에서 통째로 제거하고 지도 이동경로 표시(`segments`)가 참조하던 것도 "타임라인 탭에서 지금 보고 있는 날짜 하나"(`selectedDay: number`)로 교체 — 여러 날짜의 Set을 순회하던 로직이 선택된 날짜 하나만 계산하는 훨씬 단순한 코드로 줄어듦. `PlaceList.tsx`의 날짜 선택도 자체 로컬 state에서 `TripWorkspace`가 내려주는 controlled prop(`selectedDay`/`onSelectDay`)으로 바뀌어, 장소를 다른 날짜로 옮기면(`moveToDay`) 지도/타임라인이 그 날짜로 같이 전환됨(예전엔 Set에 날짜를 추가하기만 했음)
+- `DayAccordionSection.tsx`는 그대로 유지 — 읽기 전용 공유 열람 화면(`SharedPlaceList`/`SharedPhotoGrid`/`SharedReviewGallery`)이 계속 씀. **이번 변경은 소유자용 편집 화면에만 한정**, 공유 화면은 이전과 동일하게 여러 날짜 동시 아코디언
+- `tsc`/`eslint` 전체 통과. 테스트 계정으로 브라우저 E2E: 2일 트립 생성 → 1일차에 경복궁 추가 → 사진 탭에서 날짜 탭(11/1·11/2)이 뜨고 1일차엔 경복궁+사진추가 버튼, 2일차 탭 클릭 시 "이 날짜에 등록된 장소가 없습니다"로 정상 전환되는 것 확인 → 후기 탭에서도 동일하게 날짜 탭 + 경복궁(별점 0개, 후기 등록 버튼)이 뜨는 것 확인 → 타임라인 탭이 회귀 없이 그대로 동작하는 것(지도 이동경로 포함)까지 확인
+
 **다음 세션 할 일**
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음
 - **(중요)** 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`)가 스키마를 바꿀 때마다(이번까지 4세션 연속) `migrate dev` 리셋 요구로 이어짐 — 매번 `migrate diff`/`db push` + 손으로 마이그레이션 작성 + `migrate resolve`로 우회하고 있지만 언제까지나 반복할 방식은 아님. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나(체크섬 재계산), 이 우회를 앞으로도 정식 절차로 문서화할지 다음 세션에서 결정 필요

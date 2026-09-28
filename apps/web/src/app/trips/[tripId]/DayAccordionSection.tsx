@@ -14,11 +14,10 @@ export function Chevron({ open }: { open: boolean }) {
   );
 }
 
-// 타임라인/사진/후기 탭과 공유 열람 화면 전부가 공유하는 날짜 헤더+테두리 셸.
-// 펼쳤을 때 안쪽 내용(장소 목록/사진 그리드/후기 등)은 화면마다 달라서 children으로 받는다.
-// 겉보기엔 날짜 탭(Day 9.07 | 9.08 | 9.09)처럼 보이지만, 실제 개폐 상태는 여러 날짜를
-// 동시에 열 수 있는 기존 아코디언(Set) 그대로다 — 다른 날짜로 장소를 드래그해서 옮기려면
-// 두 날짜가 동시에 화면에 펼쳐져 있어야 하기 때문(기능 변경 금지).
+// 공유 열람 화면(SharedPlaceList/SharedPhotoGrid/SharedReviewGallery, 읽기 전용이라
+// 드래그 기능이 없음)이 쓰는 날짜 헤더+테두리 셸 — 여러 날짜를 동시에 펼 수 있는 기존
+// 아코디언(Set) 그대로다. 소유자용 편집 화면(타임라인/사진/후기 탭)은 날짜 하나만 선택하는
+// `DayTabSelector`로 바뀌어서 더 이상 이 컴포넌트를 쓰지 않는다.
 export function DayAccordionSection({
   dayIndex,
   date,

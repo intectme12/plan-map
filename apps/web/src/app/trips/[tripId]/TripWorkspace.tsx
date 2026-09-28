@@ -103,18 +103,14 @@ export function TripWorkspace({
     [groups]
   );
 
-  const [expandedDays, setExpandedDays] = useState<Set<number>>(
-    () => new Set(days.map((_, i) => i).filter((i) => i === 0 || groups[i].length > 0))
-  );
-
-  function toggleDay(dayIndex: number) {
-    setExpandedDays((prev) => {
-      const next = new Set(prev);
-      if (next.has(dayIndex)) next.delete(dayIndex);
-      else next.add(dayIndex);
-      return next;
-    });
-  }
+  // 타임라인 탭에서 지금 보고 있는 날짜 하나 — 지도 이동경로 표시도 이 날짜 기준으로 맞춘다
+  // (예전엔 여러 날짜를 동시에 펼 수 있는 Set이었지만, 타임라인이 날짜 탭 방식으로 바뀌면서
+  // 화면에 실제로 보이는 날짜도 항상 하나뿐이라 단순한 숫자 하나로 충분해짐)
+  const [selectedDay, setSelectedDay] = useState(() => {
+    const firstWithPlaces = groups.findIndex((g) => g.length > 0);
+    return firstWithPlaces >= 0 ? firstWithPlaces : 0;
+  });
+  const safeSelectedDay = Math.min(selectedDay, days.length - 1);
 
   // 같은 날짜 안에서 연속된 장소 쌍만 뽑아서, 순서가 안 바뀌면 재조회하지 않도록 함
   const pairKey = groups
@@ -166,7 +162,7 @@ export function TripWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip.id, pairKey]);
 
-  // 이동경로 선은 펼쳐진 날짜의 것만, 날짜별로 다른 색으로 표시
+  // 이동경로 선은 타임라인에서 지금 보고 있는 날짜의 것만 표시
   const segments = useMemo(() => {
     const result: {
       id: string;
@@ -179,8 +175,8 @@ export function TripWorkspace({
       durationSec?: number;
       distanceM?: number;
     }[] = [];
-    groups.forEach((group, dayIndex) => {
-      if (!expandedDays.has(dayIndex)) return;
+    const group = groups[safeSelectedDay];
+    if (group) {
       for (let i = 0; i < group.length - 1; i++) {
         const from = group[i];
         const to = group[i + 1];
@@ -192,17 +188,17 @@ export function TripWorkspace({
           toLat: to.lat,
           toLng: to.lng,
           path: detail?.path,
-          color: dayColor(dayIndex),
+          color: dayColor(safeSelectedDay),
           durationSec: detail?.durationSec,
           distanceM: detail?.distanceM,
         });
       }
-    });
+    }
     return result;
-  }, [groups, expandedDays, routeDetails]);
+  }, [groups, safeSelectedDay, routeDetails]);
 
-  // 타임라인 탭의 날짜별 요약(이동시간/거리/비용) — expandedDays와 무관하게 그 날짜 안의
-  // 연속된 장소 쌍만 합산한다(다른 날짜로 넘어가는 구간은 제외).
+  // 타임라인 탭의 날짜별 요약(이동시간/거리/비용) — 모든 날짜를 미리 계산해두고, 그 중
+  // 지금 선택된 날짜(safeSelectedDay) 값만 PlaceList가 꺼내 쓴다(다른 날짜로 넘어가는 구간은 제외).
   const dayStats = useMemo(
     () =>
       groups.map((group) => {
@@ -337,12 +333,7 @@ export function TripWorkspace({
       });
       next.sort((a, b) => a.order - b.order);
 
-      setExpandedDays((prevExpanded) => {
-        if (prevExpanded.has(destDayIndex)) return prevExpanded;
-        const nextExpanded = new Set(prevExpanded);
-        nextExpanded.add(destDayIndex);
-        return nextExpanded;
-      });
+      setSelectedDay(destDayIndex);
 
       schedulePatch(destDayIndex, () => {
         newDestGroup.forEach((p) => {
@@ -451,6 +442,8 @@ export function TripWorkspace({
                   trip={{ startDate: trip.startDate, endDate: trip.endDate }}
                   places={items}
                   dayStats={dayStats}
+                  selectedDay={safeSelectedDay}
+                  onSelectDay={setSelectedDay}
                   selectedPlaceId={selectedPlaceId}
                   onSelectPlace={setSelectedPlaceId}
                   onDeletePlace={handleDeletePlace}
@@ -476,8 +469,6 @@ export function TripWorkspace({
                   places={items}
                   selectedPlaceId={selectedPlaceId}
                   onSelectPlace={setSelectedPlaceId}
-                  expandedDays={expandedDays}
-                  onToggleDay={toggleDay}
                 />
               </div>
             ) : (
@@ -489,8 +480,6 @@ export function TripWorkspace({
                   currentUserId={currentUserId}
                   selectedPlaceId={selectedPlaceId}
                   onSelectPlace={setSelectedPlaceId}
-                  expandedDays={expandedDays}
-                  onToggleDay={toggleDay}
                 />
               </div>
             )}

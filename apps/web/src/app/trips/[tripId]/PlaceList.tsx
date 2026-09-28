@@ -16,7 +16,8 @@ import { RouteSegmentRow } from "./RouteSegmentRow";
 import { ExpenseButton } from "./ExpenseButton";
 import { PlacePhotosInline } from "./PlacePhotosInline";
 import { PlaceForm } from "./PlaceForm";
-import { getTripDays, groupByDay, dayColor, formatDayLabel, WEEKDAYS } from "./days";
+import { DayTabSelector } from "./DayTabSelector";
+import { getTripDays, groupByDay, dayColor, formatDayLabel } from "./days";
 import type { PlaceEntry } from "./types";
 
 type DayStat = { placeCount: number; durationSec: number; distanceM: number; cost: number };
@@ -208,6 +209,8 @@ export function PlaceList({
   trip,
   places,
   dayStats,
+  selectedDay,
+  onSelectDay,
   selectedPlaceId,
   onSelectPlace,
   onDeletePlace,
@@ -218,6 +221,8 @@ export function PlaceList({
   trip: { startDate: string | Date; endDate: string | Date };
   places: PlaceEntry[];
   dayStats: DayStat[];
+  selectedDay: number;
+  onSelectDay: (dayIndex: number) => void;
   selectedPlaceId: string | null;
   onSelectPlace: (placeId: string) => void;
   onDeletePlace: (place: PlaceEntry) => void;
@@ -227,14 +232,10 @@ export function PlaceList({
   const days = getTripDays(trip.startDate, trip.endDate);
   const groups = groupByDay(places, days);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
-
-  const [selectedDay, setSelectedDay] = useState(() => {
-    const firstWithPlaces = groups.findIndex((g) => g.length > 0);
-    return firstWithPlaces >= 0 ? firstWithPlaces : 0;
-  });
   const [addOpen, setAddOpen] = useState(false);
 
-  // 여행 기간이 바뀌어 날짜 수가 줄어드는 경우를 대비한 범위 보정
+  // 지도 이동경로 표시도 이 날짜를 따르므로(TripWorkspace 참고) 범위는 부모가 이미 보정해서 내려주지만,
+  // 여행 기간이 바뀌는 순간의 렌더링 대비 여기서도 한 번 더 방어
   const safeSelectedDay = Math.min(selectedDay, days.length - 1);
   const currentDate = days[safeSelectedDay];
   const currentGroup = groups[safeSelectedDay] ?? [];
@@ -243,32 +244,7 @@ export function PlaceList({
   return (
     <div className="flex h-full flex-col">
       {/* 날짜 탭 선택 — 한 번에 한 날짜만 본다(다른 날짜 드래그 대신 MoveToDayMenu 사용) */}
-      <div className="px-3 pt-3 pb-2">
-        <div className="flex gap-1.5">
-          {days.map((date, dayIndex) => {
-            const active = dayIndex === safeSelectedDay;
-            return (
-              <button
-                key={dayIndex}
-                type="button"
-                onClick={() => setSelectedDay(dayIndex)}
-                className={`flex flex-1 flex-col items-center rounded-xl border py-1.5 transition-colors ${
-                  active
-                    ? "border-blue-200 bg-blue-50"
-                    : "border-neutral-200 bg-white hover:bg-neutral-50"
-                }`}
-              >
-                <span className={`text-xs font-bold ${active ? "text-blue-600" : "text-neutral-600"}`}>
-                  {date.getMonth() + 1}/{date.getDate()}
-                </span>
-                <span className={`mt-0.5 text-[11px] ${active ? "text-blue-500" : "text-neutral-400"}`}>
-                  {WEEKDAYS[date.getDay()]}요일
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <DayTabSelector days={days} selectedDay={safeSelectedDay} onSelect={onSelectDay} />
 
       {/* 선택된 날짜 요약 */}
       <div className="mx-3 mb-3 rounded-xl border border-neutral-100 bg-neutral-50 p-3">
