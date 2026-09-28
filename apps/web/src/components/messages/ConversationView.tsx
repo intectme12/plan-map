@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Avatar } from "@/components/Avatar";
 import { PhotoLightbox } from "@/app/trips/[tripId]/PhotoLightbox";
 import { useMessageStream } from "@/hooks/useMessageStream";
 import { MessageComposer } from "./MessageComposer";
+import type { OtherUser } from "./MessagesPanelProvider";
 
 type Message = {
   id: string;
@@ -14,8 +14,6 @@ type Message = {
   imageKey: string | null;
   createdAt: string | Date;
 };
-
-type OtherUser = { id: string; nickname: string; avatarUrl: string | null };
 
 function formatTime(value: string | Date) {
   return new Date(value).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
@@ -34,7 +32,7 @@ export function ConversationView({
   initialMessages: Message[];
   initialOtherLastReadAt: string | Date | null;
 }) {
-  // 다른 대화로 이동하면 이 컴포넌트가 다시 마운트되도록 호출부([conversationId]/page.tsx)가
+  // 다른 대화로 이동하면 이 컴포넌트가 다시 마운트되도록 호출부(ConversationPanelBody.tsx)가
   // key={conversationId}를 준다 — 그래서 initialMessages가 그대로 초기값이 되고, 대화가
   // 바뀔 때마다 상태를 되돌리는 effect가 따로 필요 없다.
   const [messages, setMessages] = useState(initialMessages);
@@ -106,12 +104,7 @@ export function ConversationView({
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <header className="flex items-center gap-3 border-b border-neutral-200 px-4 py-3">
-        <Avatar url={other.avatarUrl} nickname={other.nickname} size={36} />
-        <p className="font-semibold">{other.nickname}</p>
-      </header>
-
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-4 py-4">
         {hasMoreOlder ? (
           <button

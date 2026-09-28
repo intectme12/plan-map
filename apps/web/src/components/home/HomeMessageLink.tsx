@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { MessageCircle } from "lucide-react";
 import { useMessageStream } from "@/hooks/useMessageStream";
+import { useMessagesPanel } from "@/components/messages/MessagesPanelProvider";
 
-// MessageNavLink와 같은 실시간 안읽음 로직(useMessageStream)을 쓰지만 홈 헤더는 아이콘 전용
-// UI라 별도로 둔다 — /trips 등 기존 화면 스타일은 건드리지 않기 위함.
+// 클릭하면 더 이상 /messages로 이동하지 않고, 화면 오른쪽에 뜨는 메시지 패널(MessagesPanel)을 연다.
 export function HomeMessageLink({
   currentUserId,
   initialUnreadCount,
@@ -15,6 +14,7 @@ export function HomeMessageLink({
   initialUnreadCount: number;
 }) {
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
+  const { toggle } = useMessagesPanel();
 
   useMessageStream((event) => {
     if (event.message.senderId !== currentUserId) {
@@ -23,8 +23,9 @@ export function HomeMessageLink({
   });
 
   return (
-    <Link
-      href="/messages"
+    <button
+      type="button"
+      onClick={toggle}
       aria-label="메시지"
       className="relative flex h-9 w-9 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
     >
@@ -34,6 +35,6 @@ export function HomeMessageLink({
           {unreadCount > 9 ? "9+" : unreadCount}
         </span>
       ) : null}
-    </Link>
+    </button>
   );
 }

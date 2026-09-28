@@ -795,6 +795,19 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - `DayAccordionSection.tsx`는 그대로 유지 — 읽기 전용 공유 열람 화면(`SharedPlaceList`/`SharedPhotoGrid`/`SharedReviewGallery`)이 계속 씀. **이번 변경은 소유자용 편집 화면에만 한정**, 공유 화면은 이전과 동일하게 여러 날짜 동시 아코디언
 - `tsc`/`eslint` 전체 통과. 테스트 계정으로 브라우저 E2E: 2일 트립 생성 → 1일차에 경복궁 추가 → 사진 탭에서 날짜 탭(11/1·11/2)이 뜨고 1일차엔 경복궁+사진추가 버튼, 2일차 탭 클릭 시 "이 날짜에 등록된 장소가 없습니다"로 정상 전환되는 것 확인 → 후기 탭에서도 동일하게 날짜 탭 + 경복궁(별점 0개, 후기 등록 버튼)이 뜨는 것 확인 → 타임라인 탭이 회귀 없이 그대로 동작하는 것(지도 이동경로 포함)까지 확인
 
+**완료 (2026-09-28, 메시지를 전체 화면 페이지 → 오른쪽 슬라이드 패널로 전환)**
+
+사용자 요청: `/messages`가 화면 전체를 차지해서 불편하니, 인스타그램 DM/카카오톡 웹처럼 화면 오른쪽에서 열고 닫는 패널로 바꿔달라.
+
+- 메시지 진입점은 실질적으로 헤더의 [HomeMessageLink.tsx](apps/web/src/components/home/HomeMessageLink.tsx)와 프로필의 "메시지 보내기"([SendMessageButton.tsx](apps/web/src/components/SendMessageButton.tsx)) 둘뿐이었고(`MessageNavLink.tsx`는 헤더가 `HomeHeader`로 통일되며 이미 아무 곳에서도 안 쓰이던 죽은 컴포넌트였음 — 이번에 같이 삭제), `/messages/[id]`를 가리키는 외부 딥링크도 없어서 전체 화면 라우트(`apps/web/src/app/messages/`)를 통째로 삭제하고 패널로 완전히 대체
+- [components/messages/MessagesPanelProvider.tsx](apps/web/src/components/messages/MessagesPanelProvider.tsx) 신규 — 패널 열림/닫힘·목록/대화 뷰·현재 대화id를 들고 있는 전역 Context. 루트 레이아웃에 전역으로 떠 있어 페이지별 서버 prop을 못 받으므로, `AppBadgeSync.tsx`와 같은 방식으로 `GET /api/auth/me`에서 현재 유저 id를 클라이언트에서 가져옴
+- [components/messages/MessagesPanel.tsx](apps/web/src/components/messages/MessagesPanel.tsx) 신규 — `Modal.tsx`와 같은 이유(조상 CSS transform에 fixed 포지셔닝이 갇히는 버그 방지)로 `createPortal(document.body)` 사용. 배경 딤 없이 페이지 위에 계속 떠 있다가 X/Esc로만 닫히는 비모달 패널(바깥 클릭으로는 안 닫힘 — 다른 화면을 보면서 대화를 열어둘 수 있게). 헤더를 패널이 전담(목록 뷰="메시지"+닫기, 대화 뷰=뒤로가기+상대 아바타/닉네임+닫기)하도록 기존 `ConversationView`의 내부 `<header>`는 제거
+- 기존 서버 컴포넌트 라우트(`/messages/layout.tsx`, `/messages/[id]/page.tsx`)가 하던 초기 데이터 로딩을 클라이언트 쪽으로 옮김: `ConversationListPanel.tsx`(구 `ConversationListPane.tsx`, `Link`→`onClick` 콜백으로 변경)는 마운트 시 `GET /api/conversations`를 직접 호출, `ConversationPanelBody.tsx`(신규)는 대화 하나를 열 때 초기 메시지(`GET /api/conversations/[id]/messages`)와 안읽음 처리(`POST /api/conversations/[id]/read`)를 처리 — 상대 유저 정보(`other`)는 목록에서 선택한 경우 이미 있는 값을 재사용하고, `SendMessageButton`처럼 대화id만 아는 경우엔 새로 추가한 `GET /api/conversations/[conversationId]`(`getConversationSummary` 재사용)로 가져옴
+- **발견한 버그**: `SendMessageButton`으로 대화를 새로 열면 `other` 정보가 없어 패널 헤더가 한동안(요청 완료 후에도 계속) "메시지"라는 제목만 보여주고 상대 이름/아바타를 못 띄웠음 — `ConversationPanelBody`가 요약을 받아온 뒤 `MessagesPanelProvider`에 `setActiveOther(conversationId, other)`로 되돌려주는 콜백을 추가해 헤더가 로딩 완료 후 정상적으로 갱신되도록 고침(브라우저로 재현 후 확인)
+- `ConversationPanelBody`가 대화 전환 시 이전 상태를 지우려고 effect 안에서 동기적으로 `setState`를 호출하던 게 `react-hooks/set-state-in-effect` 린트 에러였음 — 부모(`MessagesPanel.tsx`)가 `key={conversationId}`를 줘서 대화가 바뀌면 컴포넌트가 통째로 다시 마운트되게 바꿔 해결(기존 `ConversationView`가 이미 쓰던 것과 같은 패턴)
+- `tsc`/`eslint` 전체 통과(무관한 기존 위반 12건 제외). 테스트 계정으로 브라우저 E2E: 헤더 메시지 아이콘 클릭 시 오른쪽에서 패널 슬라이드인 → 다른 회원 프로필 "메시지 보내기"로 대화 시작(로딩 중 "불러오는 중..." → 상대 이름/아바타로 헤더 갱신 확인) → 메시지 전송/렌더 확인 → 뒤로가기로 목록 복귀 시 방금 대화가 미리보기와 함께 표시 → 목록에서 다시 클릭 시 지연 없이(이미 아는 `other` 재사용) 대화 진입 → X로 닫아도 배경 페이지(트립 카드 등) 클릭 가능한 비모달 동작 → 홈(`/`)·`/trips` 양쪽 헤더에서 모두 동작(패널 상태는 전역 유지되나, 전체 새로고침 시엔 초기화되는 것도 확인) → 모바일 뷰포트(375px)에서 패널이 전체 폭으로 전환 → `/messages` 직접 접속 시 정상 404까지 확인
+- **미확인**: 상대방이 실시간으로 메시지를 보내거나 읽었을 때(SSE 기반 실시간 수신·타이핑 표시·읽음 표시) 패널 안에서 정상 반영되는지는 계정 하나로는 재현 못 함 — 로직 자체(`useMessageStream` 호출부)는 기존 코드 그대로 옮기기만 해서 회귀 위험은 낮지만, 다른 계정에서 메시지를 보내 실시간 반영까지 한 번 더 확인 권장
+
 **다음 세션 할 일**
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음
 - **(중요)** 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`)가 스키마를 바꿀 때마다(이번까지 4세션 연속) `migrate dev` 리셋 요구로 이어짐 — 매번 `migrate diff`/`db push` + 손으로 마이그레이션 작성 + `migrate resolve`로 우회하고 있지만 언제까지나 반복할 방식은 아님. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나(체크섬 재계산), 이 우회를 앞으로도 정식 절차로 문서화할지 다음 세션에서 결정 필요
@@ -809,3 +822,4 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - **(중요)** 타임라인 탭을 날짜 아코디언→단일 탭 선택으로 전면 개편(2026-09-18)한 뒤, 같은 날짜 안에서의 장소 드래그 재정렬이 실제 브라우저에서 여전히 정상 동작하는지 사람이 한 번 확인 필요 — 자동화 브라우저의 합성 포인터 이벤트로는 재현이 안 돼 코드 diff(로직 미변경)로만 확인했음(날짜 간 이동은 드롭다운으로 바뀌어 실제 클릭으로 확인 완료)
 - (신규) 상단 알림 벨 팝업(2026-09-18)은 알림이 하나도 없는 테스트 계정으로만 확인함 — 실제 팔로우/좋아요 알림이 쌓인 계정으로 목록 렌더링·항목 클릭 시 읽음 처리까지 한 번 더 확인 권장
 - (신규) 지도 위 이동시간 라벨은 자동차 기준(`durationSec`/`distanceM`)만 표시 — 사이드바의 택시 요금(`fareWon`)은 아직 지도 라벨에는 안 올라감, 필요해지면 추가
+- (신규) 메시지 패널 전환(2026-09-28) 이후, 상대방이 실시간으로 보내는 메시지/타이핑/읽음 신호가 패널 안에서 반영되는지 계정 2개로 한 번 더 확인 필요(테스트 계정 1개로만 검증함)

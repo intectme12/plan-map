@@ -7,8 +7,8 @@ import { useMessageStream } from "@/hooks/useMessageStream";
 
 type ConversationSummary = { unread: boolean };
 
-// 앱 어디서든(트립 목록/상세/메시지함 등) 로그인 중이면 안읽은 대화 수를 브라우저 배지에
-// 반영한다. 페이지별로 따로 세는 로직(MessageNavLink 등)과 조금 중복되지만, 이건 특정
+// 앱 어디서든(트립 목록/상세/메시지 패널 등) 로그인 중이면 안읽은 대화 수를 브라우저 배지에
+// 반영한다. 페이지별로 따로 세는 로직(HomeMessageLink 등)과 조금 중복되지만, 이건 특정
 // 페이지가 아니라 루트 레이아웃에 항상 떠 있어야 해서 자체적으로 초기값을 가져온다.
 export function AppBadgeSync() {
   const [userId, setUserId] = useState<string | null>(null);

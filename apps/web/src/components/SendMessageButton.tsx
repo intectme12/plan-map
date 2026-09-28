@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast/ToastProvider";
+import { useMessagesPanel } from "@/components/messages/MessagesPanelProvider";
 
 export function SendMessageButton({ userId, className }: { userId: string; className?: string }) {
   const [sending, setSending] = useState(false);
-  const router = useRouter();
+  const { openConversation } = useMessagesPanel();
   const toast = useToast();
 
   async function onClick() {
@@ -23,7 +23,7 @@ export function SendMessageButton({ userId, className }: { userId: string; class
       return;
     }
     const conversation = await res.json();
-    router.push(`/messages/${conversation.id}`);
+    openConversation(conversation.id);
   }
 
   return (

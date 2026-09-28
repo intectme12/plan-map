@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/toast/ToastProvider";
 import { AppBadgeSync } from "@/components/AppBadgeSync";
+import { MessagesPanelProvider } from "@/components/messages/MessagesPanelProvider";
+import { MessagesPanel } from "@/components/messages/MessagesPanel";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,7 +29,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <ToastProvider>
-          {children}
+          <MessagesPanelProvider>
+            {children}
+            <MessagesPanel />
+          </MessagesPanelProvider>
           <AppBadgeSync />
         </ToastProvider>
       </body>

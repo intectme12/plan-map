@@ -1,14 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Avatar } from "@/components/Avatar";
 import { useMessageStream } from "@/hooks/useMessageStream";
+import type { OtherUser } from "./MessagesPanelProvider";
 
-type ConversationSummary = {
+export type ConversationSummary = {
   id: string;
-  other: { id: string; nickname: string; avatarUrl: string | null };
+  other: OtherUser;
   lastMessageAt: string | Date;
   lastMessagePreview: string | null;
   unread: boolean;
@@ -23,19 +22,26 @@ function formatTime(value: string | Date) {
     : date.toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" });
 }
 
-export function ConversationListPane({
-  initialConversations,
+export function ConversationListPanel({
   currentUserId,
+  activeConversationId,
+  onSelect,
 }: {
-  initialConversations: ConversationSummary[];
   currentUserId: string;
+  activeConversationId: string | null;
+  onSelect: (conversation: ConversationSummary) => void;
 }) {
-  const [conversations, setConversations] = useState(initialConversations);
-  const pathname = usePathname();
-  const activeConversationId = pathname.startsWith("/messages/") ? pathname.split("/")[2] : null;
+  const [conversations, setConversations] = useState<ConversationSummary[] | null>(null);
+
+  useEffect(() => {
+    fetch("/api/conversations")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: ConversationSummary[]) => setConversations(data));
+  }, []);
 
   useMessageStream((event) => {
     setConversations((prev) => {
+      if (!prev) return prev;
       const isMine = event.message.senderId === currentUserId;
       const isOpen = event.conversationId === activeConversationId;
       const existing = prev.find((c) => c.id === event.conversationId);
@@ -60,6 +66,10 @@ export function ConversationListPane({
     });
   });
 
+  if (conversations === null) {
+    return <p className="p-4 text-center text-sm text-neutral-400">불러오는 중...</p>;
+  }
+
   if (conversations.length === 0) {
     return (
       <p className="p-4 text-sm text-neutral-500">
@@ -76,9 +86,10 @@ export function ConversationListPane({
 
         return (
           <li key={c.id}>
-            <Link
-              href={`/messages/${c.id}`}
-              className={`flex items-center gap-3 border-b border-neutral-100 px-4 py-3 hover:bg-neutral-50 ${
+            <button
+              type="button"
+              onClick={() => onSelect(c)}
+              className={`flex w-full items-center gap-3 border-b border-neutral-100 px-4 py-3 text-left hover:bg-neutral-50 ${
                 c.id === activeConversationId ? "bg-neutral-100" : ""
               }`}
             >
@@ -99,7 +110,7 @@ export function ConversationListPane({
                   {displayUnread ? <span className="h-2 w-2 flex-none rounded-full bg-blue-600" /> : null}
                 </div>
               </div>
-            </Link>
+            </button>
           </li>
         );
       })}
