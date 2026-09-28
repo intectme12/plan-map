@@ -17,6 +17,9 @@ export function MessageComposer({
   const [pending, setPending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastTypingSentAtRef = useRef(0);
+  // Enter 두 번이 같은 틱 안에 연달아 들어오면(IME 중복 keydown 등) pending state는 아직
+  // 리렌더 전이라 두 번째 호출도 false로 읽혀 막지 못한다 — ref로 동기적으로 막는다.
+  const submittingRef = useRef(false);
   const toast = useToast();
 
   // 매 키 입력마다 보내지 않고 2초에 한 번 정도만 신호를 보낸다 — 계속 입력 중이면 이 정도
@@ -46,9 +49,11 @@ export function MessageComposer({
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (submittingRef.current) return;
     const trimmed = content.trim();
     if (!trimmed && !imageFile) return;
 
+    submittingRef.current = true;
     setPending(true);
     const formData = new FormData();
     if (trimmed) formData.set("content", trimmed);
@@ -58,6 +63,7 @@ export function MessageComposer({
       method: "POST",
       body: formData,
     });
+    submittingRef.current = false;
     setPending(false);
 
     if (!res.ok) {
@@ -95,7 +101,10 @@ export function MessageComposer({
           value={content}
           onChange={(e) => onContentChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            // 한글 등 조합형 입력(IME)에서 조합을 확정하려고 누른 Enter까지 전송으로 잡으면
+            // 브라우저에 따라 keydown이 두 번(조합 확정 1번 + 실제 Enter 1번) 들어와 폼이
+            // 두 번 제출된다 — isComposing(및 조합 종료 직후 남는 229 keyCode)인 동안은 무시.
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) {
               e.preventDefault();
               e.currentTarget.form?.requestSubmit();
             }

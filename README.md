@@ -880,6 +880,17 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - 수정: `fetchedUserRef`(영구 1회성 가드)를 `fetchingUserRef`(동시 중복 호출만 막는 가드)로 교체하고, `ensureCurrentUser`가 `currentUserId`가 여전히 없을 때마다 다시 시도하도록 변경 — 메시지 아이콘 클릭(`toggle`)마다 `ensureCurrentUser`를 호출하므로, 로그인 후 첫 클릭에서 자연스럽게 재조회되어 곧바로 열림
 - 브라우저 E2E로 재현 시나리오 그대로 재검증: 로그아웃 상태로 마운트 → 클라이언트 로그인 → 메시지 아이콘 클릭 → 패널이 `translate-x-0`(열림)로 정상 렌더링되는 것 확인. `AppBadgeSync.tsx`도 구조상 동일한 "1회성 fetch" 패턴이라 같은 종류의 문제(배지가 로그인 직후 안 갱신) 여지가 있음 — 이번 리포트 범위 밖이라 손대지 않음, 아래 "다음 세션 할 일"에 기록
 
+**완료 (2026-09-29, 메시지 입력 후 Enter 전송 시 두 번 전송되던 버그 수정)**
+
+사용자 리포트: "메세지 적고 엔터눌러서 전송하면 두개씩 전송되는데 확인해줘".
+
+- 원인: [MessageComposer.tsx](apps/web/src/components/messages/MessageComposer.tsx)의 `textarea` `onKeyDown`이 `e.key === "Enter"`만 보고 바로 `form.requestSubmit()`을 호출했음. 한글 등 조합형(IME) 입력에서 조합을 확정하는 Enter는 브라우저에 따라 keydown이 두 번(조합 확정용 1번 + 실제 Enter 1번) 들어오는데, 이걸 구분하는 `isComposing`/`keyCode 229` 체크가 전혀 없어 두 번 다 제출로 처리됨. 게다가 이미 있던 `pending` state 가드도 React state 업데이트가 비동기라 같은 틱 안에 연달아 들어오는 두 번째 호출까지는 막지 못하는 걸 재현 테스트로 확인(실제 키 이벤트 대신 합성 `KeyboardEvent`로 재현 — 이 저장소의 브라우저 자동화 도구는 실제 OS IME 조합을 흉내내지 못해서 실제 키 입력으로는 재현 불가)
+- 수정 두 가지:
+  1. `onKeyDown`에 `!e.nativeEvent.isComposing && e.keyCode !== 229` 조건 추가 — 조합 확정 Enter는 무시
+  2. `pending` state와 별개로 `submittingRef`(useRef) 동기 가드 추가, `onSubmit` 맨 앞에서 체크 — state 업데이트를 기다릴 필요 없이 같은 틱의 중복 호출을 즉시 차단
+- 합성 keydown 이벤트로 세 가지 시나리오 검증: (1) `keyCode 229` 단독 → 전송 안 됨(정상), (2) 정상 Enter 1번 → 1회 전송, (3) `keyCode 229` + 정상 Enter 연속 발생(실제 IME 패턴 재현) → 1회만 전송. 수정 전 코드로는 (3)에서 정확히 2회 전송되는 것도 먼저 확인해 버그를 재현한 뒤 고쳤음
+- `tsc --noEmit`/`eslint` 통과
+
 **다음 세션 할 일**
 - (신규) `AppBadgeSync.tsx`도 `MessagesPanelProvider`와 동일하게 `/api/auth/me`를 마운트 시 1회만 조회함 — 로그인 후 리마운트 없이 배지가 갱신되는지 확인 필요, 필요하면 이번 수정과 같은 방식(재시도 가능한 가드)으로 통일
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음
