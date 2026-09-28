@@ -862,6 +862,15 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - `ChevronDown`/`ChevronLeft`/`ChevronRight`/`ChevronUp` import 제거(더 이상 안 씀)
 - `tsc --noEmit`/`eslint` 통과. 브라우저 E2E(공유 트립을 "내 여행으로 복사"해 소유자 화면에서 확인): 데스크톱에서 AI 카드가 지도 왼쪽 위에 독립적으로 뜨고, 오른쪽 패널(히어로+탭+내용)엔 접기 버튼이 전혀 없이 항상 표시되는 것 확인 → 모바일 뷰포트(375px)에서도 AI 카드가 상단 바로, 패널이 하단 시트로 각각 정상 표시되고 접기 버튼이 없는 것까지 확인
 
+**완료 (2026-09-28, 오른쪽 패널 안 히어로 카드를 아래쪽 각지게 + 높이 2/3로 축소)**
+
+사용자 피드백(패널 병합 후 히어로 카드 스크린샷 기준): (1) 히어로 카드 아래쪽이 둥글어서 그 아래 탭과 이어지는 부분에 어색한 곡선 틈이 보이니 각지게, (2) 히어로 높이를 2/3 정도로 줄여달라.
+
+- [TripHeroBanner.tsx](apps/web/src/app/trips/[tripId]/TripHeroBanner.tsx)는 [TripWorkspace.tsx](apps/web/src/app/trips/[tripId]/TripWorkspace.tsx)(패널 맨 위, 아래쪽 모서리가 탭과 맞닿음)와 [SharedTripView.tsx](apps/web/src/app/trips/shared/[tripId]/SharedTripView.tsx)(독립된 둥근 카드, 지도와 같은 폭) 두 곳에서 재사용되는 컴포넌트라, 전역으로 바꾸지 않고 `squareBottom`/`compact` optional prop 두 개를 추가 — 기본값(`false`)은 기존과 동일(네 모서리 둥근 카드, 기존 높이)이라 `SharedTripView.tsx`는 변경 없이 그대로 동작
+- `squareBottom`: `rounded-3xl` → `rounded-t-3xl`(위쪽만 둥글게), `compact`: `min-h-[165px] sm:min-h-[195px]` → `min-h-[110px] sm:min-h-[130px]`(정확히 2/3 비율로 계산)
+- `TripWorkspace.tsx`의 `<TripHeroBanner>` 호출에만 `squareBottom compact` 추가
+- `tsc --noEmit`/`eslint` 통과. 브라우저 E2E(공유 트립을 "내 여행으로 복사"해 소유자 화면에서 확인): 히어로 카드 아래쪽이 각지게 바뀌어 탭 섹션과 자연스럽게 이어지는 것, 높이가 눈에 띄게 줄어든 것 확인 → 공유 열람 화면(`/trips/shared/[tripId]`)은 여전히 기존처럼 네 모서리 둥근 카드·원래 높이로 표시되는 것(회귀 없음)까지 확인
+
 **다음 세션 할 일**
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음
 - **(중요)** 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`)가 스키마를 바꿀 때마다(이번까지 4세션 연속) `migrate dev` 리셋 요구로 이어짐 — 매번 `migrate diff`/`db push` + 손으로 마이그레이션 작성 + `migrate resolve`로 우회하고 있지만 언제까지나 반복할 방식은 아님. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나(체크섬 재계산), 이 우회를 앞으로도 정식 절차로 문서화할지 다음 세션에서 결정 필요

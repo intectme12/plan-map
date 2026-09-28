@@ -386,7 +386,7 @@ export function TripWorkspace({
       {/* 오른쪽 패널 — 히어로(대표사진+제목)를 맨 위에 포함해 탭/내용과 한 카드로 합침.
           모바일에서는 하단 시트, sm 이상에서는 오른쪽 위~아래 전체 높이 */}
       <aside className="absolute inset-x-4 bottom-4 z-20 flex h-[55vh] flex-col overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-xl sm:inset-x-auto sm:right-4 sm:top-4 sm:h-auto sm:w-[380px] lg:w-[420px]">
-        <TripHeroBanner coverPhotoKey={trip.coverPhotoKey}>
+        <TripHeroBanner coverPhotoKey={trip.coverPhotoKey} squareBottom compact>
           <TripMetaEditor trip={trip} isOwner={isOwner} />
         </TripHeroBanner>
 

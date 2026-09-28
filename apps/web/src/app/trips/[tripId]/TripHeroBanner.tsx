@@ -9,19 +9,30 @@ const FALLBACK_IMAGE = "/images/hero-fallback.jpg";
 export function TripHeroBanner({
   coverPhotoKey,
   children,
+  squareBottom = false,
+  compact = false,
 }: {
   coverPhotoKey: string | null;
   children: React.ReactNode;
+  // 오른쪽 패널 맨 위에 합쳐 쓸 때(TripWorkspace.tsx)는 그 아래 탭과 이어지도록 아래쪽
+  // 모서리를 각지게, 높이도 2/3 정도로 줄인다 — 단독 카드로 쓰는 곳(SharedTripView.tsx)은
+  // 기본값(둥근 네 모서리·기존 높이) 그대로 유지.
+  squareBottom?: boolean;
+  compact?: boolean;
 }) {
   return (
-    <section className="relative overflow-hidden rounded-3xl">
+    <section className={`relative overflow-hidden ${squareBottom ? "rounded-t-3xl" : "rounded-3xl"}`}>
       <div
         className="absolute inset-0 bg-cover bg-center"
         style={{ backgroundImage: `url(${coverPhotoKey || FALLBACK_IMAGE})` }}
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/35 to-black/10" />
 
-      <div className="relative flex min-h-[165px] items-center p-3 sm:min-h-[195px] sm:p-4">
+      <div
+        className={`relative flex items-center p-3 sm:p-4 ${
+          compact ? "min-h-[110px] sm:min-h-[130px]" : "min-h-[165px] sm:min-h-[195px]"
+        }`}
+      >
         <div className="w-full max-w-lg">{children}</div>
       </div>
     </section>
