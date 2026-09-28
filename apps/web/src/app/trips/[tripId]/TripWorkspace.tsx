@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { KakaoMapCanvas } from "@/components/map/KakaoMapCanvas";
@@ -52,7 +51,6 @@ export function TripWorkspace({
 }) {
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sharedModalOpen, setSharedModalOpen] = useState(false);
   const [reviewsModalPlaceId, setReviewsModalPlaceId] = useState<string | null>(null);
   const toast = useToast();
@@ -368,8 +366,7 @@ export function TripWorkspace({
           })()
         : null}
 
-      {/* 카카오맵을 페이지 전체 배경으로 깔고, 히어로 카드와 오른쪽 패널은 그 위에 뜨는
-          오버레이로 바꿔서 버튼으로 열고 닫을 수 있게 한다 */}
+      {/* 카카오맵을 페이지 전체 배경으로 깔고, AI 카드/오른쪽 패널은 그 위에 항상 뜨는 오버레이로 배치 */}
       <div className="absolute inset-0">
         <KakaoMapCanvas
           points={points}
@@ -381,104 +378,83 @@ export function TripWorkspace({
         />
       </div>
 
-      {/* 오른쪽 패널 — 히어로(대표사진+제목)를 맨 위에 포함해 AI카드/탭/내용과 한 카드로 합침.
-          모바일에서는 하단 시트, sm 이상에서는 오른쪽 위~아래 전체 높이. 래퍼는 패널이 닫혀있어도
-          항상 같은 자리를 차지해서, 접기 핸들이 열림/닫힘 상관없이 같은 위치에서 화살표만 바뀐다. */}
-      <div
-        className={`absolute inset-x-4 bottom-4 z-20 h-[55vh] sm:inset-x-auto sm:right-4 sm:top-4 sm:bottom-4 sm:h-auto sm:w-[380px] lg:w-[420px] ${
-          sidebarOpen ? "" : "pointer-events-none"
-        }`}
-      >
-        {sidebarOpen ? (
-          <aside className="flex h-full w-full flex-col overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-xl">
-            <TripHeroBanner coverPhotoKey={trip.coverPhotoKey}>
-              <TripMetaEditor trip={trip} isOwner={isOwner} />
-            </TripHeroBanner>
-
-            <div className="flex-none border-b border-neutral-100 p-3">
-              <AIAssistantCard href={`/trips/${trip.id}/import`} />
-            </div>
-            <nav className="flex gap-1 border-b border-neutral-100 px-3 pt-2">
-              {TABS.map((t) => (
-                <Link
-                  key={t.key}
-                  href={t.key === "timeline" ? `/trips/${trip.id}` : `/trips/${trip.id}?tab=${t.key}`}
-                  className={`border-b-2 px-3 py-2 text-sm font-semibold ${
-                    activeTab === t.key
-                      ? "border-blue-600 text-blue-600"
-                      : "border-transparent text-neutral-500 hover:text-neutral-700"
-                  }`}
-                >
-                  {t.label}
-                </Link>
-              ))}
-            </nav>
-
-            {activeTab === "timeline" ? (
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                <PlaceList
-                  tripId={trip.id}
-                  trip={{ startDate: trip.startDate, endDate: trip.endDate }}
-                  places={items}
-                  dayStats={dayStats}
-                  selectedDay={safeSelectedDay}
-                  onSelectDay={setSelectedDay}
-                  selectedPlaceId={selectedPlaceId}
-                  onSelectPlace={setSelectedPlaceId}
-                  onDeletePlace={handleDeletePlace}
-                  onDragEnd={handleDragEnd}
-                  onMoveToDay={moveToDay}
-                />
-              </div>
-            ) : activeTab === "expense" ? (
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                <ExpenseSummary
-                  total={expenseTotal}
-                  byCategory={byCategory}
-                  places={placeTotals}
-                  selectedPlaceId={selectedPlaceId}
-                  onSelectPlace={setSelectedPlaceId}
-                />
-              </div>
-            ) : activeTab === "photos" ? (
-              <div className="min-h-0 flex-1">
-                <PhotoGallery
-                  tripId={trip.id}
-                  trip={{ startDate: trip.startDate, endDate: trip.endDate }}
-                  places={items}
-                  selectedPlaceId={selectedPlaceId}
-                  onSelectPlace={setSelectedPlaceId}
-                />
-              </div>
-            ) : (
-              <div className="min-h-0 flex-1">
-                <ReviewGallery
-                  tripId={trip.id}
-                  trip={{ startDate: trip.startDate, endDate: trip.endDate }}
-                  places={items}
-                  currentUserId={currentUserId}
-                  selectedPlaceId={selectedPlaceId}
-                  onSelectPlace={setSelectedPlaceId}
-                />
-              </div>
-            )}
-          </aside>
-        ) : null}
-
-        <button
-          type="button"
-          onClick={() => setSidebarOpen((v) => !v)}
-          aria-label={sidebarOpen ? "패널 접기" : "패널 펼치기"}
-          className="pointer-events-auto absolute left-1/2 top-0 z-30 flex h-6 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-500 shadow-lg hover:bg-neutral-50 hover:text-neutral-700 sm:left-0 sm:top-1/2 sm:h-12 sm:w-6 sm:-translate-y-1/2"
-        >
-          <span className="sm:hidden">
-            {sidebarOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-          </span>
-          <span className="hidden sm:block">
-            {sidebarOpen ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-          </span>
-        </button>
+      {/* AI 여행 도우미 — 지도 왼쪽 위에 뜨는 독립 카드 */}
+      <div className="absolute left-4 right-4 top-4 z-20 sm:right-auto sm:w-[360px]">
+        <AIAssistantCard href={`/trips/${trip.id}/import`} />
       </div>
+
+      {/* 오른쪽 패널 — 히어로(대표사진+제목)를 맨 위에 포함해 탭/내용과 한 카드로 합침.
+          모바일에서는 하단 시트, sm 이상에서는 오른쪽 위~아래 전체 높이 */}
+      <aside className="absolute inset-x-4 bottom-4 z-20 flex h-[55vh] flex-col overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-xl sm:inset-x-auto sm:right-4 sm:top-4 sm:h-auto sm:w-[380px] lg:w-[420px]">
+        <TripHeroBanner coverPhotoKey={trip.coverPhotoKey}>
+          <TripMetaEditor trip={trip} isOwner={isOwner} />
+        </TripHeroBanner>
+
+        <nav className="flex gap-1 border-b border-neutral-100 px-3 pt-2">
+          {TABS.map((t) => (
+            <Link
+              key={t.key}
+              href={t.key === "timeline" ? `/trips/${trip.id}` : `/trips/${trip.id}?tab=${t.key}`}
+              className={`border-b-2 px-3 py-2 text-sm font-semibold ${
+                activeTab === t.key
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-neutral-500 hover:text-neutral-700"
+              }`}
+            >
+              {t.label}
+            </Link>
+          ))}
+        </nav>
+
+        {activeTab === "timeline" ? (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <PlaceList
+              tripId={trip.id}
+              trip={{ startDate: trip.startDate, endDate: trip.endDate }}
+              places={items}
+              dayStats={dayStats}
+              selectedDay={safeSelectedDay}
+              onSelectDay={setSelectedDay}
+              selectedPlaceId={selectedPlaceId}
+              onSelectPlace={setSelectedPlaceId}
+              onDeletePlace={handleDeletePlace}
+              onDragEnd={handleDragEnd}
+              onMoveToDay={moveToDay}
+            />
+          </div>
+        ) : activeTab === "expense" ? (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <ExpenseSummary
+              total={expenseTotal}
+              byCategory={byCategory}
+              places={placeTotals}
+              selectedPlaceId={selectedPlaceId}
+              onSelectPlace={setSelectedPlaceId}
+            />
+          </div>
+        ) : activeTab === "photos" ? (
+          <div className="min-h-0 flex-1">
+            <PhotoGallery
+              tripId={trip.id}
+              trip={{ startDate: trip.startDate, endDate: trip.endDate }}
+              places={items}
+              selectedPlaceId={selectedPlaceId}
+              onSelectPlace={setSelectedPlaceId}
+            />
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1">
+            <ReviewGallery
+              tripId={trip.id}
+              trip={{ startDate: trip.startDate, endDate: trip.endDate }}
+              places={items}
+              currentUserId={currentUserId}
+              selectedPlaceId={selectedPlaceId}
+              onSelectPlace={setSelectedPlaceId}
+            />
+          </div>
+        )}
+      </aside>
     </div>
   );
 }
