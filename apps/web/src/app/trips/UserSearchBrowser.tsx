@@ -18,18 +18,21 @@ export function UserSearchBrowser() {
   const [users, setUsers] = useState<UserResult[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // 검색어가 비어있으면(탭에 막 들어왔을 때 포함) "다른 사람에게 내 여행 목록 보이기"를 켠
+  // 회원을 서버가 자동으로 돌려준다 — 그래서 빈 검색어일 때 결과를 비우지 않고 그대로 조회한다.
+  // 타이핑 중엔 기존처럼 300ms 디바운스, 빈 검색어(최초 진입/지우기)는 바로 조회한다.
   useEffect(() => {
-    if (!q.trim()) {
-      setUsers([]);
-      return;
-    }
-    setLoading(true);
-    const timer = setTimeout(async () => {
-      const res = await fetch(`/api/users/search?q=${encodeURIComponent(q)}`);
-      const data: UserResult[] = res.ok ? await res.json() : [];
-      setLoading(false);
-      setUsers(data);
-    }, 300);
+    const term = q.trim();
+    const timer = setTimeout(
+      async () => {
+        setLoading(true);
+        const res = await fetch(`/api/users/search?q=${encodeURIComponent(term)}`);
+        const data: UserResult[] = res.ok ? await res.json() : [];
+        setLoading(false);
+        setUsers(data);
+      },
+      term ? 300 : 0
+    );
     return () => clearTimeout(timer);
   }, [q]);
 
@@ -42,12 +45,16 @@ export function UserSearchBrowser() {
         className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
       />
 
-      {!q.trim() ? (
-        <p className="text-sm text-neutral-500">닉네임으로 검색해보세요.</p>
+      {!q.trim() && !loading && users.length > 0 ? (
+        <p className="text-sm text-neutral-500">여행 목록을 공개한 회원이에요.</p>
       ) : null}
-      {q.trim() && loading ? <p className="text-sm text-neutral-400">검색 중...</p> : null}
-      {q.trim() && !loading && users.length === 0 ? (
-        <p className="text-sm text-neutral-500">검색 결과가 없습니다.</p>
+      {loading ? (
+        <p className="text-sm text-neutral-400">{q.trim() ? "검색 중..." : "불러오는 중..."}</p>
+      ) : null}
+      {!loading && users.length === 0 ? (
+        <p className="text-sm text-neutral-500">
+          {q.trim() ? "검색 결과가 없습니다." : "아직 여행 목록을 공개한 회원이 없습니다."}
+        </p>
       ) : null}
 
       <ul className="flex flex-col gap-2">

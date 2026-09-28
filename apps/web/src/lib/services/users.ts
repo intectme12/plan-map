@@ -31,12 +31,19 @@ export function updateProfileFields(
 
 const SEARCH_PAGE_SIZE = 20;
 
-export function searchUsers(q: string | undefined, cursor: number) {
+// 검색어 없이 회원검색 탭에 들어온 경우(=q 미입력): "다른 사람에게 내 여행 목록 보이기"를
+// 켜둔 회원을 자동으로 보여준다(둘러볼 대상이니 본인은 제외). 검색어를 입력하면 기존처럼
+// 닉네임 부분일치 검색으로 전환된다.
+export function searchUsers(q: string | undefined, cursor: number, excludeUserId?: string) {
   const term = q?.trim();
-  if (!term) return Promise.resolve([]);
+  const baseWhere: Prisma.UserWhereInput = term
+    ? { nickname: { contains: term, mode: "insensitive" } }
+    : { showTripsOnProfile: true };
+  const where: Prisma.UserWhereInput =
+    !term && excludeUserId ? { AND: [baseWhere, { id: { not: excludeUserId } }] } : baseWhere;
 
   return prisma.user.findMany({
-    where: { nickname: { contains: term, mode: "insensitive" } },
+    where,
     select: {
       id: true,
       nickname: true,

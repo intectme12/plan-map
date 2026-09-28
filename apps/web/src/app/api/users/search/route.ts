@@ -14,7 +14,7 @@ export async function GET(request: Request) {
       q: searchParams.get("q") ?? undefined,
       cursor: searchParams.get("cursor") ?? undefined,
     });
-    const users = await searchUsers(q, cursor);
+    const users = await searchUsers(q, cursor, user.id);
     return NextResponse.json(users);
   } catch (err) {
     return handleRouteError(err);

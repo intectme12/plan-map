@@ -909,6 +909,16 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - 장소를 다른 날짜로 옮기면(`moveToDay`) 부모가 `selectedDay`를 그 날짜로 바꾸는데, 그 날짜가 현재 보이는 5개 밖에 있을 수 있어 페이지가 자동으로 안 맞춰지는 문제가 있어 — `selectedDay`가 바뀌면 그 날짜가 보이는 페이지로 즉시 맞추는 로직 추가. `useEffect`로 하면 `react-hooks/set-state-in-effect` 린트 에러(경고가 아니라 에러로 설정돼 있음)가 나서, React가 권장하는 "렌더 중 state 조정" 패턴(이전 selectedDay를 state로 들고 있다가 달라지면 렌더 중에 바로 `setPage`)으로 구현 — 화살표로 페이지만 넘기는 동안은 `selectedDay` 자체가 안 바뀌므로 이 로직이 끼어들지 않음
 - 브라우저 E2E: 테스트 트립을 10일(10/1~10/10)로 늘려서 확인 — 타임라인 탭 첫 페이지(10/1~10/5, `다음 날짜` 화살표만), `다음 날짜` 클릭 시 10/6~10/10(`이전 날짜` 화살표만)으로 정확히 전환, 10/6 클릭 시 정상 선택(`6일차 · 10/6`), 사진 탭도 동일한 페이지네이션이 독립적으로 동작(각 탭이 자기 `selectedDay` state를 따로 가짐), 데스크톱(1400px)·모바일(375px) 뷰 둘 다 화살표가 기존 디자인과 잘 어우러지는 것까지 스크린샷으로 확인. `tsc --noEmit`/`eslint` 통과
 
+**완료 (2026-09-29, 회원검색 탭 진입 시 "여행 목록 공개" 회원을 검색어 없이 자동 노출)**
+
+사용자 요청: "프로필에서 다른사람에게 내 여행목록 보이기를 한 회원은 회원검색탭 진입시 자동으로 조회되도록 해줘".
+
+- [users.ts](apps/web/src/lib/services/users.ts)의 `searchUsers`가 검색어(`q`)가 비어있으면 곧바로 `[]`를 반환하던 걸, 그 경우 `showTripsOnProfile: true`(계정 설정의 "다른 사람에게 내 여행 목록 보이기" — [AccountForm.tsx:202](apps/web/src/app/account/AccountForm.tsx)) 조건으로 조회하도록 변경. 검색어가 있으면 기존과 동일한 닉네임 부분일치 검색
+- 자동 목록에서는 로그인한 본인을 제외(`excludeUserId`) — 검색어를 입력하는 기존 흐름은 그대로 둠(본인 닉네임 검색 배제는 이번 요청 범위 밖이라 안 건드림). [route.ts](apps/web/src/app/api/users/search/route.ts)에서 `getCurrentUser()`로 이미 들고 있던 유저 id를 그대로 전달
+- [UserSearchBrowser.tsx](apps/web/src/app/trips/UserSearchBrowser.tsx): 검색어가 빈 상태에서 결과를 비우던 로직을 제거하고 그대로 조회하도록 변경(탭 진입 시 `q=""`로 자동 호출됨) — 타이핑 중엔 기존처럼 300ms 디바운스, 빈 검색어(최초 진입/지우기)는 지연 없이 바로 조회. 안내 문구도 상황별로 분리(자동 목록/검색 결과 없음 문구를 다르게)
+- `setLoading(true)`를 effect 본문에 동기 호출하던 기존 코드가 `react-hooks/set-state-in-effect` 린트 에러 대상이었던 것(이번 수정 전부터 있던 문제)도 같이 발견 — 어차피 이번에 이 effect를 손대는 김에, `setLoading(true)`를 setTimeout 콜백 안으로 옮겨 같이 해결
+- 브라우저 E2E: 회원검색 탭 진입 즉시(검색어 입력 없이) "여행 목록을 공개한 회원이에요" 문구와 함께 목록이 뜨는 것, 본인(testuser01)은 제외되는 것, "테스터" 검색 시 기존처럼 닉네임 필터로 전환되는 것, 검색어를 지우면 자동 목록으로 되돌아가는 것까지 확인. DB를 직접 조회해 `showTripsOnProfile: false`로 꺼둔 계정("테스터B")이 자동 목록에서 실제로 빠지는 것도 확인. `tsc --noEmit`/`eslint` 통과
+
 **다음 세션 할 일**
 - (신규) `AppBadgeSync.tsx`도 `MessagesPanelProvider`와 동일하게 `/api/auth/me`를 마운트 시 1회만 조회함 — 로그인 후 리마운트 없이 배지가 갱신되는지 확인 필요, 필요하면 이번 수정과 같은 방식(재시도 가능한 가드)으로 통일
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음
