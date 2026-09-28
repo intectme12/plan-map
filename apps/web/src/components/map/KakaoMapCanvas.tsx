@@ -360,7 +360,16 @@ export function KakaoMapCanvas({
         requestAnimationFrame(() => {
           if (torndown) return;
           map.relayout();
-          map.setBounds(bounds);
+          // 포인트가 1개뿐이면 LatLngBounds의 너비/높이가 0이 되고, setBounds가 그걸로
+          // 극단적인 확대 레벨을 계산해버려 타일이 아예 안 뜨는 버그가 있었다(저장한 장소
+          // 페이지에서 장소 1개짜리 여행을 선택했을 때 재현). 이 경우만 중심 이동+고정
+          // 확대 레벨로 대신 처리한다.
+          if (points.length === 1) {
+            map.setCenter(new window.kakao.maps.LatLng(points[0].lat, points[0].lng));
+            map.setLevel(SELECTED_PLACE_ZOOM_LEVEL);
+          } else {
+            map.setBounds(bounds);
+          }
         });
       }
     });

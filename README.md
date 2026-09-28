@@ -919,6 +919,17 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - `setLoading(true)`를 effect 본문에 동기 호출하던 기존 코드가 `react-hooks/set-state-in-effect` 린트 에러 대상이었던 것(이번 수정 전부터 있던 문제)도 같이 발견 — 어차피 이번에 이 effect를 손대는 김에, `setLoading(true)`를 setTimeout 콜백 안으로 옮겨 같이 해결
 - 브라우저 E2E: 회원검색 탭 진입 즉시(검색어 입력 없이) "여행 목록을 공개한 회원이에요" 문구와 함께 목록이 뜨는 것, 본인(testuser01)은 제외되는 것, "테스터" 검색 시 기존처럼 닉네임 필터로 전환되는 것, 검색어를 지우면 자동 목록으로 되돌아가는 것까지 확인. DB를 직접 조회해 `showTripsOnProfile: false`로 꺼둔 계정("테스터B")이 자동 목록에서 실제로 빠지는 것도 확인. `tsc --noEmit`/`eslint` 통과
 
+**완료 (2026-09-29, 저장한 장소 페이지 개편 — 여행 통계 + 풀높이 지도 + 트립별 아코디언 + 마커 필터링)**
+
+사용자 요청 4가지: (1) 상단에 여행 통계, (2) 지도를 스크롤 없이 꽉 차게, (3) 오른쪽을 "내가 계획한 여행" 아코디언(전체 클릭 시 다 펼쳐짐)으로, (4) 트립 클릭 시 그 트립 마커만 지도에 표시. "계획해볼래?"라는 요청을 받아 플랜 모드로 먼저 설계안을 세워 승인받은 뒤 진행.
+
+- [TravelStatsCard.tsx](apps/web/src/app/trips/TravelStatsCard.tsx) + [getTravelStats(userId)](apps/web/src/lib/services/trips.ts)를 그대로 재사용(`/trips` 페이지의 "더보기 →"가 이미 `/saved-places`를 가리키고 있었는데 지금까진 아무 의미가 없었음) — [page.tsx](apps/web/src/app/saved-places/page.tsx)에 통계 카드 추가
+- 신규 [SavedPlacesBrowser.tsx](apps/web/src/app/saved-places/SavedPlacesBrowser.tsx)(클라이언트 컴포넌트)로 지도+아코디언 상호작용을 분리 — `selectedTripId`(`null`="전체") state 하나로 오른쪽 아코디언 펼침 상태와 왼쪽 지도의 `KakaoMapCanvas points` 필터링을 동시에 제어. 트립명 클릭은 아코디언 토글로 바꾸고, 기존에 있던 트립 상세 이동 링크는 헤더 오른쪽의 별도 바로가기 아이콘(`ArrowUpRight`)으로 분리
+- 지도가 이미 `points`가 바뀔 때마다 `setBounds`로 자동 리센터/줌하는 로직(KakaoMapCanvas.tsx)을 갖고 있어서, 필터링된 배열만 넘기면 카메라 제어는 따로 안 짜도 됨
+- 페이지 레이아웃은 `lg:` 브레이크포인트에서만 `h-dvh` 기반 풀높이 flex로 바꿔(헤더 자연높이 + 타이틀/통계 자연높이 + 지도·리스트 영역 `flex-1 min-h-0`), 지도/아코디언 영역이 뷰포트 나머지 전부를 차지하고 페이지 자체는 스크롤이 안 생기게(리스트가 길면 리스트 안에서만 `overflow-y-auto`) 함. 모바일(1컬럼)은 손대지 않고 기존처럼 자연스러운 세로 스크롤 유지 — "스크롤 안 생기게"는 데스크톱 2컬럼 레이아웃 문제로 해석
+- **버그 발견 및 수정(범위 밖이지만 이 기능 자체가 깨져서 같이 고침)**: 장소가 1개뿐인 트립을 선택하면(=지도에 마커 1개만 남으면) [KakaoMapCanvas.tsx](apps/web/src/components/map/KakaoMapCanvas.tsx)의 `map.setBounds(bounds)`가 너비/높이 0짜리 `LatLngBounds`를 극단적인 확대 레벨로 계산해버려 타일이 전혀 안 뜨는 기존 버그를 발견(브라우저 E2E 중 재현 — 저장한 장소 페이지뿐 아니라 원래 트립 상세 페이지에서도 장소 1개짜리 날짜를 보면 동일하게 재현됨, 이번 변경으로 새로 생긴 문제 아님). `points.length === 1`일 때만 `setBounds` 대신 `setCenter` + `setLevel(SELECTED_PLACE_ZOOM_LEVEL)`(기존에 "장소 선택 시 확대 레벨"로 쓰던 상수 재사용)로 처리하도록 수정 — 수정 전/후 모두 브라우저로 재현해 비교 확인(수정 전: 타일 요청 자체가 없거나 "30m" 극단 축척으로 빈 화면 / 수정 후: 정상적으로 "100m" 축척에 타일 로드)
+- 브라우저 E2E(testuser01 계정에 임시로 장소 2개+트립 1개를 추가해 다중 트립 상태를 만들어 검증 후 전부 삭제로 원복): 통계 카드 숫자 일치, 데스크톱에서 지도가 뷰포트를 채우고 페이지 스크롤 없음, "전체" 기본 상태에서 모든 트립 펼쳐짐+전체 마커, 트립 클릭 시 해당 트립만 펼쳐지고 지도도 그 트립 마커만(자동 리센터/줌 포함) 표시, "전체" 재클릭 시 원복, 바로가기 아이콘 href 확인, 모바일(375px)에서 레이아웃 안 깨지고 정상 스크롤되는 것까지 확인. `tsc --noEmit`/`eslint`(수정한 3개 파일 모두 새 lint 에러 없음, KakaoMapCanvas.tsx의 기존 경고들은 손대기 전과 동일함을 diff로 확인) 통과
+
 **다음 세션 할 일**
 - (신규) `AppBadgeSync.tsx`도 `MessagesPanelProvider`와 동일하게 `/api/auth/me`를 마운트 시 1회만 조회함 — 로그인 후 리마운트 없이 배지가 갱신되는지 확인 필요, 필요하면 이번 수정과 같은 방식(재시도 가능한 가드)으로 통일
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음
