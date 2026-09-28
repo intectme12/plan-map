@@ -9,6 +9,7 @@ import { HomeHeader } from "@/components/home/HomeHeader";
 import { GuestHomeHeader } from "@/components/home/GuestHomeHeader";
 import { HomeHero } from "@/components/home/HomeHero";
 import { GuestHeroSearchBox } from "@/components/home/GuestHeroSearchBox";
+import { HomeCategoryProvider } from "@/components/home/HomeCategoryProvider";
 import { CategoryNav } from "@/components/home/CategoryNav";
 import { RecommendedDestinations } from "@/components/home/RecommendedDestinations";
 import { MyTripsPanel } from "@/components/home/MyTripsPanel";
@@ -43,9 +44,10 @@ export default async function HomePage({
           <div className="mx-auto max-w-[1440px] px-4 pb-16 sm:px-6">
             <HomeHero destination={destination} weather={weather} searchBox={<GuestHeroSearchBox />} />
 
-            <CategoryNav active={category} />
-
-            <RecommendedDestinations category={category} />
+            <HomeCategoryProvider initialCategory={category}>
+              <CategoryNav />
+              <RecommendedDestinations category={category} />
+            </HomeCategoryProvider>
 
             <AIPlanCTA cta={<GuestAIPlanButton />} />
           </div>
@@ -81,17 +83,19 @@ export default async function HomePage({
       <div className="mx-auto max-w-[1440px] px-4 pb-16 sm:px-6">
         <HomeHero destination={destination} weather={weather} />
 
-        <CategoryNav active={category} />
+        <HomeCategoryProvider initialCategory={category}>
+          <CategoryNav />
 
-        <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_360px]">
-          <RecommendedDestinations userId={user.id} category={category} />
+          <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_360px]">
+            <RecommendedDestinations userId={user.id} category={category} />
 
-          <div className="flex flex-col gap-10">
-            <MyTripsPanel trip={featuredTrip} />
-            <QuickStartCards mapHref={mapHref} aiPlanHref={aiPlanHref} />
-            <RecentlyViewed userId={user.id} />
+            <div className="flex flex-col gap-10">
+              <MyTripsPanel trip={featuredTrip} />
+              <QuickStartCards mapHref={mapHref} aiPlanHref={aiPlanHref} />
+              <RecentlyViewed userId={user.id} />
+            </div>
           </div>
-        </div>
+        </HomeCategoryProvider>
 
         <AIPlanCTA href={aiPlanHref} />
       </div>

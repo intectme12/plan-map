@@ -1,7 +1,9 @@
+"use client";
+
 import type { ComponentType } from "react";
-import Link from "next/link";
 import { Waves, UtensilsCrossed, Coffee, Bike, Trees, Building2, LayoutGrid } from "lucide-react";
 import { tripCategories } from "@/lib/validation";
+import { useHomeCategory } from "./HomeCategoryProvider";
 
 const CATEGORY_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   바다: Waves,
@@ -12,18 +14,20 @@ const CATEGORY_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   도시: Building2,
 };
 
-export function CategoryNav({ active }: { active?: string }) {
+export function CategoryNav() {
+  const { category, setCategory } = useHomeCategory();
   const items = [{ label: "전체", value: undefined as string | undefined }, ...tripCategories.map((c) => ({ label: c, value: c as string | undefined }))];
 
   return (
     <nav className="scrollbar-none mt-8 flex gap-2 overflow-x-auto">
       {items.map((item) => {
-        const isActive = active === item.value;
+        const isActive = category === item.value;
         const Icon = item.value ? CATEGORY_ICONS[item.value] : LayoutGrid;
         return (
-          <Link
+          <button
             key={item.label}
-            href={item.value ? `/?category=${encodeURIComponent(item.value)}` : "/"}
+            type="button"
+            onClick={() => setCategory(item.value)}
             className={`flex flex-none items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
               isActive
                 ? "border-blue-600 bg-blue-50 text-blue-600"
@@ -32,7 +36,7 @@ export function CategoryNav({ active }: { active?: string }) {
           >
             {Icon ? <Icon className="h-4 w-4" /> : null}
             {item.label}
-          </Link>
+          </button>
         );
       })}
     </nav>

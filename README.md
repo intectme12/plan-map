@@ -821,6 +821,17 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - **연쇄 정리**: `DayAccordionSection.tsx`(아코디언 UI)와 `TripSummaryCard.tsx`(누적 요약 카드)가 이번 변경으로 아무 데서도 안 쓰이게 돼서 통째로 삭제
 - `tsc`/`eslint` 전체 통과(무관한 기존 위반 4건 제외). 테스트 계정으로 브라우저 E2E: 공유 여행 상세 진입 시 뒤로가기 버튼이 사라지고 타임라인 탭에 날짜 탭(9/7·9/8·9/9)+날짜별 요약 박스가 뜨는 것 확인 → 사진/후기 탭도 각각 독립적인 날짜 탭으로 전환되고(사진 없는 장소는 "사진이 없습니다", 후기는 별점+내용 표시) 정상 렌더 확인 → 후기 탭에서 9/8 탭 클릭 시 그 날짜 장소(오징어난전)의 후기로 바로 전환되는 것까지 확인
 
+**완료 (2026-09-28, 홈 화면 "추천 여행지" 카테고리 탭을 페이지 새로고침 없이 그리드만 갱신하도록 변경)**
+
+사용자 요청: 홈 화면 카테고리(전체/바다/맛집/...) 클릭할 때마다 페이지 전체가 갱신되고 스크롤이 맨 위로 올라가서 불편함 — 아래 여행지 목록만 바뀌게.
+
+- 원인: [CategoryNav.tsx](apps/web/src/components/home/CategoryNav.tsx)가 `<Link href="/?category=...">`로 매번 페이지를 이동시켰고, `RecommendedDestinations.tsx`는 그 URL의 `searchParams.category`를 읽어 서버에서 다시 렌더링하는 async 서버 컴포넌트였음 — 카테고리 하나 바꾸는데 홈 전체(날씨·최근 본 여행 등 무관한 섹션 포함)가 다시 로드되고, Next.js 기본 동작상 페이지 이동 시 스크롤이 맨 위로 감
+- [HomeCategoryProvider.tsx](apps/web/src/components/home/HomeCategoryProvider.tsx) 신규 — `CategoryNav`(카테고리 탭)와 `RecommendedGrid`(그 아래 그리드, 신규)가 DOM상 형제가 아니라 2단 그리드 레이아웃 안팎에 따로 떨어져 있어서, URL 대신 이 Context로 선택된 카테고리 값만 공유
+- [CategoryNav.tsx](apps/web/src/components/home/CategoryNav.tsx): `Link`(페이지 이동) → `button`(Context의 `setCategory` 호출)로 교체
+- [RecommendedDestinations.tsx](apps/web/src/components/home/RecommendedDestinations.tsx): 첫 렌더용 서버 fetch만 남기고, 실제 그리드 렌더링은 새 클라이언트 컴포넌트 [RecommendedGrid.tsx](apps/web/src/components/home/RecommendedGrid.tsx)로 위임 — 카테고리가 바뀌면 새로 추가한 `GET /api/home/recommended?category=` [route.ts](apps/web/src/app/api/home/recommended/route.ts)(로그인 여부 무관, 기존 `listPopularSharedTrips` 재사용)로 그리드만 다시 fetch하고 나머지 화면(날씨/헤더/최근 본 여행 등)은 그대로 유지 — 재조회 중엔 그리드를 `opacity-50`으로만 살짝 낮춰서 깜빡임 없이 자연스럽게 전환
+- URL의 `?category=` 쿼리는 최초 진입(딥링크/공유) 시 서버 렌더링 기준으로만 쓰이고, 클릭 이후엔 더 이상 갱신되지 않음(뒤로가기로 카테고리 이력을 되짚는 대신, 페이지 이동 자체를 없애는 쪽을 선택 — 사용자가 요청한 "아래 여행지만 바뀌게"에 맞춤)
+- `tsc`/`eslint` 통과. 테스트 계정으로 브라우저 E2E: `window.scrollY`를 스크립트로 직접 확인하며 카테고리("바다") 클릭 → URL 안 바뀜(`/` 그대로), 스크롤 위치 유지(그리드 높이 변화만큼만 자연스럽게 조정됨, 맨 위로 안 튐), `GET /api/home/recommended?category=바다` 200 응답, "#바다 태그의 공개 여행이 아직 없어요" 빈 상태로 그리드만 전환되는 것 확인 → "전체" 재클릭 시 원래 4개 여행 카드로 정상 복귀 확인
+
 **다음 세션 할 일**
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음
 - **(중요)** 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`)가 스키마를 바꿀 때마다(이번까지 4세션 연속) `migrate dev` 리셋 요구로 이어짐 — 매번 `migrate diff`/`db push` + 손으로 마이그레이션 작성 + `migrate resolve`로 우회하고 있지만 언제까지나 반복할 방식은 아님. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나(체크섬 재계산), 이 우회를 앞으로도 정식 절차로 문서화할지 다음 세션에서 결정 필요
