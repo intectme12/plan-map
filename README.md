@@ -808,6 +808,19 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - `tsc`/`eslint` 전체 통과(무관한 기존 위반 12건 제외). 테스트 계정으로 브라우저 E2E: 헤더 메시지 아이콘 클릭 시 오른쪽에서 패널 슬라이드인 → 다른 회원 프로필 "메시지 보내기"로 대화 시작(로딩 중 "불러오는 중..." → 상대 이름/아바타로 헤더 갱신 확인) → 메시지 전송/렌더 확인 → 뒤로가기로 목록 복귀 시 방금 대화가 미리보기와 함께 표시 → 목록에서 다시 클릭 시 지연 없이(이미 아는 `other` 재사용) 대화 진입 → X로 닫아도 배경 페이지(트립 카드 등) 클릭 가능한 비모달 동작 → 홈(`/`)·`/trips` 양쪽 헤더에서 모두 동작(패널 상태는 전역 유지되나, 전체 새로고침 시엔 초기화되는 것도 확인) → 모바일 뷰포트(375px)에서 패널이 전체 폭으로 전환 → `/messages` 직접 접속 시 정상 404까지 확인
 - **미확인**: 상대방이 실시간으로 메시지를 보내거나 읽었을 때(SSE 기반 실시간 수신·타이핑 표시·읽음 표시) 패널 안에서 정상 반영되는지는 계정 하나로는 재현 못 함 — 로직 자체(`useMessageStream` 호출부)는 기존 코드 그대로 옮기기만 해서 회귀 위험은 낮지만, 다른 계정에서 메시지를 보내 실시간 반영까지 한 번 더 확인 권장
 
+**완료 (2026-09-28, 공유 여행 화면: "다른 사람 여행계획" 버튼 제거 + 타임라인/사진/후기 탭을 내 여행계획 기준으로 통일)**
+
+사용자 요청: (1) `/trips/shared/[tripId]`의 "다른 사람 여행계획으로 돌아가기" 버튼 제거, (2) 이 화면의 타임라인/사진/후기 탭이 내 여행계획(`/trips/[tripId]`) 탭과 다르니 내 여행계획 기준으로 맞춰달라.
+
+- [SharedTripView.tsx](apps/web/src/app/trips/shared/[tripId]/SharedTripView.tsx) 상단의 `← 다른 사람 여행계획` 뒤로가기 링크(`/trips?tab=shared`로 이동) 삭제 — 이 탭 자체가 지난 세션(2026-09-07)에 상단 네비 "둘러보기"로 통합되면서 목적지가 이미 애매해진 링크였음
+- 지난 세션(2026-09-18)에 내 여행계획 쪽 타임라인/사진/후기를 "여러 날짜 동시 아코디언"에서 "날짜 하나만 선택하는 탭"(`DayTabSelector`)으로 개편할 때, 공유 화면(`Shared*` 3종)은 읽기 전용이라는 이유로 옛날 아코디언(`DayAccordionSection`) 방식 그대로 남겨뒀었음 — 이번에 그 차이를 없애고 내 여행계획과 동일한 구조로 다시 작성
+  - [SharedPlaceList.tsx](apps/web/src/app/trips/shared/[tripId]/SharedPlaceList.tsx): `PlaceList.tsx`처럼 `DayTabSelector` + 선택된 날짜 하나의 요약 박스(이동시간/거리/비용)+장소 목록만 표시(드래그 정렬/삭제/장소 추가/다른 날짜로 이동 같은 편집 기능은 읽기 전용이라 제외)
+  - [SharedPhotoGrid.tsx](apps/web/src/app/trips/shared/[tripId]/SharedPhotoGrid.tsx), [SharedReviewGallery.tsx](apps/web/src/app/trips/shared/[tripId]/SharedReviewGallery.tsx): `PhotoGallery.tsx`/`ReviewGallery.tsx`처럼 각 탭이 타임라인과는 독립적인 자기만의 날짜 탭 상태를 직접 들고 있도록 변경(이전엔 부모가 내려주는 `expandedDays`/`onToggleDay`를 공유했음)
+  - [SharedTripView.tsx](apps/web/src/app/trips/shared/[tripId]/SharedTripView.tsx): 여러 날짜를 한꺼번에 펼치던 `expandedDays`(Set) 상태를 `TripWorkspace.tsx`와 동일한 `selectedDay`(숫자) 하나로 교체 — 지도 이동경로 표시(`segments`)도 이제 선택된 날짜 하나만 그리고, 날짜별 통계(`dayStats`: 이동시간/거리/비용)를 새로 계산해 `SharedPlaceList`에 내려줌
+  - 그 결과 타임라인 탭 아래에 따로 떠 있던 `TripSummaryCard`(누적 요약 카드)가 불필요해져 제거 — 내 여행계획 쪽은 이미 지난 세션에 이 카드를 없애고 날짜별 요약만 쓰고 있었음
+- **연쇄 정리**: `DayAccordionSection.tsx`(아코디언 UI)와 `TripSummaryCard.tsx`(누적 요약 카드)가 이번 변경으로 아무 데서도 안 쓰이게 돼서 통째로 삭제
+- `tsc`/`eslint` 전체 통과(무관한 기존 위반 4건 제외). 테스트 계정으로 브라우저 E2E: 공유 여행 상세 진입 시 뒤로가기 버튼이 사라지고 타임라인 탭에 날짜 탭(9/7·9/8·9/9)+날짜별 요약 박스가 뜨는 것 확인 → 사진/후기 탭도 각각 독립적인 날짜 탭으로 전환되고(사진 없는 장소는 "사진이 없습니다", 후기는 별점+내용 표시) 정상 렌더 확인 → 후기 탭에서 9/8 탭 클릭 시 그 날짜 장소(오징어난전)의 후기로 바로 전환되는 것까지 확인
+
 **다음 세션 할 일**
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음
 - **(중요)** 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`)가 스키마를 바꿀 때마다(이번까지 4세션 연속) `migrate dev` 리셋 요구로 이어짐 — 매번 `migrate diff`/`db push` + 손으로 마이그레이션 작성 + `migrate resolve`로 우회하고 있지만 언제까지나 반복할 방식은 아님. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나(체크섬 재계산), 이 우회를 앞으로도 정식 절차로 문서화할지 다음 세션에서 결정 필요

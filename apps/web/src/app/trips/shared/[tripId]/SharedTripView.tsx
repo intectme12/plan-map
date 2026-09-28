@@ -6,7 +6,6 @@ import { KakaoMapCanvas } from "@/components/map/KakaoMapCanvas";
 import { LikeButton } from "@/components/LikeButton";
 import { TripHeroBanner } from "@/app/trips/[tripId]/TripHeroBanner";
 import { AIAssistantCard } from "@/app/trips/[tripId]/AIAssistantCard";
-import { TripSummaryCard } from "@/app/trips/[tripId]/TripSummaryCard";
 import { ExpenseSummary } from "@/app/trips/[tripId]/ExpenseSummary";
 import { getTripDays, groupByDay, dayColor } from "@/app/trips/[tripId]/days";
 import type { PlaceEntry } from "@/app/trips/[tripId]/types";
@@ -86,18 +85,14 @@ export function SharedTripView({
     [groups]
   );
 
-  const [expandedDays, setExpandedDays] = useState<Set<number>>(
-    () => new Set(days.map((_, i) => i).filter((i) => i === 0 || groups[i].length > 0))
-  );
-
-  function toggleDay(dayIndex: number) {
-    setExpandedDays((prev) => {
-      const next = new Set(prev);
-      if (next.has(dayIndex)) next.delete(dayIndex);
-      else next.add(dayIndex);
-      return next;
-    });
-  }
+  // 타임라인 탭에서 지금 보고 있는 날짜 하나 — 지도 이동경로 표시도 이 날짜 기준으로 맞춘다
+  // (owner용 TripWorkspace.tsx와 동일한 패턴. 사진/후기 탭은 각자 자기만의 날짜 선택 상태를
+  // 따로 가짐 — SharedPhotoGrid/SharedReviewGallery 내부 참고)
+  const [selectedDay, setSelectedDay] = useState(() => {
+    const firstWithPlaces = groups.findIndex((g) => g.length > 0);
+    return firstWithPlaces >= 0 ? firstWithPlaces : 0;
+  });
+  const safeSelectedDay = Math.min(selectedDay, days.length - 1);
 
   const pairKey = groups
     .flatMap((group, dayIndex) => group.slice(0, -1).map((p, i) => `${dayIndex}:${p.id}-${group[i + 1].id}`))
@@ -145,6 +140,7 @@ export function SharedTripView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip.id, pairKey]);
 
+  // 이동경로 선은 타임라인에서 지금 보고 있는 날짜의 것만 표시(owner용과 동일)
   const segments = useMemo(() => {
     const result: {
       id: string;
@@ -157,8 +153,8 @@ export function SharedTripView({
       durationSec?: number;
       distanceM?: number;
     }[] = [];
-    groups.forEach((group, dayIndex) => {
-      if (!expandedDays.has(dayIndex)) return;
+    const group = groups[safeSelectedDay];
+    if (group) {
       for (let i = 0; i < group.length - 1; i++) {
         const from = group[i];
         const to = group[i + 1];
@@ -170,25 +166,31 @@ export function SharedTripView({
           toLat: to.lat,
           toLng: to.lng,
           path: detail?.path,
-          color: dayColor(dayIndex),
+          color: dayColor(safeSelectedDay),
           durationSec: detail?.durationSec,
           distanceM: detail?.distanceM,
         });
       }
-    });
+    }
     return result;
-  }, [groups, expandedDays, routeDetails]);
+  }, [groups, safeSelectedDay, routeDetails]);
 
-  const routeSummary = useMemo(
+  // 타임라인 탭의 날짜별 요약(이동시간/거리/비용) — owner용 TripWorkspace.tsx와 동일하게
+  // 모든 날짜를 미리 계산해두고 SharedPlaceList가 선택된 날짜 값만 꺼내 쓴다.
+  const dayStats = useMemo(
     () =>
-      segments.reduce(
-        (acc, s) => ({
-          durationSec: acc.durationSec + (s.durationSec ?? 0),
-          distanceM: acc.distanceM + (s.distanceM ?? 0),
-        }),
-        { durationSec: 0, distanceM: 0 }
-      ),
-    [segments]
+      groups.map((group) => {
+        let durationSec = 0;
+        let distanceM = 0;
+        for (let i = 0; i < group.length - 1; i++) {
+          const detail = routeDetails[`${group[i].id}-${group[i + 1].id}`];
+          durationSec += detail?.durationSec ?? 0;
+          distanceM += detail?.distanceM ?? 0;
+        }
+        const cost = group.reduce((sum, p) => sum + p.expenses.reduce((s, e) => s + e.amount, 0), 0);
+        return { placeCount: group.length, durationSec, distanceM, cost };
+      }),
+    [groups, routeDetails]
   );
 
   const { expenseTotal, byCategory, placeTotals } = useMemo(() => {
@@ -218,13 +220,6 @@ export function SharedTripView({
 
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6">
-      <Link
-        href="/trips?tab=shared"
-        className="mb-4 inline-block rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-neutral-700 shadow-sm ring-1 ring-neutral-200"
-      >
-        ← 다른 사람 여행계획
-      </Link>
-
       {reviewsModalPlaceId
         ? (() => {
             const place = places.find((p) => p.id === reviewsModalPlaceId);
@@ -317,23 +312,16 @@ export function SharedTripView({
             </nav>
 
             {activeTab === "timeline" ? (
-              <div className="flex min-h-0 flex-1 flex-col">
-                <div className="min-h-0 flex-1 overflow-y-auto">
-                  <SharedPlaceList
-                    tripId={trip.id}
-                    trip={{ startDate: trip.startDate, endDate: trip.endDate }}
-                    places={places}
-                    selectedPlaceId={selectedPlaceId}
-                    onSelectPlace={setSelectedPlaceId}
-                    expandedDays={expandedDays}
-                    onToggleDay={toggleDay}
-                  />
-                </div>
-                <TripSummaryCard
-                  placeCount={places.length}
-                  totalDurationSec={routeSummary.durationSec}
-                  totalDistanceM={routeSummary.distanceM}
-                  totalExpense={expenseTotal}
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <SharedPlaceList
+                  tripId={trip.id}
+                  trip={{ startDate: trip.startDate, endDate: trip.endDate }}
+                  places={places}
+                  dayStats={dayStats}
+                  selectedDay={safeSelectedDay}
+                  onSelectDay={setSelectedDay}
+                  selectedPlaceId={selectedPlaceId}
+                  onSelectPlace={setSelectedPlaceId}
                 />
               </div>
             ) : activeTab === "expense" ? (
@@ -353,8 +341,6 @@ export function SharedTripView({
                   places={places}
                   selectedPlaceId={selectedPlaceId}
                   onSelectPlace={setSelectedPlaceId}
-                  expandedDays={expandedDays}
-                  onToggleDay={toggleDay}
                 />
               </div>
             ) : (
@@ -364,8 +350,6 @@ export function SharedTripView({
                   places={places}
                   selectedPlaceId={selectedPlaceId}
                   onSelectPlace={setSelectedPlaceId}
-                  expandedDays={expandedDays}
-                  onToggleDay={toggleDay}
                 />
               </div>
             )}
