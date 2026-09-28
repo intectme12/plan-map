@@ -52,3 +52,12 @@ export async function markAllNotificationsRead(userId: string) {
     data: { readAt: new Date() },
   });
 }
+
+// userId를 where절에 포함시켜 본인 알림만 읽음 처리할 수 있게 막는다(다른 사람 알림 id를
+// 넣어도 조용히 0건 업데이트로 끝남).
+export async function markNotificationRead(userId: string, notificationId: string) {
+  await prisma.notification.updateMany({
+    where: { id: notificationId, userId, readAt: null },
+    data: { readAt: new Date() },
+  });
+}

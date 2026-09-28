@@ -1,16 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { Trash2, Camera } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Trash2, Camera, ArrowRightLeft, Plus } from "lucide-react";
 import {
   DndContext,
   PointerSensor,
   closestCenter,
-  pointerWithin,
-  useDroppable,
   useSensor,
   useSensors,
-  type CollisionDetection,
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -19,31 +16,10 @@ import { RouteSegmentRow } from "./RouteSegmentRow";
 import { ExpenseButton } from "./ExpenseButton";
 import { PlacePhotosInline } from "./PlacePhotosInline";
 import { PlaceForm } from "./PlaceForm";
-import { DayAccordionSection } from "./DayAccordionSection";
-import { getTripDays, groupByDay, dayColor } from "./days";
+import { getTripDays, groupByDay, dayColor, formatDayLabel, WEEKDAYS } from "./days";
 import type { PlaceEntry } from "./types";
 
-export const DAY_CONTAINER_PREFIX = "day-container-";
-
-export function dayContainerId(dayIndex: number): string {
-  return `${DAY_CONTAINER_PREFIX}${dayIndex}`;
-}
-
-// day-container-N 형태의 드롭 컨테이너 id면 그 날짜 인덱스를, 장소 위에 드롭된 것이면 null을 반환
-export function parseDayContainerId(id: string | number): number | null {
-  if (typeof id !== "string" || !id.startsWith(DAY_CONTAINER_PREFIX)) return null;
-  const idx = Number(id.slice(DAY_CONTAINER_PREFIX.length));
-  return Number.isNaN(idx) ? null : idx;
-}
-
-function DayDropZone({ dayIndex, children }: { dayIndex: number; children: React.ReactNode }) {
-  const { setNodeRef } = useDroppable({ id: dayContainerId(dayIndex) });
-  return (
-    <div ref={setNodeRef} className="min-h-[2.5rem]">
-      {children}
-    </div>
-  );
-}
+type DayStat = { placeCount: number; durationSec: number; distanceM: number; cost: number };
 
 function DragHandle(props: React.HTMLAttributes<HTMLButtonElement>) {
   return (
@@ -64,24 +40,88 @@ function DragHandle(props: React.HTMLAttributes<HTMLButtonElement>) {
   );
 }
 
+// 크로스데이 드래그 대신 쓰는 "다른 날짜로 이동" 드롭다운 — ProfileMenu/TripMetaEditor의
+// 클릭아웃사이드 드롭다운 패턴 재사용.
+function MoveToDayMenu({
+  days,
+  currentDayIndex,
+  onMove,
+}: {
+  days: Date[];
+  currentDayIndex: number;
+  onMove: (destDayIndex: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        aria-label="다른 날짜로 이동"
+        title="다른 날짜로 이동"
+        className="flex flex-none items-center rounded p-1 text-neutral-300 hover:bg-neutral-100 hover:text-neutral-600"
+      >
+        <ArrowRightLeft className="h-3.5 w-3.5" />
+      </button>
+      {open ? (
+        <div className="absolute right-0 top-full z-20 mt-1 w-40 overflow-hidden rounded-lg border border-neutral-200 bg-white py-1 text-left shadow-lg">
+          {days.map((date, dayIndex) =>
+            dayIndex === currentDayIndex ? null : (
+              <button
+                key={dayIndex}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpen(false);
+                  onMove(dayIndex);
+                }}
+                className="block w-full px-3 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-50"
+              >
+                {formatDayLabel(date, dayIndex + 1)}
+              </button>
+            )
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function SortablePlaceRow({
   tripId,
   place,
   index,
   dayIndex,
+  days,
   nextPlace,
   selected,
   onDelete,
   onSelect,
+  onMoveToDay,
 }: {
   tripId: string;
   place: PlaceEntry;
   index: number;
   dayIndex: number;
+  days: Date[];
   nextPlace: PlaceEntry | null;
   selected: boolean;
   onDelete: (place: PlaceEntry) => void;
   onSelect: (placeId: string) => void;
+  onMoveToDay: (destDayIndex: number) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: place.id,
@@ -136,6 +176,9 @@ function SortablePlaceRow({
           <Camera className="h-3.5 w-3.5" />
           {place.photos.length > 0 ? place.photos.length : ""}
         </button>
+        {days.length > 1 ? (
+          <MoveToDayMenu days={days} currentDayIndex={dayIndex} onMove={onMoveToDay} />
+        ) : null}
         <button
           onClick={() => onDelete(place)}
           aria-label="삭제"
@@ -160,132 +203,135 @@ function SortablePlaceRow({
   );
 }
 
-function DaySection({
-  tripId,
-  dayIndex,
-  date,
-  dayNumber,
-  places,
-  nextAfterLast,
-  open,
-  onToggle,
-  selectedPlaceId,
-  onDelete,
-  onSelect,
-}: {
-  tripId: string;
-  dayIndex: number;
-  date: Date;
-  dayNumber: number;
-  places: PlaceEntry[];
-  nextAfterLast: PlaceEntry | null;
-  open: boolean;
-  onToggle: () => void;
-  selectedPlaceId: string | null;
-  onDelete: (place: PlaceEntry) => void;
-  onSelect: (placeId: string) => void;
-}) {
-  return (
-    <DayAccordionSection
-      dayIndex={dayIndex}
-      date={date}
-      dayNumber={dayNumber}
-      count={places.length}
-      open={open}
-      onToggle={onToggle}
-    >
-      <div className="p-2">
-        <DayDropZone dayIndex={dayIndex}>
-          {places.length === 0 ? (
-            <p className="px-1 py-2 text-xs text-neutral-400">등록된 장소가 없습니다. 다른 날짜의 장소를 여기로 끌어다 놓을 수 있습니다.</p>
-          ) : (
-            <SortableContext items={places.map((p) => p.id)} strategy={verticalListSortingStrategy}>
-              <ol className="flex flex-col gap-2">
-                {places.map((place, index) => (
-                  <SortablePlaceRow
-                    key={place.id}
-                    tripId={tripId}
-                    place={place}
-                    index={index}
-                    dayIndex={dayIndex}
-                    nextPlace={places[index + 1] ?? nextAfterLast}
-                    selected={selectedPlaceId === place.id}
-                    onDelete={onDelete}
-                    onSelect={onSelect}
-                  />
-                ))}
-              </ol>
-            </SortableContext>
-          )}
-        </DayDropZone>
-
-        <PlaceForm tripId={tripId} scheduledAt={date} />
-      </div>
-    </DayAccordionSection>
-  );
-}
-
 export function PlaceList({
   tripId,
   trip,
   places,
+  dayStats,
   selectedPlaceId,
   onSelectPlace,
-  expandedDays,
-  onToggleDay,
   onDeletePlace,
   onDragEnd,
+  onMoveToDay,
 }: {
   tripId: string;
   trip: { startDate: string | Date; endDate: string | Date };
   places: PlaceEntry[];
+  dayStats: DayStat[];
   selectedPlaceId: string | null;
   onSelectPlace: (placeId: string) => void;
-  expandedDays: Set<number>;
-  onToggleDay: (dayIndex: number) => void;
   onDeletePlace: (place: PlaceEntry) => void;
   onDragEnd: (event: DragEndEvent) => void;
+  onMoveToDay: (place: PlaceEntry, destDayIndex: number) => void;
 }) {
   const days = getTripDays(trip.startDate, trip.endDate);
   const groups = groupByDay(places, days);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
-  // 날짜 아코디언 간 드래그가 가능하도록 컨테이너(day-container-N)를 먼저 찾고, 없으면 항목 단위로 폴백한다
-  // (closestCenter 단독으로는 장소가 0개인 빈 날짜 컨테이너에 드롭이 잘 안 잡히는 dnd-kit의 알려진 한계가 있음)
-  const collisionDetection: CollisionDetection = (args) => {
-    const pointerCollisions = pointerWithin(args);
-    if (pointerCollisions.length > 0) return pointerCollisions;
-    return closestCenter(args);
-  };
+  const [selectedDay, setSelectedDay] = useState(() => {
+    const firstWithPlaces = groups.findIndex((g) => g.length > 0);
+    return firstWithPlaces >= 0 ? firstWithPlaces : 0;
+  });
+  const [addOpen, setAddOpen] = useState(false);
+
+  // 여행 기간이 바뀌어 날짜 수가 줄어드는 경우를 대비한 범위 보정
+  const safeSelectedDay = Math.min(selectedDay, days.length - 1);
+  const currentDate = days[safeSelectedDay];
+  const currentGroup = groups[safeSelectedDay] ?? [];
+  const stats = dayStats[safeSelectedDay] ?? { placeCount: 0, durationSec: 0, distanceM: 0, cost: 0 };
 
   return (
-    <DndContext
-      id={`place-list-${tripId}`}
-      sensors={sensors}
-      collisionDetection={collisionDetection}
-      onDragEnd={onDragEnd}
-    >
-      <div className="flex h-full flex-col gap-2 overflow-y-auto p-2">
-        {days.map((date, dayIndex) => {
-          const nextGroup = groups.slice(dayIndex + 1).find((g) => g.length > 0);
-          return (
-            <DaySection
-              key={dayIndex}
-              tripId={tripId}
-              dayIndex={dayIndex}
-              date={date}
-              dayNumber={dayIndex + 1}
-              places={groups[dayIndex]}
-              nextAfterLast={nextGroup ? nextGroup[0] : null}
-              open={expandedDays.has(dayIndex)}
-              onToggle={() => onToggleDay(dayIndex)}
-              selectedPlaceId={selectedPlaceId}
-              onDelete={onDeletePlace}
-              onSelect={onSelectPlace}
-            />
-          );
-        })}
+    <div className="flex h-full flex-col">
+      {/* 날짜 탭 선택 — 한 번에 한 날짜만 본다(다른 날짜 드래그 대신 MoveToDayMenu 사용) */}
+      <div className="px-3 pt-3 pb-2">
+        <div className="flex gap-1.5">
+          {days.map((date, dayIndex) => {
+            const active = dayIndex === safeSelectedDay;
+            return (
+              <button
+                key={dayIndex}
+                type="button"
+                onClick={() => setSelectedDay(dayIndex)}
+                className={`flex flex-1 flex-col items-center rounded-xl border py-1.5 transition-colors ${
+                  active
+                    ? "border-blue-200 bg-blue-50"
+                    : "border-neutral-200 bg-white hover:bg-neutral-50"
+                }`}
+              >
+                <span className={`text-xs font-bold ${active ? "text-blue-600" : "text-neutral-600"}`}>
+                  {date.getMonth() + 1}/{date.getDate()}
+                </span>
+                <span className={`mt-0.5 text-[11px] ${active ? "text-blue-500" : "text-neutral-400"}`}>
+                  {WEEKDAYS[date.getDay()]}요일
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
-    </DndContext>
+
+      {/* 선택된 날짜 요약 */}
+      <div className="mx-3 mb-3 rounded-xl border border-neutral-100 bg-neutral-50 p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-sm font-bold text-neutral-900">{formatDayLabel(currentDate, safeSelectedDay + 1)}</p>
+          <span className="flex-none rounded-full border border-neutral-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-neutral-500">
+            {stats.placeCount}곳
+          </span>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-neutral-500">
+          <span>🚗 {stats.durationSec > 0 ? `${Math.round(stats.durationSec / 60)}분` : "-"}</span>
+          <span>📍 {stats.distanceM > 0 ? `${(stats.distanceM / 1000).toFixed(1)}km` : "-"}</span>
+          <span className="font-semibold text-amber-600">₩{stats.cost.toLocaleString()}</span>
+        </div>
+      </div>
+
+      {/* 타임라인 */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+        <DndContext
+          id={`place-list-${tripId}-${safeSelectedDay}`}
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={onDragEnd}
+        >
+          {currentGroup.length === 0 ? (
+            <p className="px-1 py-6 text-center text-xs text-neutral-400">이 날짜에 등록된 장소가 없습니다.</p>
+          ) : (
+            <SortableContext items={currentGroup.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+              <ol className="flex flex-col gap-2">
+                {currentGroup.map((place, index) => (
+                  <SortablePlaceRow
+                    key={place.id}
+                    tripId={tripId}
+                    place={place}
+                    index={index}
+                    dayIndex={safeSelectedDay}
+                    days={days}
+                    nextPlace={currentGroup[index + 1] ?? null}
+                    selected={selectedPlaceId === place.id}
+                    onDelete={onDeletePlace}
+                    onSelect={onSelectPlace}
+                    onMoveToDay={(destDayIndex) => onMoveToDay(place, destDayIndex)}
+                  />
+                ))}
+              </ol>
+            </SortableContext>
+          )}
+        </DndContext>
+
+        {addOpen ? (
+          <div className="mt-2 rounded-xl border border-neutral-200">
+            <PlaceForm tripId={tripId} scheduledAt={currentDate} />
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="mt-2 flex h-11 w-full items-center justify-center gap-1 rounded-xl border border-dashed border-neutral-300 text-sm font-semibold text-neutral-500 hover:border-neutral-400 hover:bg-neutral-50"
+          >
+            <Plus className="h-4 w-4" /> 장소 추가
+          </button>
+        )}
+      </div>
+    </div>
   );
 }

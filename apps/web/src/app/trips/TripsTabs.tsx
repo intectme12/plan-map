@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { MyTripGrid } from "./MyTripGrid";
 import { type MyTripCardData } from "./MyTripCard";
@@ -40,15 +40,29 @@ export function TripsTabs({
   aiBanner: React.ReactNode;
 }) {
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get("tab");
+  const tabParam = searchParams.get("tab");
   const [tab, setTab] = useState<TabKey>(
-    initialTab === "shared" ||
-      initialTab === "following" ||
-      initialTab === "shared-with-me" ||
-      initialTab === "users"
-      ? initialTab
+    tabParam === "shared" ||
+      tabParam === "following" ||
+      tabParam === "shared-with-me" ||
+      tabParam === "users"
+      ? tabParam
       : "mine"
   );
+
+  // 상단 네비의 "둘러보기"(/trips?tab=shared)와 "내 여행계획"(/trips)은 같은 페이지라
+  // Link로 오가도 컴포넌트가 리마운트되지 않는다 — useState 초기값만으로는 URL이 바뀌어도
+  // tab이 갱신되지 않아 화면이 그대로였던 버그의 원인. tabParam이 바뀔 때 동기화한다.
+  useEffect(() => {
+    setTab(
+      tabParam === "shared" ||
+        tabParam === "following" ||
+        tabParam === "shared-with-me" ||
+        tabParam === "users"
+        ? tabParam
+        : "mine"
+    );
+  }, [tabParam]);
 
   return (
     <div className="mt-8 flex flex-col gap-6">

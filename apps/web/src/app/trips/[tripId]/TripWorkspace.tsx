@@ -8,8 +8,7 @@ import { KakaoMapCanvas } from "@/components/map/KakaoMapCanvas";
 import { TripMetaEditor } from "./TripMetaEditor";
 import { TripHeroBanner } from "./TripHeroBanner";
 import { AIAssistantCard } from "./AIAssistantCard";
-import { TripSummaryCard } from "./TripSummaryCard";
-import { PlaceList, parseDayContainerId } from "./PlaceList";
+import { PlaceList } from "./PlaceList";
 import { ExpenseSummary } from "./ExpenseSummary";
 import { PhotoGallery } from "./PhotoGallery";
 import { ReviewGallery } from "./ReviewGallery";
@@ -202,16 +201,22 @@ export function TripWorkspace({
     return result;
   }, [groups, expandedDays, routeDetails]);
 
-  const routeSummary = useMemo(
+  // 타임라인 탭의 날짜별 요약(이동시간/거리/비용) — expandedDays와 무관하게 그 날짜 안의
+  // 연속된 장소 쌍만 합산한다(다른 날짜로 넘어가는 구간은 제외).
+  const dayStats = useMemo(
     () =>
-      segments.reduce(
-        (acc, s) => ({
-          durationSec: acc.durationSec + (s.durationSec ?? 0),
-          distanceM: acc.distanceM + (s.distanceM ?? 0),
-        }),
-        { durationSec: 0, distanceM: 0 }
-      ),
-    [segments]
+      groups.map((group) => {
+        let durationSec = 0;
+        let distanceM = 0;
+        for (let i = 0; i < group.length - 1; i++) {
+          const detail = routeDetails[`${group[i].id}-${group[i + 1].id}`];
+          durationSec += detail?.durationSec ?? 0;
+          distanceM += detail?.distanceM ?? 0;
+        }
+        const cost = group.reduce((sum, p) => sum + p.expenses.reduce((s, e) => s + e.amount, 0), 0);
+        return { placeCount: group.length, durationSec, distanceM, cost };
+      }),
+    [groups, routeDetails]
   );
 
   const { expenseTotal, byCategory, placeTotals } = useMemo(() => {
@@ -278,56 +283,47 @@ export function TripWorkspace({
     reorderTimers.current.set(dayIndex, timer);
   }
 
-  // 장소 드래그: 같은 날짜 안에서는 순서만, 다른 날짜 위/컨테이너로 놓으면 scheduledAt까지 옮긴다
+  // 장소 드래그: 타임라인이 선택된 날짜 하나만 보여주므로 같은 날짜 안 순서 변경만 처리한다
+  // (다른 날짜로 옮기는 건 더 이상 드래그가 아니라 moveToDay 버튼/드롭다운으로 한다)
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
-    if (!over) return;
+    if (!over || active.id === over.id) return;
 
     setItems((prev) => {
       const activePlace = prev.find((p) => p.id === active.id);
       if (!activePlace) return prev;
-      const sourceDayIndex = dayIndexForPlace(activePlace, days);
+      const dayIndex = dayIndexForPlace(activePlace, days);
 
-      const overDayFromContainer = parseDayContainerId(over.id);
-      const overPlace = overDayFromContainer === null ? prev.find((p) => p.id === over.id) : undefined;
-      if (overDayFromContainer === null && !overPlace) return prev;
-      const destDayIndex = overDayFromContainer ?? dayIndexForPlace(overPlace!, days);
+      const group = groupByDay(prev, days)[dayIndex];
+      const oldIndex = group.findIndex((p) => p.id === active.id);
+      const newIndex = group.findIndex((p) => p.id === over.id);
+      if (oldIndex < 0 || newIndex < 0) return prev;
 
-      if (sourceDayIndex === destDayIndex) {
-        if (active.id === over.id) return prev;
+      const reorderedGroup = arrayMove(group, oldIndex, newIndex);
+      const orderSlots = group.map((p) => p.order).sort((a, b) => a - b);
+      const orderById = new Map(reorderedGroup.map((p, i) => [p.id, orderSlots[i]]));
 
-        const group = groupByDay(prev, days)[sourceDayIndex];
-        const oldIndex = group.findIndex((p) => p.id === active.id);
-        const newIndex =
-          overDayFromContainer !== null ? group.length - 1 : group.findIndex((p) => p.id === over.id);
-        if (oldIndex < 0 || newIndex < 0) return prev;
+      const next = prev.map((p) => (orderById.has(p.id) ? { ...p, order: orderById.get(p.id)! } : p));
+      next.sort((a, b) => a.order - b.order);
 
-        const reorderedGroup = arrayMove(group, oldIndex, newIndex);
-        const orderSlots = group.map((p) => p.order).sort((a, b) => a - b);
-        const orderById = new Map(reorderedGroup.map((p, i) => [p.id, orderSlots[i]]));
+      schedulePatch(dayIndex, () => {
+        reorderedGroup.forEach((p) => patchPlace(p.id, { order: orderById.get(p.id)! }));
+      });
 
-        const next = prev.map((p) => (orderById.has(p.id) ? { ...p, order: orderById.get(p.id)! } : p));
-        next.sort((a, b) => a.order - b.order);
+      return next;
+    });
+  }
 
-        schedulePatch(sourceDayIndex, () => {
-          reorderedGroup.forEach((p) => patchPlace(p.id, { order: orderById.get(p.id)! }));
-        });
+  // 장소를 다른 날짜로 이동 — 목적지 날짜의 맨 끝에 넣고 order/scheduledAt을 다시 계산한다
+  // (예전에 드래그로 다른 날짜 컨테이너에 놓았을 때와 같은 계산, 트리거만 버튼으로 바뀜)
+  function moveToDay(place: PlaceEntry, destDayIndex: number) {
+    setItems((prev) => {
+      const sourceDayIndex = dayIndexForPlace(place, days);
+      if (sourceDayIndex === destDayIndex) return prev;
 
-        return next;
-      }
-
-      // 다른 날짜로 이동: 목적지 그룹에 삽입하고, 그 날짜의 order 값 집합에 새 값 하나를 더해 재배치
       const destGroup = groupByDay(prev, days)[destDayIndex];
-      const withoutActive = destGroup.filter((p) => p.id !== active.id);
-      const insertAt =
-        overDayFromContainer !== null
-          ? withoutActive.length
-          : Math.max(0, withoutActive.findIndex((p) => p.id === over.id));
-      const newDestGroup = [
-        ...withoutActive.slice(0, insertAt),
-        activePlace,
-        ...withoutActive.slice(insertAt),
-      ];
+      const withoutActive = destGroup.filter((p) => p.id !== place.id);
+      const newDestGroup = [...withoutActive, place];
 
       const maxOrder = Math.max(0, ...prev.map((p) => p.order));
       const orderSlots = [...withoutActive.map((p) => p.order), maxOrder + 1].sort((a, b) => a - b);
@@ -335,7 +331,7 @@ export function TripWorkspace({
       const destDate = days[destDayIndex];
 
       const next = prev.map((p) => {
-        if (p.id === active.id) return { ...p, order: orderById.get(p.id)!, scheduledAt: destDate };
+        if (p.id === place.id) return { ...p, order: orderById.get(p.id)!, scheduledAt: destDate };
         if (orderById.has(p.id)) return { ...p, order: orderById.get(p.id)! };
         return p;
       });
@@ -351,7 +347,7 @@ export function TripWorkspace({
       schedulePatch(destDayIndex, () => {
         newDestGroup.forEach((p) => {
           const body: { order: number; scheduledAt?: string } = { order: orderById.get(p.id)! };
-          if (p.id === active.id) body.scheduledAt = destDate.toISOString();
+          if (p.id === place.id) body.scheduledAt = destDate.toISOString();
           patchPlace(p.id, body);
         });
       });
@@ -362,6 +358,7 @@ export function TripWorkspace({
 
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6">
+      {/* "내 여행계획"/"다른 사람 여행계획" 버튼 — 사용하지 않아 주석 처리
       <div className="mb-4 flex flex-wrap gap-2">
         <Link
           href="/trips"
@@ -376,18 +373,7 @@ export function TripWorkspace({
           다른 사람 여행계획
         </button>
       </div>
-
-      {/* 히어로(지도와 같은 폭)와 AI 카드(패널과 같은 폭)를 아래 지도/패널 행과 같은 비율로 나란히 배치 */}
-      <div className="flex flex-col gap-4 lg:flex-row">
-        <div className="lg:flex-1">
-          <TripHeroBanner coverPhotoKey={trip.coverPhotoKey}>
-            <TripMetaEditor trip={trip} isOwner={isOwner} />
-          </TripHeroBanner>
-        </div>
-        <div className="lg:w-[420px] lg:flex-none">
-          <AIAssistantCard href={`/trips/${trip.id}/import`} />
-        </div>
-      </div>
+      */}
 
       {sharedModalOpen ? (
         <SharedTripsModal onClose={() => setSharedModalOpen(false)} />
@@ -407,19 +393,27 @@ export function TripWorkspace({
           })()
         : null}
 
-      {/* 지도 72% : 타임라인 패널 28% — 데스크톱은 좌우로, 모바일은 지도가 위/패널이 아래로 쌓인다 */}
-      <div className="relative mt-6 flex flex-col gap-4 lg:h-[680px] lg:flex-row">
-        <div className="relative h-[420px] overflow-hidden rounded-3xl border border-neutral-100 shadow-sm lg:h-full lg:flex-1">
-          <KakaoMapCanvas
-            points={points}
-            segments={segments}
-            selectedPlaceId={selectedPlaceId}
-            selectedSegmentId={selectedSegmentId}
-            onOpenReviews={setReviewsModalPlaceId}
-            onSelectSegment={handleSelectSegment}
-          />
+      {/* 왼쪽(히어로+지도, 지도와 같은 폭) : 오른쪽 패널 — 오른쪽 패널은 높이를 따로
+          지정하지 않고 flex 기본 stretch로 왼쪽 열(히어로+지도) 전체 높이에 맞춰 늘어난다 */}
+      <div className="relative mt-6 flex flex-col gap-4 lg:flex-row">
+        <div className="flex flex-col gap-4 lg:flex-1">
+          <TripHeroBanner coverPhotoKey={trip.coverPhotoKey}>
+            <TripMetaEditor trip={trip} isOwner={isOwner} />
+          </TripHeroBanner>
+
+          <div className="relative h-[420px] overflow-hidden rounded-3xl border border-neutral-100 shadow-sm lg:h-[560px]">
+            <KakaoMapCanvas
+              points={points}
+              segments={segments}
+              selectedPlaceId={selectedPlaceId}
+              selectedSegmentId={selectedSegmentId}
+              onOpenReviews={setReviewsModalPlaceId}
+              onSelectSegment={handleSelectSegment}
+            />
+          </div>
         </div>
 
+        {/* 지도 넓히는(패널 접기) 버튼 — 사용하지 않아 주석 처리
         <button
           onClick={() => setSidebarOpen((v) => !v)}
           aria-label={sidebarOpen ? "패널 숨기기" : "패널 열기"}
@@ -427,9 +421,13 @@ export function TripWorkspace({
         >
           {sidebarOpen ? "›" : "‹"}
         </button>
+        */}
 
         {sidebarOpen ? (
-          <aside className="flex h-[560px] flex-col overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-sm lg:h-full lg:w-[420px] lg:flex-none">
+          <aside className="flex h-[560px] flex-col overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-sm lg:h-auto lg:w-[420px] lg:flex-none">
+            <div className="flex-none border-b border-neutral-100 p-3">
+              <AIAssistantCard href={`/trips/${trip.id}/import`} />
+            </div>
             <nav className="flex gap-1 border-b border-neutral-100 px-3 pt-2">
               {TABS.map((t) => (
                 <Link
@@ -447,25 +445,17 @@ export function TripWorkspace({
             </nav>
 
             {activeTab === "timeline" ? (
-              <div className="flex min-h-0 flex-1 flex-col">
-                <div className="min-h-0 flex-1 overflow-y-auto">
-                  <PlaceList
-                    tripId={trip.id}
-                    trip={{ startDate: trip.startDate, endDate: trip.endDate }}
-                    places={items}
-                    selectedPlaceId={selectedPlaceId}
-                    onSelectPlace={setSelectedPlaceId}
-                    expandedDays={expandedDays}
-                    onToggleDay={toggleDay}
-                    onDeletePlace={handleDeletePlace}
-                    onDragEnd={handleDragEnd}
-                  />
-                </div>
-                <TripSummaryCard
-                  placeCount={items.length}
-                  totalDurationSec={routeSummary.durationSec}
-                  totalDistanceM={routeSummary.distanceM}
-                  totalExpense={expenseTotal}
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <PlaceList
+                  tripId={trip.id}
+                  trip={{ startDate: trip.startDate, endDate: trip.endDate }}
+                  places={items}
+                  dayStats={dayStats}
+                  selectedPlaceId={selectedPlaceId}
+                  onSelectPlace={setSelectedPlaceId}
+                  onDeletePlace={handleDeletePlace}
+                  onDragEnd={handleDragEnd}
+                  onMoveToDay={moveToDay}
                 />
               </div>
             ) : activeTab === "expense" ? (

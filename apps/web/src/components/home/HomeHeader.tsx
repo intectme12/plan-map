@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { HomeTopNav } from "./HomeTopNav";
-import { HomeNotificationLink } from "./HomeNotificationLink";
+import { HomeNotificationBell } from "./HomeNotificationBell";
 import { HomeMessageLink } from "./HomeMessageLink";
 import { ProfileMenu } from "./ProfileMenu";
 
@@ -42,7 +42,7 @@ export function HomeHeader({
             >
               <Search className="h-5 w-5" />
             </Link>
-            <HomeNotificationLink initialUnreadCount={unreadNotificationCount} />
+            <HomeNotificationBell initialUnreadCount={unreadNotificationCount} />
             <HomeMessageLink currentUserId={currentUserId} initialUnreadCount={unreadMessageCount} />
             <div className="ml-1">
               <ProfileMenu nickname={nickname} avatarUrl={avatarUrl} isAdmin={isAdmin} />

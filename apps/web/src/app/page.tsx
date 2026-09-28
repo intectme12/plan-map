@@ -1,7 +1,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { listConversations } from "@/lib/services/conversations";
 import { countUnreadNotifications } from "@/lib/services/notifications";
-import { getFeaturedTripForHome, listPopularSharedTrips } from "@/lib/services/trips";
+import { getFeaturedTripForHome } from "@/lib/services/trips";
 import { todaysDestination } from "@/lib/destinations";
 import { fetchCurrentWeather } from "@/lib/weather";
 import { tripCategories } from "@/lib/validation";
@@ -33,10 +33,7 @@ export default async function HomePage({
   const destination = todaysDestination();
 
   if (!user) {
-    const [topTrips, weather] = await Promise.all([
-      listPopularSharedTrips(undefined, undefined, 1),
-      fetchCurrentWeather(destination.lat, destination.lng),
-    ]);
+    const weather = await fetchCurrentWeather(destination.lat, destination.lng);
 
     return (
       <LoginPopupProvider>
@@ -44,12 +41,7 @@ export default async function HomePage({
           <GuestHomeHeader />
 
           <div className="mx-auto max-w-[1440px] px-4 pb-16 sm:px-6">
-            <HomeHero
-              destination={destination}
-              weather={weather}
-              heroImageUrl={topTrips[0]?.coverPhotoKey ?? null}
-              searchBox={<GuestHeroSearchBox />}
-            />
+            <HomeHero destination={destination} weather={weather} searchBox={<GuestHeroSearchBox />} />
 
             <CategoryNav active={category} />
 
@@ -62,11 +54,10 @@ export default async function HomePage({
     );
   }
 
-  const [conversations, unreadNotificationCount, featuredTrip, topTrips, weather] = await Promise.all([
+  const [conversations, unreadNotificationCount, featuredTrip, weather] = await Promise.all([
     listConversations(user.id),
     countUnreadNotifications(user.id),
     getFeaturedTripForHome(user.id),
-    listPopularSharedTrips(undefined, user.id, 1),
     fetchCurrentWeather(destination.lat, destination.lng),
   ]);
   const unreadMessageCount = conversations.filter((c) => c.unread).length;
@@ -88,7 +79,7 @@ export default async function HomePage({
       />
 
       <div className="mx-auto max-w-[1440px] px-4 pb-16 sm:px-6">
-        <HomeHero destination={destination} weather={weather} heroImageUrl={topTrips[0]?.coverPhotoKey ?? null} />
+        <HomeHero destination={destination} weather={weather} />
 
         <CategoryNav active={category} />
 

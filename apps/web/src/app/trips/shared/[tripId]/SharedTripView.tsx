@@ -225,39 +225,6 @@ export function SharedTripView({
         ← 다른 사람 여행계획
       </Link>
 
-      {/* 히어로(지도와 같은 폭)와 AI 카드(패널과 같은 폭)를 아래 지도/패널 행과 같은 비율로 나란히 배치 */}
-      <div className="flex flex-col gap-4 lg:flex-row">
-        <div className="lg:flex-1">
-          <TripHeroBanner coverPhotoKey={trip.coverPhotoKey ?? null}>
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <h1 className="text-lg font-bold text-neutral-900">{trip.name}</h1>
-                <p className="text-sm text-neutral-500">
-                  {new Date(trip.startDate).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })}{" "}
-                  – {new Date(trip.endDate).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })} ·{" "}
-                  {trip.personnel}명 · {trip.ownerNickname}
-                </p>
-              </div>
-              <LikeButton tripId={trip.id} initialLiked={trip.likedByMe} initialCount={trip.likeCount} />
-            </div>
-            {isOwnTrip ? (
-              <span className="mt-2 inline-block rounded-md bg-neutral-100 px-2 py-1 text-xs text-neutral-500">
-                내가 만든 여행입니다
-              </span>
-            ) : trip.visibility !== "PRIVATE" ? (
-              <div className="mt-2">
-                <CopyTripButton tripId={trip.id} />
-              </div>
-            ) : null}
-          </TripHeroBanner>
-        </div>
-        {isOwnTrip ? (
-          <div className="lg:w-[420px] lg:flex-none">
-            <AIAssistantCard href={`/trips/${trip.id}/import`} />
-          </div>
-        ) : null}
-      </div>
-
       {reviewsModalPlaceId
         ? (() => {
             const place = places.find((p) => p.id === reviewsModalPlaceId);
@@ -272,18 +239,51 @@ export function SharedTripView({
           })()
         : null}
 
-      <div className="relative mt-6 flex flex-col gap-4 lg:h-[680px] lg:flex-row">
-        <div className="relative h-[420px] overflow-hidden rounded-3xl border border-neutral-100 shadow-sm lg:h-full lg:flex-1">
-          <KakaoMapCanvas
-            points={points}
-            segments={segments}
-            selectedPlaceId={selectedPlaceId}
-            selectedSegmentId={selectedSegmentId}
-            onOpenReviews={setReviewsModalPlaceId}
-            onSelectSegment={handleSelectSegment}
-          />
+      {/* 왼쪽(히어로+지도, 지도와 같은 폭) : 오른쪽 패널 — 오른쪽 패널은 높이를 따로
+          지정하지 않고 flex 기본 stretch로 왼쪽 열(히어로+지도) 전체 높이에 맞춰 늘어난다 */}
+      <div className="relative mt-6 flex flex-col gap-4 lg:flex-row">
+        <div className="flex flex-col gap-4 lg:flex-1">
+          <TripHeroBanner coverPhotoKey={trip.coverPhotoKey ?? null}>
+            <div className="absolute right-3 top-3 z-10">
+              <LikeButton
+                tripId={trip.id}
+                initialLiked={trip.likedByMe}
+                initialCount={trip.likeCount}
+                className="flex h-8 flex-none items-center gap-1 rounded-full border border-white/30 bg-white/15 px-3 text-xs text-white backdrop-blur"
+              />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-white drop-shadow-sm sm:text-xl">{trip.name}</h1>
+              <p className="text-xs text-white/85 drop-shadow-sm sm:text-sm">
+                {new Date(trip.startDate).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })}{" "}
+                – {new Date(trip.endDate).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })} ·{" "}
+                {trip.personnel}명 · {trip.ownerNickname}
+              </p>
+            </div>
+            {isOwnTrip ? (
+              <span className="mt-1.5 inline-block rounded-full border border-white/30 bg-white/15 px-3 py-1 text-xs text-white backdrop-blur">
+                내가 만든 여행입니다
+              </span>
+            ) : trip.visibility !== "PRIVATE" ? (
+              <div className="mt-1.5">
+                <CopyTripButton tripId={trip.id} />
+              </div>
+            ) : null}
+          </TripHeroBanner>
+
+          <div className="relative h-[420px] overflow-hidden rounded-3xl border border-neutral-100 shadow-sm lg:h-[560px]">
+            <KakaoMapCanvas
+              points={points}
+              segments={segments}
+              selectedPlaceId={selectedPlaceId}
+              selectedSegmentId={selectedSegmentId}
+              onOpenReviews={setReviewsModalPlaceId}
+              onSelectSegment={handleSelectSegment}
+            />
+          </div>
         </div>
 
+        {/* 지도 넓히는(패널 접기) 버튼 — 사용하지 않아 주석 처리
         <button
           onClick={() => setSidebarOpen((v) => !v)}
           aria-label={sidebarOpen ? "패널 숨기기" : "패널 열기"}
@@ -291,9 +291,15 @@ export function SharedTripView({
         >
           {sidebarOpen ? "›" : "‹"}
         </button>
+        */}
 
         {sidebarOpen ? (
-          <aside className="flex h-[560px] flex-col overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-sm lg:h-full lg:w-[420px] lg:flex-none">
+          <aside className="flex h-[560px] flex-col overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-sm lg:h-auto lg:w-[420px] lg:flex-none">
+            {isOwnTrip ? (
+              <div className="flex-none border-b border-neutral-100 p-3">
+                <AIAssistantCard href={`/trips/${trip.id}/import`} />
+              </div>
+            ) : null}
             <nav className="flex gap-1 border-b border-neutral-100 px-3 pt-2">
               {TABS.map((t) => (
                 <Link

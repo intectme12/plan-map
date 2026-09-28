@@ -2,31 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { listNotifications, markAllNotificationsRead } from "@/lib/services/notifications";
+import { formatNotificationDate, notificationText, notificationHref } from "@/lib/notificationDisplay";
 import { Avatar } from "@/components/Avatar";
-
-function formatDateTime(d: string | Date) {
-  return new Date(d).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" });
-}
-
-type NotificationItem = {
-  id: string;
-  type: string;
-  createdAt: string | Date;
-  actor: { nickname: string; avatarUrl: string | null };
-  trip: { id: string; name: string } | null;
-};
-
-function notificationText(n: NotificationItem) {
-  if (n.type === "FOLLOW") return "님이 팔로우하였습니다";
-  if (n.type === "LIKE") return `님이 회원님의 여행계획 "${n.trip?.name ?? ""}"을(를) 좋아합니다`;
-  return "새 알림이 있습니다";
-}
-
-// 팔로우 알림은 상대 프로필로, 좋아요 알림은 좋아요 받은 내 여행계획으로 이동한다.
-function notificationHref(n: NotificationItem) {
-  if (n.type === "LIKE" && n.trip) return `/trips/${n.trip.id}`;
-  return `/users/${n.actor.nickname}`;
-}
 
 export default async function NotificationsPage() {
   const user = await getCurrentUser();
@@ -59,7 +36,7 @@ export default async function NotificationsPage() {
                     <span className="font-semibold">{n.actor.nickname}</span>
                     {notificationText(n)}
                   </p>
-                  <p className="text-xs text-neutral-400">{formatDateTime(n.createdAt)}</p>
+                  <p className="text-xs text-neutral-400">{formatNotificationDate(n.createdAt)}</p>
                 </div>
               </Link>
             </li>

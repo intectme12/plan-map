@@ -2,31 +2,23 @@ import { Search, MapPin } from "lucide-react";
 import type { CuratedDestination } from "@/lib/destinations";
 import type { WeatherSummary } from "@/lib/weather";
 
-// 실제 여행지 사진이 있으면(가장 인기 있는 공개 여행의 대표사진) 그걸 배경으로 쓰고, 없으면
-// 저작권 걱정 없는 자체 그라디언트로 대체한다 — 외부 스톡 이미지를 무단으로 가져오지 않기 위함.
-const FALLBACK_GRADIENT =
-  "linear-gradient(135deg, #0f4c81 0%, #2f6fed 45%, #38bdf8 75%, #fbbf24 100%)";
+// 여행 상세 히어로(TripHeroBanner)와 같은 고정 이미지를 배경으로 쓴다.
+const FALLBACK_IMAGE = "/images/hero-fallback.jpg";
 
 export function HomeHero({
   destination,
   weather,
-  heroImageUrl,
   searchBox,
 }: {
   destination: CuratedDestination;
   weather: WeatherSummary | null;
-  heroImageUrl?: string | null;
   searchBox?: React.ReactNode;
 }) {
   return (
     <section className="relative mt-6 overflow-hidden rounded-3xl">
       <div
         className="absolute inset-0 bg-cover bg-center"
-        style={
-          heroImageUrl
-            ? { backgroundImage: `url(${heroImageUrl})` }
-            : { backgroundImage: FALLBACK_GRADIENT }
-        }
+        style={{ backgroundImage: `url(${FALLBACK_IMAGE})` }}
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10" />
 

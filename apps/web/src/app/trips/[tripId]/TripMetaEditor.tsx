@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ImagePlus, MoreVertical, Pencil, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ShareLinkModal } from "./ShareLinkModal";
 import { CoverPhotoModal } from "./CoverPhotoModal";
@@ -42,6 +43,16 @@ export function TripMetaEditor({ trip, isOwner }: { trip: TripMeta; isOwner: boo
   const [sharePending, setSharePending] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [coverModalOpen, setCoverModalOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreOpen(false);
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
 
   async function onSetVisibility(visibility: string) {
     if (visibility === trip.visibility) return;
@@ -75,58 +86,82 @@ export function TripMetaEditor({ trip, isOwner }: { trip: TripMeta; isOwner: boo
 
   if (!editing) {
     return (
-      <div className="flex flex-col gap-2">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <h1 className="text-lg font-bold">{trip.name}</h1>
-            <p className="text-sm text-neutral-500">
-              {formatDate(trip.startDate)} – {formatDate(trip.endDate)} · {trip.personnel}명
-              {!isOwner ? ` · ${trip.ownerNickname}님의 여행` : ""}
-            </p>
-          </div>
-          <div className="flex flex-none items-center gap-1.5">
-            {isOwner ? (
-              <button
-                onClick={() => setCoverModalOpen(true)}
-                className="rounded-md border border-neutral-200 px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-50"
-              >
-                {trip.coverPhotoKey ? "대표사진 변경" : "대표사진 설정"}
-              </button>
-            ) : null}
-            {isOwner ? (
-              <button
-                onClick={() => {
-                  // 링크 공개(UNLISTED)로 전환하면서 동시에 링크/닉네임 공유 팝업을 띄운다
-                  if (trip.visibility !== "UNLISTED") onSetVisibility("UNLISTED");
-                  setShareModalOpen(true);
-                }}
-                disabled={sharePending}
-                className="rounded-md border border-neutral-200 px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-50 disabled:opacity-50"
-              >
-                공유
-              </button>
-            ) : null}
+      <div className="flex flex-col gap-3">
+        {/* 액션 버튼은 히어로 카드 오른쪽 위 모서리에 절대배치 — 부모(TripHeroBanner)의
+            relative 컨테이너 기준으로 위치가 잡히므로, 아래 본문(제목/날짜)이 하단 정렬이어도
+            버튼은 항상 카드 우상단에 고정된다. */}
+        <div className="absolute right-3 top-3 z-10 flex items-center gap-3">
+          {isOwner ? (
             <button
-              onClick={() => setEditing(true)}
-              aria-label="여행 정보 수정"
-              className="rounded-md border border-neutral-200 px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-50"
+              onClick={() => {
+                // 링크 공개(UNLISTED)로 전환하면서 동시에 링크/닉네임 공유 팝업을 띄운다
+                if (trip.visibility !== "UNLISTED") onSetVisibility("UNLISTED");
+                setShareModalOpen(true);
+              }}
+              disabled={sharePending}
+              aria-label="공유"
+              title="공유"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/30 bg-white/15 text-white backdrop-blur hover:bg-white/25 disabled:opacity-50"
             >
-              수정
+              <Share2 className="h-4 w-4" />
             </button>
-          </div>
+          ) : null}
+          <button
+            onClick={() => setEditing(true)}
+            aria-label="여행 정보 수정"
+            title="수정"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/30 bg-white/15 text-white backdrop-blur hover:bg-white/25"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          {isOwner ? (
+            <div ref={moreRef} className="relative">
+              <button
+                onClick={() => setMoreOpen((v) => !v)}
+                aria-label="더보기"
+                title="더보기"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/30 bg-white/15 text-white backdrop-blur hover:bg-white/25"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </button>
+              {moreOpen ? (
+                <div className="absolute right-0 top-full z-30 mt-2 w-48 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 text-left shadow-lg">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      setCoverModalOpen(true);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-50"
+                  >
+                    <ImagePlus className="h-4 w-4" />
+                    {trip.coverPhotoKey ? "대표사진 변경" : "대표사진 설정"}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        <div>
+          <h1 className="text-lg font-bold text-white drop-shadow-sm sm:text-xl">{trip.name}</h1>
+          <p className="text-xs text-white/85 drop-shadow-sm sm:text-sm">
+            {formatDate(trip.startDate)} – {formatDate(trip.endDate)} · {trip.personnel}명
+            {!isOwner ? ` · ${trip.ownerNickname}님의 여행` : ""}
+          </p>
         </div>
         {isOwner ? (
           <div className="flex items-center gap-2">
-            <div className="inline-flex rounded-md border border-neutral-200 p-0.5">
+            <div className="inline-flex rounded-full border border-white/30 bg-white/15 p-0.5 backdrop-blur">
               {VISIBILITY_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   onClick={() => onSetVisibility(opt.value)}
                   disabled={sharePending}
-                  className={`rounded px-2 py-1 text-xs font-semibold disabled:opacity-50 ${
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold disabled:opacity-50 ${
                     trip.visibility === opt.value
-                      ? "bg-blue-50 text-blue-600"
-                      : "text-neutral-500 hover:bg-neutral-50"
+                      ? "bg-white text-blue-600"
+                      : "text-white hover:bg-white/20"
                   }`}
                 >
                   {opt.label}
@@ -150,7 +185,10 @@ export function TripMetaEditor({ trip, isOwner }: { trip: TripMeta; isOwner: boo
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-2">
+    <form
+      onSubmit={onSubmit}
+      className="flex flex-col gap-2 rounded-2xl bg-white/95 p-4 shadow-lg backdrop-blur"
+    >
       <input
         required
         value={name}
