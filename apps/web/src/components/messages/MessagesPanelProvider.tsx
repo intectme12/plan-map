@@ -26,17 +26,24 @@ const MessagesPanelContext = createContext<MessagesPanelContextValue | null>(nul
 export function MessagesPanelProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<PanelState>({ open: false, conversationId: null });
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const fetchedUserRef = useRef(false);
+  const fetchingUserRef = useRef(false);
 
+  // router.refresh()로 로그인/로그아웃하면 루트 레이아웃(이 Provider)은 리마운트되지 않고
+  // 서버 컴포넌트만 다시 그려지므로, currentUserId가 아직 없을 때마다 다시 시도해야 한다 —
+  // 최초 마운트 시 1회로 fetchedUserRef를 영구히 막아버리면 "로그인 전에 한 번 fetch됨" 세션에서
+  // 로그인 후에도 currentUserId가 계속 null로 남아 메시지 패널이 안 열리는 버그가 생긴다.
   const ensureCurrentUser = useCallback(() => {
-    if (fetchedUserRef.current) return;
-    fetchedUserRef.current = true;
+    if (currentUserId || fetchingUserRef.current) return;
+    fetchingUserRef.current = true;
     fetch("/api/auth/me")
       .then((res) => (res.ok ? res.json() : null))
       .then((data: { user: { id: string } | null } | null) => {
         if (data?.user) setCurrentUserId(data.user.id);
+      })
+      .finally(() => {
+        fetchingUserRef.current = false;
       });
-  }, []);
+  }, [currentUserId]);
 
   useEffect(() => {
     ensureCurrentUser();

@@ -871,7 +871,17 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - `TripWorkspace.tsx`의 `<TripHeroBanner>` 호출에만 `squareBottom compact` 추가
 - `tsc --noEmit`/`eslint` 통과. 브라우저 E2E(공유 트립을 "내 여행으로 복사"해 소유자 화면에서 확인): 히어로 카드 아래쪽이 각지게 바뀌어 탭 섹션과 자연스럽게 이어지는 것, 높이가 눈에 띄게 줄어든 것 확인 → 공유 열람 화면(`/trips/shared/[tripId]`)은 여전히 기존처럼 네 모서리 둥근 카드·원래 높이로 표시되는 것(회귀 없음)까지 확인
 
+**완료 (2026-09-29, 메시지 패널이 로그인 직후 안 열리던 버그 수정)**
+
+사용자 리포트: "헤더 메세지 아이콘 눌러도 메세지가 화면이 안나오는데 확인해줘".
+
+- 재현: 브라우저에서 로그아웃 상태로 새로고침 → 로그인 폼(클라이언트 라우팅, `router.refresh()`만 호출)으로 로그인 → 헤더 메시지 아이콘 클릭 → 패널이 DOM에 아예 렌더링 안 됨(`[role="dialog"][aria-label="메시지"]` 자체가 없음)까지 확인
+- 원인: [MessagesPanelProvider.tsx](apps/web/src/components/messages/MessagesPanelProvider.tsx)의 `ensureCurrentUser`가 `/api/auth/me` 조회를 `fetchedUserRef` 가드로 **Provider 생애주기 중 딱 한 번만** 실행하고 있었음. 이 Provider는 루트 레이아웃에 떠서 페이지 이동에도 리마운트되지 않는데, 로그인/회원가입은 `router.push` + `router.refresh()`(서버 컴포넌트만 재렌더)로 처리돼 Provider 자체는 리마운트되지 않음 — 그 결과 "로그인 전에 이미 한 번 fetch가 끝난" 세션에서는 로그인 후에도 `currentUserId`가 계속 `null`로 남고, [MessagesPanel.tsx](apps/web/src/components/messages/MessagesPanel.tsx)는 `!currentUserId`면 `null`을 리턴해 패널 자체가 안 뜸. 하드 새로고침(F5)을 하면 Provider가 재마운트되며 우연히 정상 동작해서 지금까지 안 잡혔던 것으로 보임
+- 수정: `fetchedUserRef`(영구 1회성 가드)를 `fetchingUserRef`(동시 중복 호출만 막는 가드)로 교체하고, `ensureCurrentUser`가 `currentUserId`가 여전히 없을 때마다 다시 시도하도록 변경 — 메시지 아이콘 클릭(`toggle`)마다 `ensureCurrentUser`를 호출하므로, 로그인 후 첫 클릭에서 자연스럽게 재조회되어 곧바로 열림
+- 브라우저 E2E로 재현 시나리오 그대로 재검증: 로그아웃 상태로 마운트 → 클라이언트 로그인 → 메시지 아이콘 클릭 → 패널이 `translate-x-0`(열림)로 정상 렌더링되는 것 확인. `AppBadgeSync.tsx`도 구조상 동일한 "1회성 fetch" 패턴이라 같은 종류의 문제(배지가 로그인 직후 안 갱신) 여지가 있음 — 이번 리포트 범위 밖이라 손대지 않음, 아래 "다음 세션 할 일"에 기록
+
 **다음 세션 할 일**
+- (신규) `AppBadgeSync.tsx`도 `MessagesPanelProvider`와 동일하게 `/api/auth/me`를 마운트 시 1회만 조회함 — 로그인 후 리마운트 없이 배지가 갱신되는지 확인 필요, 필요하면 이번 수정과 같은 방식(재시도 가능한 가드)으로 통일
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음
 - **(중요)** 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`)가 스키마를 바꿀 때마다(이번까지 4세션 연속) `migrate dev` 리셋 요구로 이어짐 — 매번 `migrate diff`/`db push` + 손으로 마이그레이션 작성 + `migrate resolve`로 우회하고 있지만 언제까지나 반복할 방식은 아님. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나(체크섬 재계산), 이 우회를 앞으로도 정식 절차로 문서화할지 다음 세션에서 결정 필요
 - (참고) `users.passwordHash` 컬럼은 이제 레거시(로그인은 `accounts.password`를 씀) — 운영 안정성 확인되면 제거하는 마이그레이션 검토
