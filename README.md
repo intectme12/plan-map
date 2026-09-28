@@ -891,6 +891,15 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - 합성 keydown 이벤트로 세 가지 시나리오 검증: (1) `keyCode 229` 단독 → 전송 안 됨(정상), (2) 정상 Enter 1번 → 1회 전송, (3) `keyCode 229` + 정상 Enter 연속 발생(실제 IME 패턴 재현) → 1회만 전송. 수정 전 코드로는 (3)에서 정확히 2회 전송되는 것도 먼저 확인해 버그를 재현한 뒤 고쳤음
 - `tsc --noEmit`/`eslint` 통과
 
+**완료 (2026-09-29, 지도 페이지에서 헤더 알림/프로필 드롭다운이 오른쪽 패널에 가려지던 버그 수정)**
+
+사용자 리포트: "지도 페이지에서 위에 알림아이콘이나 개인정보 클릭하면 노출되는 패널이 오른쪽 섹션에 가려지네".
+
+- 재현: `/trips/[tripId]`(내 여행 지도, [TripWorkspace.tsx](apps/web/src/app/trips/[tripId]/TripWorkspace.tsx))에서 헤더 알림 벨을 클릭 → 팝업(`z-30`)이 뜨는 자리에서 `document.elementFromPoint`로 실제 맨 위 엘리먼트를 확인해보니 팝업이 아니라 오른쪽 `aside` 패널(히어로 카드)이 잡힘 — 실제로 가려지는 것 확인
+- 원인: [HomeHeader.tsx](apps/web/src/components/home/HomeHeader.tsx)의 `<header>`가 `sticky` + `z-20`이라 그 자체로 새 스태킹 컨텍스트를 만드는데, 알림/프로필 드롭다운의 `z-30`은 **이 헤더 스태킹 컨텍스트 안에서만** 유효하다. 지도 페이지에서 `<aside>`(오른쪽 패널)도 `z-20`인데, 이건 헤더와 형제 관계(같은 `<main>` 하위)라 header(z:20)와 aside(z:20)가 동률로 비교되고, DOM에서 header보다 나중에 렌더되는 aside가 이겨서 header 전체(드롭다운 포함)를 덮어버리는 구조였음. 지도 페이지가 아닌 화면(홈 등)엔 z-20짜리 오버레이가 없어서 이 문제가 안 보였던 것
+- 수정: `HomeHeader.tsx`의 `z-20` → `z-30`으로 한 줄 변경. 헤더는 전역 내비게이션이라 페이지별 오버레이(`aside`/AI 카드, `z-20`)보다 항상 위에 있어야 하고, 메시지 패널(`z-40`)·모달(`z-50`)·라이트박스(`z-60`)보다는 계속 아래에 있어야 하는 기존 계층 구조와도 맞음
+- `elementFromPoint`로 재검증: 수정 후 알림/프로필 드롭다운 중심점의 최상단 엘리먼트가 팝업 자신(또는 그 자식)으로 나옴 — 지도 페이지·홈 페이지 둘 다 스크린샷으로 확인. `tsc --noEmit`/`eslint` 통과
+
 **다음 세션 할 일**
 - (신규) `AppBadgeSync.tsx`도 `MessagesPanelProvider`와 동일하게 `/api/auth/me`를 마운트 시 1회만 조회함 — 로그인 후 리마운트 없이 배지가 갱신되는지 확인 필요, 필요하면 이번 수정과 같은 방식(재시도 가능한 가드)으로 통일
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음

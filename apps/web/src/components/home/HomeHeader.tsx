@@ -25,7 +25,7 @@ export function HomeHeader({
   aiPlanHref: string;
 }) {
   return (
-    <header className="sticky top-0 z-20 border-b border-neutral-100 bg-white/95 backdrop-blur">
+    <header className="sticky top-0 z-30 border-b border-neutral-100 bg-white/95 backdrop-blur">
       <div className="relative mx-auto flex h-16 max-w-[1440px] items-center gap-6 px-4 sm:px-6">
         <Link href="/" className="flex flex-none items-center gap-1.5 text-lg font-bold text-neutral-900">
           <span className="text-blue-600">Triply</span>
