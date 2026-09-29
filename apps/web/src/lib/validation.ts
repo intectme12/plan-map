@@ -133,8 +133,27 @@ export const createReviewSchema = z.object({
   content: z.string().min(1).max(2000),
 });
 
+// budgetWon/style/transport는 AI 프롬프트에 참고 컨텍스트로만 쓰이는 선택 입력값이라
+// 값 자체에 엄격한 제약을 두지 않는다(길이 상한만 방어적으로 둠).
+const aiPlanContextFields = {
+  budgetWon: z.coerce.number().int().nonnegative().optional(),
+  style: z.string().max(50).optional(),
+  transport: z.string().max(50).optional(),
+};
+
 export const aiParseRequestSchema = z.object({
   text: z.string().min(10, "10자 이상 입력해주세요.").max(5000),
+  ...aiPlanContextFields,
+});
+
+// 여행이 아직 없는 상태에서 AI로 새 여행을 만드는 플로우(POST /api/ai/parse-trip-text) 전용 —
+// 이 여행의 실제 시작일/종료일/인원이 아직 DB에 없으니 클라이언트가 직접 보낸다.
+export const aiParseNewTripRequestSchema = z.object({
+  text: z.string().min(10, "10자 이상 입력해주세요.").max(5000),
+  destination: z.string().min(1).max(100),
+  dayCount: z.coerce.number().int().min(1).max(60),
+  personnel: z.coerce.number().int().min(1).max(50),
+  ...aiPlanContextFields,
 });
 
 export const updateProfileSchema = z.object({

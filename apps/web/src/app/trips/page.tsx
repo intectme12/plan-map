@@ -44,7 +44,7 @@ export default async function TripsPage({
       getMapOverviewForUser(user.id),
     ]);
   const mapHref = featuredTrip ? `/trips/${featuredTrip.id}` : "/trips";
-  const aiPlanHref = featuredTrip ? `/trips/${featuredTrip.id}/import` : "/trips";
+  const aiPlanHref = featuredTrip ? `/trips/${featuredTrip.id}/import` : "/trips/new/import";
   const heroBackground = trips.find((t) => t.coverPhotoKey)?.coverPhotoKey ?? null;
 
   return (

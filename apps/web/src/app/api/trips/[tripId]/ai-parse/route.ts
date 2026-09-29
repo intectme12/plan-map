@@ -13,9 +13,9 @@ export async function POST(request: Request, { params }: Context) {
 
     const { tripId } = await params;
     const body = await request.json().catch(() => null);
-    const { text } = aiParseRequestSchema.parse(body);
-    const candidates = await parseTripText(user.id, tripId, text);
-    return NextResponse.json({ candidates });
+    const { text, budgetWon, style, transport } = aiParseRequestSchema.parse(body);
+    const places = await parseTripText(user.id, tripId, text, { budgetWon, style, transport });
+    return NextResponse.json({ places });
   } catch (err) {
     return handleRouteError(err);
   }

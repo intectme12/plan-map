@@ -55,3 +55,20 @@ export function groupByDay<T extends Pick<PlaceEntry, "scheduledAt">>(items: T[]
 export function formatDayLabel(date: Date, dayNumber: number): string {
   return `${dayNumber}일차 · ${date.getMonth() + 1}/${date.getDate()} (${WEEKDAYS[date.getDay()]})`;
 }
+
+// AI가 추출한 장소마다 "몇 일차"인지(dayIndex, 0-based)를 최종 확정한다. LLM이 준 값이 있으면
+// 여행 일수 범위로 clamp해서 그대로 쓰고, 모르면(null) 원문 등장 순서를 유지한 채 날짜 수만큼
+// 균등하게 나눠 채운다(예: 6곳·3일이면 0,0,1,1,2,2). AiPlanFlow.tsx(기존/신규 여행 플로우 공용)에서 씀.
+export function assignDayIndexes(dayIndexes: (number | null)[], dayCount: number): number[] {
+  const safeDayCount = Math.max(1, dayCount);
+  const unknownCount = dayIndexes.filter((d) => d == null).length;
+  const perDay = Math.max(1, Math.ceil(unknownCount / safeDayCount));
+
+  let unknownSeen = 0;
+  return dayIndexes.map((d) => {
+    if (d != null) return Math.min(Math.max(d, 0), safeDayCount - 1);
+    const idx = Math.min(Math.floor(unknownSeen / perDay), safeDayCount - 1);
+    unknownSeen += 1;
+    return idx;
+  });
+}

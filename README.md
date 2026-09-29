@@ -1075,7 +1075,21 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - `TripWorkspace.tsx`·`SharedTripView.tsx`에 `photoDay`/`reviewDay` state를 타임라인의 `selectedDay`와 별도로 추가(탭을 오가도 각자 보던 날짜를 유지해야 해서 하나로 합치지 않음) — 지도에 넘기는 `focusPlaceIds`는 지금 활성화된 탭(`activeTab`)에 맞는 날짜의 장소 id로 계산. 비용 탭은 날짜 개념이 없어 그대로 전체 범위 유지
 - 검증: `tsc --noEmit`/`eslint` 통과. 브라우저로 공유 여행 보기 페이지에서 확인 — 사진 탭 9/8(장소 1개짜리 날짜)로 바꾸면 지도가 그 장소로 재포커스, 후기 탭으로 넘어가면 그쪽은 독립적으로 9/7을 그대로 유지, 다시 타임라인 탭으로 가도 그쪽 역시 9/7을 그대로 유지하는 것까지 확인(세 탭이 서로의 날짜 선택에 영향 안 줌)
 
-**다음 세션 할 일**
+**완료 (2026-09-30, AI 여행계획 페이지 UI/UX 개편)**
+
+사용자가 "실제 상용 여행 서비스 수준"으로 개선해달라고 정리본을 전달 — 정리본은 MUI 사용을 전제했지만 실제 코드베이스엔 MUI가 전혀 없어(Tailwind v4 + shadcn/ui만 존재) 이 부분은 사용자에게 먼저 확인받아 기존 스택 유지로 결정. 사전 조사·계획(Plan 모드)을 거쳐 구현.
+
+- **백엔드**: [aiParse.ts](apps/web/src/lib/services/aiParse.ts)의 Groq 추출 스키마에 `dayIndex`(몇 일차)·`reason`(추천 이유)·`estimatedStayMin`(예상 체류시간)·`estimatedCostWon`(예상 비용) 4개 필드 추가하고, 여행지/기간/인원/예산/스타일/교통수단을 시스템 프롬프트 컨텍스트로 넘기도록 `extractPlacesFromText(rawText, context)`로 확장. [aiImport.ts](apps/web/src/lib/services/aiImport.ts)에서 지오코딩을 완전히 제거해 순수 텍스트 추출만 하도록 분리(진행률을 실제로 보여주기 위한 구조 변경 — 아래 참고), `parseTripText`는 트립의 이름/기간/인원을 한 번의 쿼리로 같이 읽어와 컨텍스트에 자동으로 채움. 새 여행 모드용 `extractPlaces`(트립 권한 검사 없이 순수 추출) 추가
+- **새 라우트** `POST /api/ai/parse-trip-text` — 아직 여행이 없는 상태에서 텍스트를 분석하는 트립-비종속 엔드포인트(로그인만 확인)
+- **`/api/trips/[tripId]/ai-parse` 응답 형식 변경**: `{ candidates }`(지오코딩 포함) → `{ places }`(지오코딩 없는 원본 추출 결과)로 바뀜 — 클라이언트가 [`/api/places/search`](apps/web/src/app/api/places/search/route.ts)(이미 있던, 트립에 종속되지 않는 카카오 검색 프록시)를 장소마다 동시 호출(concurrency 5)해서 지오코딩하도록 이관. 그 결과 "텍스트 분석 중 → 장소 확인 중(K/N, 실제 카운터) → 일정 구성 중" 3단계를 가짜 퍼센트 없이 실제 상태 전이로 보여줄 수 있게 됨
+- [days.ts](apps/web/src/app/trips/[tripId]/days.ts)에 `assignDayIndexes` 추가 — LLM이 준 dayIndex를 여행 일수 범위로 clamp하고, 모르는 곳은 원문 순서를 유지한 채 날짜 수만큼 균등 분배
+- **새 공용 컴포넌트** [AiPlanFlow.tsx](apps/web/src/components/ai-plan/AiPlanFlow.tsx) — 기존 `ImportFlow.tsx`(258줄, 고정폭 2단 레이아웃에 후보 리스트+지도뿐)를 대체. `mode: "existing" | "new"` 두 모드를 하나의 컴포넌트로 처리: 기존 여행 모드는 여행지/기간/인원을 읽기전용 칩으로, 새 여행 모드는 `TripCreateForm.tsx`와 동일한 입력 스타일(라벨/포커스링/인원 스테퍼/`formatTripDuration`)로 편집 가능하게 구현. 결과 화면은 날짜별로 묶어 추천이유·예상 체류시간·예상 비용(모두 참고용 표시, DB엔 저장 안 함)을 같이 보여주고, 커밋 전 `Modal` 재사용 확인 다이얼로그, 커밋 중 일부 실패 시 성공한 항목은 건너뛰고 실패한 것만 재시도하는 로직까지 포함(기존 코드는 실패를 무시하고 그냥 리다이렉트하던 버그였음)
+- **신규 라우트** `/trips/new/import`([page.tsx](apps/web/src/app/trips/new/import/page.tsx)) — 여행이 아직 없는 상태에서 "AI로 새 여행 만들기". Next.js가 정적 세그먼트 `new`를 동적 세그먼트 `[tripId]`보다 우선 매칭해서 기존 `/trips/[tripId]/import`와 충돌 없음(빌드로 확인). 커밋 시 `POST /api/trips`로 새 여행을 먼저 만들고 같은 장소-추가 루프를 재사용
+- **홈 진입점 버그 수정**: `aiPlanHref`가 `featuredTrip`이 없으면(여행이 하나도 없는 사용자) 조용히 `/trips`로 새던 것을 `/trips/new/import`로 연결(`page.tsx`·`trips/page.tsx` 둘 다 동일 로직 중복돼 있어 둘 다 수정) — 여행이 있는 사용자의 기존 동작(그 여행에 AI로 추가)은 그대로 유지
+- 커밋 시 `scheduledAt`을 처음으로 함께 전송하게 돼서(기존엔 안 보내서 AI로 가져온 장소가 전부 날짜 미배정 상태였음), 저장 직후 타임라인에 날짜별로 정확히 들어가고 기존 경로 계산 로직이 자동으로 실제 이동시간을 붙여줌
+- **의도적으로 하지 않은 것**: 커밋 전 미리보기 단계의 실제 이동시간 계산(place가 아직 DB에 없어 불가능 — 커밋 후 기존 로직에 위임), AI 추정 비용의 Expense 자동 저장(사용자 확인 후 참고용 표시로만 결정), 전역 `globals.css` 토큰 변경, MUI 도입
+- 검증: `tsc --noEmit`/`eslint`/`npm run build` 모두 통과(빌드 로그로 새 라우트가 기존 라우트와 충돌 없이 둘 다 생성되는 것도 확인). 브라우저 E2E(테스트 계정, 실제 Groq/카카오 키로 실동작 확인): ①기존 여행("B의 여행", 0곳)에서 부산 여행 후기 예시로 분석 → 3단계 진행 표시가 실제로 순서대로 바뀌는 것, 장소 6곳이 날짜별로 묶이고 추천이유·체류시간·예상비용·동명장소 드롭다운이 정상 표시되는 것, 확인 모달 → 커밋 후 실제 타임라인에 날짜별로(1일차 2곳/2일차 3곳) 정확히 들어가고 경로 거리·시간이 자동 계산된 것까지 확인 ②`/trips/new/import`에서 "제주도" 여행지+2026.11.01~11.02+인원 입력 후 제주 예시로 분석 → 커밋 시 새 여행이 실제로 생성되고 장소들이 올바른 날짜에 들어간 것 확인. 테스트에 쓴 여행/장소는 전부 삭제해 원상복구함
+
 - (신규) 쿼리 최적화 2차 후보: `/trips`는 병렬 쿼리 7개인데도 약 0.8초 — 원격 풀러에 새 연결을 여는 비용일 수 있어 Prisma 연결 풀 설정(`connection_limit`)·쿼리 합치기 검토. 운영 DB를 서울로 옮기면 대부분 해소될 문제라 우선순위는 낮음
 - (신규) 배포 전 준비는 [docs/DEPLOYMENT_PLAN.md](docs/DEPLOYMENT_PLAN.md)의 "단계 0 — 개발하면서 미리 해두면 좋은 것"부터(쿼리 최적화·마이그레이션 드리프트 정리·개발 DB 분리·`directUrl`)
 - (신규) 계정 탈퇴 — API와 데이터 처리 정책(여행·사진·메시지·공유 등) 정한 뒤 별도 작업(사용자 결정)

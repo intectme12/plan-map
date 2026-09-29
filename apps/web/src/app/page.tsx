@@ -64,7 +64,7 @@ export default async function HomePage({
   ]);
 
   const mapHref = featuredTrip ? `/trips/${featuredTrip.id}` : "/trips";
-  const aiPlanHref = featuredTrip ? `/trips/${featuredTrip.id}/import` : "/trips";
+  const aiPlanHref = featuredTrip ? `/trips/${featuredTrip.id}/import` : "/trips/new/import";
 
   return (
     <main className="min-h-screen bg-slate-50">
