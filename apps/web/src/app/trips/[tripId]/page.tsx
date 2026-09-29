@@ -55,6 +55,7 @@ export default async function TripDetailPage({
           visibility: trip.visibility,
           coverPhotoKey: trip.coverPhotoKey,
           ownerNickname: trip.user.nickname,
+          tags: trip.tags,
         }}
         places={trip.places}
         activeTab={activeTab}

@@ -221,6 +221,7 @@ export async function updateTrip(
     endDate: Date;
     personnel: number;
     visibility: string;
+    tags: string[];
   }>
 ) {
   const trip = await prisma.trip.findFirst({

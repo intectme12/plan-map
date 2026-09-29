@@ -13,6 +13,7 @@ type TripMeta = {
   personnel: number;
   visibility: string;
   coverPhotoKey: string | null;
+  tags?: string[];
 };
 
 // "수정"을 누르면 트립 상세에서 이미 검증된 TripMetaEditor(이름/날짜 수정 + 공유 + 공개범위 토글을

@@ -57,6 +57,7 @@ export const updateTripSchema = z
     endDate: z.coerce.date().optional(),
     personnel: z.coerce.number().int().min(1).max(50).optional(),
     visibility: z.enum(tripVisibilities).optional(),
+    tags: tripTagsSchema.optional(),
   })
   .refine((d) => !d.startDate || !d.endDate || d.endDate >= d.startDate, {
     message: TRIP_DATE_ORDER_MESSAGE,

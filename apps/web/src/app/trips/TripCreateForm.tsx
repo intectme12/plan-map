@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Loader2, Minus, Plane, Plus, Search, Sparkles, X } from "lucide-react";
+import { CalendarDays, Loader2, Minus, Pencil, Plane, Plus, Search, Sparkles, X } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/Modal";
@@ -44,15 +44,43 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   );
 }
 
-// trigger: "card"는 내 여행계획 그리드의 점선 카드(기본), "button"은 페이지 헤더용 작은 버튼(저장한 장소 등)
-export function TripCreateForm({ trigger = "card" }: { trigger?: "card" | "button" } = {}) {
+type EditableTrip = {
+  id: string;
+  name: string;
+  startDate: string | Date;
+  endDate: string | Date;
+  personnel: number;
+  tags?: string[];
+};
+
+type TripFormProps =
+  // 생성: trigger는 "card"(내 여행계획 그리드의 점선 카드, 기본) / "button"(페이지 헤더용 작은 버튼)
+  | { mode?: "create"; trigger?: "card" | "button" }
+  // 수정: 부모가 열고 닫는다(열려 있는 동안만 렌더링). 기존 인라인 수정 폼(TripMetaEditor)을 대체하는 같은 팝업.
+  | { mode: "edit"; trip: EditableTrip; onClose: () => void };
+
+function toDateInputValue(d: string | Date) {
+  return new Date(d).toISOString().slice(0, 10);
+}
+
+// 새 여행 만들기 / 여행 정보 수정 공용 팝업. 수정 모드에서는 함께할 사람 영역을 숨긴다 —
+// 동행자·공유 대상은 생성 이후엔 공유 팝업(ShareLinkModal)에서 관리하고, 수정 API도 받지 않음.
+export function TripCreateForm(props: TripFormProps = {}) {
+  const isEdit = props.mode === "edit";
+  const editTrip = isEdit ? props.trip : null;
+  const trigger = props.mode === "edit" ? "card" : props.trigger ?? "card";
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [personnel, setPersonnel] = useState(1);
-  const [tags, setTags] = useState<string[]>([]);
+  const [openState, setOpen] = useState(false);
+  const open = isEdit || openState;
+  function close() {
+    if (props.mode === "edit") props.onClose();
+    else setOpen(false);
+  }
+  const [name, setName] = useState(editTrip?.name ?? "");
+  const [startDate, setStartDate] = useState(editTrip ? toDateInputValue(editTrip.startDate) : "");
+  const [endDate, setEndDate] = useState(editTrip ? toDateInputValue(editTrip.endDate) : "");
+  const [personnel, setPersonnel] = useState(editTrip?.personnel ?? 1);
+  const [tags, setTags] = useState<string[]>(editTrip?.tags ?? []);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [pending, setPending] = useState(false);
@@ -198,6 +226,23 @@ export function TripCreateForm({ trigger = "card" }: { trigger?: "card" | "butto
     if (nextErrors.endDate) return endRef.current?.focus();
 
     setPending(true);
+    if (editTrip) {
+      // 태그를 모르는 호출부(tags 미전달)에서 열었을 때 기존 태그를 빈 배열로 지워버리지 않도록 그때는 보내지 않는다
+      const res = await fetch(`/api/trips/${editTrip.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, startDate, endDate, personnel, ...(editTrip.tags ? { tags } : {}) }),
+      });
+      setPending(false);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setError(typeof body?.error === "string" ? body.error : "수정하지 못했습니다. 입력값을 확인해주세요.");
+        return;
+      }
+      close();
+      router.refresh();
+      return;
+    }
     const res = await fetch("/api/trips", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -252,17 +297,19 @@ export function TripCreateForm({ trigger = "card" }: { trigger?: "card" | "butto
 
   return (
     <Modal
-      onClose={() => setOpen(false)}
-      title="새 여행 만들기"
-      description="특별한 여행을 계획해보세요. Triply가 도와드릴게요!"
-      icon={<Plane className="h-5 w-5" />}
+      onClose={close}
+      title={isEdit ? "여행 정보 수정" : "새 여행 만들기"}
+      description={
+        isEdit ? "여행 제목과 일정, 인원, 태그를 수정할 수 있어요." : "특별한 여행을 계획해보세요. Triply가 도와드릴게요!"
+      }
+      icon={isEdit ? <Pencil className="h-5 w-5" /> : <Plane className="h-5 w-5" />}
       maxWidth="3xl"
       footer={
         <>
           <Button
             type="button"
             variant="outline"
-            onClick={() => setOpen(false)}
+            onClick={close}
             className="h-11 rounded-xl border-slate-200 px-5 text-sm font-semibold text-slate-700"
           >
             취소
@@ -276,10 +323,10 @@ export function TripCreateForm({ trigger = "card" }: { trigger?: "card" | "butto
           >
             {pending ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" /> 만드는 중...
+                <Loader2 className="h-4 w-4 animate-spin" /> {isEdit ? "저장 중..." : "만드는 중..."}
               </>
             ) : (
-              "여행 만들기"
+              isEdit ? "저장" : "여행 만들기"
             )}
           </Button>
         </>
@@ -368,7 +415,9 @@ export function TripCreateForm({ trigger = "card" }: { trigger?: "card" | "butto
           </div>
         </div>
 
-        {/* 여행 태그 — 기본 카테고리는 홈 카테고리 탭에 노출되고, 직접 입력한 태그는 카드에 표시만 된다 */}
+        {/* 여행 태그 — 기본 카테고리는 홈 카테고리 탭에 노출되고, 직접 입력한 태그는 카드에 표시만 된다.
+            수정 모드에서 기존 태그를 모르면(tags 미전달) 빈 칸으로 보여 오해하지 않도록 영역을 숨긴다 */}
+        {isEdit && !editTrip?.tags ? null : (
         <div>
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -454,13 +503,18 @@ export function TripCreateForm({ trigger = "card" }: { trigger?: "card" | "butto
             </p>
           ) : null}
         </div>
+        )}
 
         {/* 함께할 사람 + 인원 */}
         <div>
           <div className="flex items-center justify-between gap-3">
-            <label htmlFor="trip-participant" className={labelClass}>
-              함께할 사람
-            </label>
+            {isEdit ? (
+              <p className={labelClass}>여행 인원</p>
+            ) : (
+              <label htmlFor="trip-participant" className={labelClass}>
+                함께할 사람
+              </label>
+            )}
             <div className="flex items-center gap-2">
               <span id="trip-personnel-label" className="text-xs text-slate-500">
                 인원
@@ -495,6 +549,10 @@ export function TripCreateForm({ trigger = "card" }: { trigger?: "card" | "butto
             </div>
           </div>
 
+          {isEdit ? (
+            <p className="mt-1 text-xs text-slate-500">함께할 사람(공유 대상)은 여행 화면의 공유 버튼에서 관리할 수 있어요.</p>
+          ) : (
+          <>
           <div className="mt-2 flex gap-2">
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -580,6 +638,8 @@ export function TripCreateForm({ trigger = "card" }: { trigger?: "card" | "butto
               ))}
             </ul>
           ) : null}
+          </>
+          )}
         </div>
 
         {error ? (

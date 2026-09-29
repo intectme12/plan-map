@@ -34,6 +34,7 @@ type TripMeta = {
   visibility: string;
   coverPhotoKey: string | null;
   ownerNickname: string;
+  tags?: string[];
 };
 
 export function TripWorkspace({

@@ -987,6 +987,14 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - 편집용 [PlaceList.tsx](apps/web/src/app/trips/[tripId]/PlaceList.tsx)와 공유용 [SharedPlaceList.tsx](apps/web/src/app/trips/shared/[tripId]/SharedPlaceList.tsx)가 같은 마크업을 각자 갖고 있어서 새 [PlaceTitle.tsx](apps/web/src/app/trips/[tripId]/PlaceTitle.tsx)로 묶어 둘 다 사용. 카카오 원본 분류는 길어서 칩 폭을 줄의 60%로 제한하고 말줄임(전체 값은 `title` 툴팁), 이름이 길면 이름 쪽이 말줄임. 카테고리가 없는 장소는 이름만
 - 검증: `tsc --noEmit`/`eslint` 통과. 브라우저(로컬 임시 계정에 카테고리 긴 장소·이름 긴 장소·카테고리 없는 장소를 만들어 확인 후 계정째 삭제): 여행 상세와 공유 여행 화면 모두 칩이 이름과 같은 줄 오른쪽에 붙고 카드 폭 안에 들어가며, 긴 이름은 이름이 말줄임되는 것 확인
 
+**완료 (2026-09-29, 여행 정보 수정을 "새 여행 만들기"와 같은 팝업으로 대체)**
+
+- 사용자 요청: 지도 페이지 오른쪽 패널 히어로 영역의 연필(수정) 버튼을 누르면 그 영역 안에 인라인 폼(제목/날짜/숫자 인원)이 펼쳐지던 것을, "새 여행 만들기" 팝업으로 대체
+- [TripCreateForm.tsx](apps/web/src/app/trips/TripCreateForm.tsx)에 수정 모드(`mode="edit"`, `trip`, `onClose`) 추가 — 같은 팝업·같은 검증(필수값, 종료일≥시작일, 기간 자동 계산)을 그대로 쓰고, 제목 "여행 정보 수정"·버튼 "저장", 저장 시 `PATCH /api/trips/[id]` 후 `router.refresh()`. 함께할 사람(동행자·공유 대상)은 수정 API가 받지 않고 공유 팝업에서 관리하므로 수정 모드에선 인원 스테퍼만 두고 안내 문구로 대체
+- 태그도 수정 가능하게 [updateTripSchema](apps/web/src/lib/validation.ts)에 `tags`(생성과 같은 `tripTagsSchema`) 추가, `updateTrip` 타입 확장. 기존 태그를 모르는 호출부에서 열면(`tags` 미전달) 태그 영역을 숨기고 요청에도 넣지 않아 기존 태그를 지우지 않음. 여행 상세 페이지는 `trip.tags`를 넘기도록 추가
+- [TripMetaEditor.tsx](apps/web/src/app/trips/[tripId]/TripMetaEditor.tsx)에서 인라인 수정 폼과 관련 상태를 제거하고 연필 버튼이 팝업을 열도록 변경 — 지도 페이지 오른쪽 패널과 "내 여행계획" 카드 메뉴("수정 · 공유 · 공개범위") 두 곳 모두 적용
+- 검증: `tsc --noEmit`/`eslint` 통과. 브라우저(로컬 임시 계정으로 확인 후 계정째 삭제): 지도 페이지 연필 → 팝업이 기존 제목·날짜·태그를 채운 채 열리고 히어로 영역에 인라인 폼이 안 나옴, 제목·종료일·태그·인원을 바꿔 저장 → 팝업 닫힘·히어로 제목/날짜/인원 즉시 갱신·DB에 태그까지 반영, 카드 메뉴 경로에서도 같은 팝업이 열리고 ESC는 위의 수정 팝업만 닫힘
+
 **다음 세션 할 일**
 - (신규) 저장한 장소 "총 이동거리"가 실제 경로 데이터로 km 표시되는지 경로 조회 가능한 환경에서 확인
 - (신규) 장소가 수백 개로 늘면 카카오 마커 클러스터러(SDK `libraries=clusterer`) 검토
