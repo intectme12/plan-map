@@ -33,7 +33,7 @@ export function getTripDays(startDate: string | Date, endDate: string | Date): D
 }
 
 // scheduledAt이 여행 기간 중 어느 날짜와도 안 맞거나(미배정) 값이 없으면 1일차로 묶는다
-export function dayIndexForPlace(place: PlaceEntry, days: Date[]): number {
+export function dayIndexForPlace(place: Pick<PlaceEntry, "scheduledAt">, days: Date[]): number {
   if (place.scheduledAt) {
     const scheduled = new Date(place.scheduledAt);
     const idx = days.findIndex((day) => isSameDay(day, scheduled));
@@ -42,8 +42,9 @@ export function dayIndexForPlace(place: PlaceEntry, days: Date[]): number {
   return 0;
 }
 
-export function groupByDay(items: PlaceEntry[], days: Date[]): PlaceEntry[][] {
-  const groups: PlaceEntry[][] = days.map(() => []);
+// 통계 집계(서버)처럼 scheduledAt만 가진 가벼운 객체도 묶을 수 있게 제네릭으로 둔다
+export function groupByDay<T extends Pick<PlaceEntry, "scheduledAt">>(items: T[], days: Date[]): T[][] {
+  const groups: T[][] = days.map(() => []);
   for (const place of items) {
     const idx = dayIndexForPlace(place, days);
     (groups[idx] ?? groups[0]).push(place);

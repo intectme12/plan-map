@@ -2,6 +2,7 @@ import { prisma } from "../db";
 import { NotFoundError, ForbiddenError } from "../errors";
 import { saveImageFile, deleteStoredFile } from "../upload";
 import { getReviewsForCoordinates, coordKey } from "./reviews";
+import { getTripDays, groupByDay } from "@/app/trips/[tripId]/days";
 
 const SHARED_PAGE_SIZE = 20;
 
@@ -71,6 +72,42 @@ export async function getTravelStats(userId: string) {
   );
 
   return { tripCount, savedPlaceCount: places.length, visitedRegionCount: regions.size };
+}
+
+// /saved-places 통계 카드 전용 추가 집계(총 이동거리/사용한 금액).
+// 이동거리는 트립 상세 타임라인의 날짜별 요약과 같은 기준 — 트립마다 날짜별로 묶은 뒤
+// 같은 날 연속한 장소 쌍의 RouteSegment 거리만 더한다(순서 변경 후 남은 옛 캐시는 제외됨).
+// 경로는 상세 화면에서 조회될 때 캐시되므로, 아직 한 번도 조회 안 된 구간은 합계에 빠진다.
+export async function getTravelTotals(userId: string) {
+  const [trips, expenseSum] = await Promise.all([
+    prisma.trip.findMany({
+      where: { userId },
+      select: {
+        startDate: true,
+        endDate: true,
+        places: {
+          orderBy: { order: "asc" },
+          select: { id: true, scheduledAt: true, routesFrom: { select: { toPlaceId: true, distanceM: true } } },
+        },
+      },
+    }),
+    prisma.expense.aggregate({
+      where: { placeEntry: { trip: { userId } } },
+      _sum: { amount: true },
+    }),
+  ]);
+
+  let totalDistanceM = 0;
+  for (const trip of trips) {
+    for (const group of groupByDay(trip.places, getTripDays(trip.startDate, trip.endDate))) {
+      for (let i = 0; i < group.length - 1; i++) {
+        const next = group[i + 1];
+        totalDistanceM += group[i].routesFrom.find((r) => r.toPlaceId === next.id)?.distanceM ?? 0;
+      }
+    }
+  }
+
+  return { totalDistanceM, totalSpentWon: expenseSum._sum.amount ?? 0 };
 }
 
 // 홈 지도 위젯("가장 가까운 여행 하나")과 달리, /trips의 "내 여행 지도"는 내 모든 여행의

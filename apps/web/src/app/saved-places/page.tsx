@@ -2,7 +2,12 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { listConversations } from "@/lib/services/conversations";
 import { countUnreadNotifications } from "@/lib/services/notifications";
-import { getFeaturedTripForHome, getTravelStats, listAllPlacesForUser } from "@/lib/services/trips";
+import {
+  getFeaturedTripForHome,
+  getTravelStats,
+  getTravelTotals,
+  listAllPlacesForUser,
+} from "@/lib/services/trips";
 import { HomeHeader } from "@/components/home/HomeHeader";
 import { TravelStatsCard } from "@/app/trips/TravelStatsCard";
 import { SavedPlacesBrowser } from "./SavedPlacesBrowser";
@@ -11,12 +16,13 @@ export default async function SavedPlacesPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/");
 
-  const [conversations, unreadNotificationCount, featuredTrip, places, stats] = await Promise.all([
+  const [conversations, unreadNotificationCount, featuredTrip, places, stats, totals] = await Promise.all([
     listConversations(user.id),
     countUnreadNotifications(user.id),
     getFeaturedTripForHome(user.id),
     listAllPlacesForUser(user.id),
     getTravelStats(user.id),
+    getTravelTotals(user.id),
   ]);
   const unreadMessageCount = conversations.filter((c) => c.unread).length;
   const mapHref = featuredTrip ? `/trips/${featuredTrip.id}` : "/trips";
@@ -59,6 +65,8 @@ export default async function SavedPlacesPage() {
             tripCount={stats.tripCount}
             savedPlaceCount={stats.savedPlaceCount}
             visitedRegionCount={stats.visitedRegionCount}
+            totalDistanceM={totals.totalDistanceM}
+            totalSpentWon={totals.totalSpentWon}
           />
         </div>
 

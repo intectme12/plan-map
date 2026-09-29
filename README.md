@@ -930,7 +930,17 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - **버그 발견 및 수정(범위 밖이지만 이 기능 자체가 깨져서 같이 고침)**: 장소가 1개뿐인 트립을 선택하면(=지도에 마커 1개만 남으면) [KakaoMapCanvas.tsx](apps/web/src/components/map/KakaoMapCanvas.tsx)의 `map.setBounds(bounds)`가 너비/높이 0짜리 `LatLngBounds`를 극단적인 확대 레벨로 계산해버려 타일이 전혀 안 뜨는 기존 버그를 발견(브라우저 E2E 중 재현 — 저장한 장소 페이지뿐 아니라 원래 트립 상세 페이지에서도 장소 1개짜리 날짜를 보면 동일하게 재현됨, 이번 변경으로 새로 생긴 문제 아님). `points.length === 1`일 때만 `setBounds` 대신 `setCenter` + `setLevel(SELECTED_PLACE_ZOOM_LEVEL)`(기존에 "장소 선택 시 확대 레벨"로 쓰던 상수 재사용)로 처리하도록 수정 — 수정 전/후 모두 브라우저로 재현해 비교 확인(수정 전: 타일 요청 자체가 없거나 "30m" 극단 축척으로 빈 화면 / 수정 후: 정상적으로 "100m" 축척에 타일 로드)
 - 브라우저 E2E(testuser01 계정에 임시로 장소 2개+트립 1개를 추가해 다중 트립 상태를 만들어 검증 후 전부 삭제로 원복): 통계 카드 숫자 일치, 데스크톱에서 지도가 뷰포트를 채우고 페이지 스크롤 없음, "전체" 기본 상태에서 모든 트립 펼쳐짐+전체 마커, 트립 클릭 시 해당 트립만 펼쳐지고 지도도 그 트립 마커만(자동 리센터/줌 포함) 표시, "전체" 재클릭 시 원복, 바로가기 아이콘 href 확인, 모바일(375px)에서 레이아웃 안 깨지고 정상 스크롤되는 것까지 확인. `tsc --noEmit`/`eslint`(수정한 3개 파일 모두 새 lint 에러 없음, KakaoMapCanvas.tsx의 기존 경고들은 손대기 전과 동일함을 diff로 확인) 통과
 
+**완료 (2026-09-29, 저장한 장소 여행 통계에 총 이동거리·사용한 금액 추가)**
+
+- 새 집계 함수 [getTravelTotals(userId)](apps/web/src/lib/services/trips.ts): 사용한 금액은 내 모든 트립 장소의 `Expense.amount` 합(`aggregate _sum`). 총 이동거리는 트립 상세 타임라인의 날짜별 요약과 같은 기준으로 계산 — 트립마다 `getTripDays`/`groupByDay`로 날짜별로 묶고, 같은 날 연속한 장소 쌍의 `RouteSegment.distanceM`만 더함. `RouteSegment` 전체를 그냥 합치면 순서 변경 전에 캐시된 옛 구간까지 더해져 부풀려지기 때문(실제 DB에서 jihwan 계정: 캐시 전체 합 24.1km vs 현재 일정 기준 15.4km)
+- 서버에서 재사용하려고 [days.ts](apps/web/src/app/trips/[tripId]/days.ts)의 `groupByDay`/`dayIndexForPlace`를 `scheduledAt`만 있으면 되는 제네릭으로 완화(기존 호출부 동작 동일)
+- [TravelStatsCard.tsx](apps/web/src/app/trips/TravelStatsCard.tsx)에 선택 prop `totalDistanceM`/`totalSpentWon` 추가 — `/saved-places`에서만 넘기고, `/trips` 사이드바 카드는 넘기지 않아 기존 3칸 그대로. 5칸일 때는 모바일 3열(2줄)·`sm` 이상 5열
+- 한계: 경로는 트립 상세에서 조회될 때 캐시되므로 아직 한 번도 조회 안 된 구간은 이동거리에 빠짐
+- 스키마 변경 없음(마이그레이션 불필요, `prisma migrate status`로 로컬 DB 최신 확인)
+- 검증: `tsc --noEmit`/`eslint` 통과. 로컬 DB의 전체 15개 계정에 대해 `getTravelTotals`를 직접 실행해 값 확인(tsx 임시 스크립트, 실행 후 삭제). **미확인**: 테스트 계정 비밀번호가 프로젝트 파일에 없어 로그인 후 `/saved-places` 화면 렌더링은 브라우저로 확인하지 못함
+
 **다음 세션 할 일**
+- (신규) 저장한 장소 통계 카드의 "총 이동거리"/"사용한 금액" 5칸 레이아웃을 로그인 상태에서 데스크톱/모바일로 한 번 확인 필요
 - (신규) `AppBadgeSync.tsx`도 `MessagesPanelProvider`와 동일하게 `/api/auth/me`를 마운트 시 1회만 조회함 — 로그인 후 리마운트 없이 배지가 갱신되는지 확인 필요, 필요하면 이번 수정과 같은 방식(재시도 가능한 가드)으로 통일
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음
 - **(중요)** 마이그레이션 히스토리 드리프트(`20260907120000_add_trip_visibility_and_shares`)가 스키마를 바꿀 때마다(이번까지 4세션 연속) `migrate dev` 리셋 요구로 이어짐 — 매번 `migrate diff`/`db push` + 손으로 마이그레이션 작성 + `migrate resolve`로 우회하고 있지만 언제까지나 반복할 방식은 아님. 원인 마이그레이션 파일을 적용 시점 그대로 복원하거나(체크섬 재계산), 이 우회를 앞으로도 정식 절차로 문서화할지 다음 세션에서 결정 필요
