@@ -64,7 +64,9 @@ export default async function HomePage({
   ]);
 
   const mapHref = featuredTrip ? `/trips/${featuredTrip.id}` : "/trips";
-  const aiPlanHref = featuredTrip ? `/trips/${featuredTrip.id}/import` : "/trips/new/import";
+  // 이미 만든 여행이 있어도 홈/메인 진입점은 항상 "새 여행 만들기"로 보낸다 — 기존 여행에
+  // 이어서 추가하는 건 그 여행 상세 화면 안의 AI 카드(AIAssistantCard)가 보조 기능으로 맡는다.
+  const aiPlanHref = "/trips/new/import";
 
   return (
     <main className="min-h-screen bg-slate-50">
