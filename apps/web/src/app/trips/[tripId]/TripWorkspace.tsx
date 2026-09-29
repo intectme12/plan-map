@@ -112,6 +112,13 @@ export function TripWorkspace({
   });
   const safeSelectedDay = Math.min(selectedDay, days.length - 1);
 
+  // 지도 범위(fitBounds)를 지금 선택된 날짜의 장소로만 좁힌다 — 마커 자체는 points 전부
+  // 그대로 그려서 다른 날짜 위치도 참고할 수 있게 두고, 확대/이동만 그 날짜에 포커스한다.
+  const focusPlaceIds = useMemo(
+    () => (groups[safeSelectedDay] ?? []).map((p) => p.id),
+    [groups, safeSelectedDay]
+  );
+
   // 같은 날짜 안에서 연속된 장소 쌍만 뽑아서, 순서가 안 바뀌면 재조회하지 않도록 함
   const pairKey = groups
     .flatMap((group, dayIndex) => group.slice(0, -1).map((p, i) => `${dayIndex}:${p.id}-${group[i + 1].id}`))
@@ -376,6 +383,7 @@ export function TripWorkspace({
           selectedSegmentId={selectedSegmentId}
           onOpenReviews={setReviewsModalPlaceId}
           onSelectSegment={handleSelectSegment}
+          focusPlaceIds={focusPlaceIds}
         />
       </div>
 

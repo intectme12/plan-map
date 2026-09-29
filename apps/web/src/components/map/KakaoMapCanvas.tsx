@@ -239,6 +239,7 @@ export function KakaoMapCanvas({
   onSelectSegment,
   onSelectPoint,
   highlightSelected = false,
+  focusPlaceIds,
 }: {
   points: MapPoint[];
   segments?: MapSegment[];
@@ -250,6 +251,10 @@ export function KakaoMapCanvas({
   onSelectPoint?: (placeId: string) => void;
   // 선택된 장소의 마커를 파랗고 크게 강조(번호 마커를 쓰지 않는 화면 전용)
   highlightSelected?: boolean;
+  // 지정하면 전체 points 대신 이 id들만으로 초기 범위(bounds)를 잡는다 — 마커 자체는
+  // points 전부 그대로 그리고, 확대/이동 범위만 좁힌다(타임라인 날짜별 포커스용).
+  // 비어있거나 생략하면 기존처럼 points 전체 범위를 잡는다.
+  focusPlaceIds?: string[] | null;
 }) {
   // 지도 생성 effect는 points/segments가 바뀔 때만 다시 돌아서, 그 안의 마커 클릭 리스너가
   // 옛 콜백/선택값을 붙잡지 않도록 ref로 최신 값을 읽는다.
@@ -332,6 +337,12 @@ export function KakaoMapCanvas({
 
       if (points.length > 0) {
         const bounds = new window.kakao.maps.LatLngBounds();
+        // focusPlaceIds가 있으면 이 id들만으로 별도 범위를 같이 잡아둔다 — 마커는 points
+        // 전부 그리되, 화면에 맞출 범위(fitBounds)만 좁히기 위함(타임라인 날짜별 포커스).
+        const focusIdSet =
+          focusPlaceIds && focusPlaceIds.length > 0 ? new Set(focusPlaceIds) : null;
+        const focusBounds = new window.kakao.maps.LatLngBounds();
+        const focusPoints: MapPoint[] = [];
         points.forEach((point) => {
           const position = new window.kakao.maps.LatLng(point.lat, point.lng);
           const isSelected = highlightSelected && point.id === selectedPlaceIdRef.current;
@@ -350,12 +361,19 @@ export function KakaoMapCanvas({
           markersRef.current.set(point.id, marker);
           pointsRef.current.set(point.id, point);
           bounds.extend(position);
+          if (focusIdSet?.has(point.id)) {
+            focusBounds.extend(position);
+            focusPoints.push(point);
+          }
 
           window.kakao.maps.event.addListener(marker, "click", () => {
             openInfoOverlay(point.id);
             onSelectPointRef.current?.(point.id);
           });
         });
+        // 포커스 대상이 없으면(빈 날짜 등) 기존처럼 전체 범위로 되돌아간다.
+        const fitPoints = focusPoints.length > 0 ? focusPoints : points;
+        const fitBounds = focusPoints.length > 0 ? focusBounds : bounds;
         // 필터로 지도가 다시 만들어져도 선택 강조가 이어지도록 기억해 둔다
         highlightedIdRef.current =
           highlightSelected && selectedPlaceIdRef.current && markersRef.current.has(selectedPlaceIdRef.current)
@@ -419,11 +437,11 @@ export function KakaoMapCanvas({
             map.setLevel(SELECTED_PLACE_ZOOM_LEVEL);
             map.setCenter(markersRef.current.get(keepSelected).getPosition());
             openInfoOverlay(keepSelected);
-          } else if (points.length === 1) {
-            map.setCenter(new window.kakao.maps.LatLng(points[0].lat, points[0].lng));
+          } else if (fitPoints.length === 1) {
+            map.setCenter(new window.kakao.maps.LatLng(fitPoints[0].lat, fitPoints[0].lng));
             map.setLevel(SELECTED_PLACE_ZOOM_LEVEL);
           } else {
-            map.setBounds(bounds);
+            map.setBounds(fitBounds);
           }
         });
       }
@@ -440,7 +458,7 @@ export function KakaoMapCanvas({
     };
     // selectedSegmentId는 아래 별도 effect가 다시 그리지 않고 색만 바꾸므로 일부러 뺐다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sdkReady, points, segments]);
+  }, [sdkReady, points, segments, focusPlaceIds]);
 
   // 경로 라벨을 클릭해 선택이 바뀌면, 지도를 통째로 다시 만들지 않고 폴리라인 색과
   // 라벨 배경색만 바꾼다 — 그래야 클릭할 때마다 지도 확대/이동 상태가 리셋되지 않는다.

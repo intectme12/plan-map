@@ -93,6 +93,12 @@ export function SharedTripView({
   });
   const safeSelectedDay = Math.min(selectedDay, days.length - 1);
 
+  // 지도 범위(fitBounds)를 지금 선택된 날짜의 장소로만 좁힌다(owner용 TripWorkspace.tsx와 동일 패턴)
+  const focusPlaceIds = useMemo(
+    () => (groups[safeSelectedDay] ?? []).map((p) => p.id),
+    [groups, safeSelectedDay]
+  );
+
   const pairKey = groups
     .flatMap((group, dayIndex) => group.slice(0, -1).map((p, i) => `${dayIndex}:${p.id}-${group[i + 1].id}`))
     .join(",");
@@ -243,6 +249,7 @@ export function SharedTripView({
           selectedSegmentId={selectedSegmentId}
           onOpenReviews={setReviewsModalPlaceId}
           onSelectSegment={handleSelectSegment}
+          focusPlaceIds={focusPlaceIds}
         />
       </div>
 

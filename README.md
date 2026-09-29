@@ -1058,6 +1058,15 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 
 - 검증: `tsc --noEmit`/`eslint`/`next build` 통과, 위 페이지 전부 200, 헤더 배지 값(4)·안읽음 개수·로그아웃 후 `/api/auth/me` null·여행 상세 화면(장소·지출·경로) 정상 렌더링 확인
 
+**완료 (2026-09-29, 지도 타임라인 날짜별 포커스)**
+
+여행 상세 지도가 타임라인에서 1일차/2일차 어느 탭을 선택하든 항상 **등록된 전체 장소** 범위로 확대/축소되던 버그 수정 — 이동경로 선(`segments`)만 선택된 날짜 것으로 필터링되고, 지도 확대범위(`fitBounds`)는 여전히 전체 `points` 기준이었던 게 원인.
+
+- [KakaoMapCanvas.tsx](apps/web/src/components/map/KakaoMapCanvas.tsx)에 `focusPlaceIds?: string[] | null` prop 추가 — 마커는 `points` 전부 그대로 그리되(다른 날짜 위치도 참고 가능), 지도가 맞출 범위만 이 id들로 좁힘. 비었으면(빈 날짜) 기존처럼 전체 범위로 폴백, 1개짜리면 기존 단일 포인트 특수처리(`SELECTED_PLACE_ZOOM_LEVEL`)도 그대로 적용
+- [TripWorkspace.tsx](apps/web/src/app/trips/%5BtripId%5D/TripWorkspace.tsx)(내 여행 상세)·[SharedTripView.tsx](apps/web/src/app/trips/shared/%5BtripId%5D/SharedTripView.tsx)(다른 사람 여행 보기) 둘 다 같은 패턴이 중복돼 있어 동일하게 수정 — 지금 선택된 날짜(`safeSelectedDay`)의 장소 id 목록을 `focusPlaceIds`로 계산해 전달
+- 사진/후기 탭(`PhotoGallery`/`ReviewGallery`, `SharedPhotoGrid`/`SharedReviewGallery`)은 날짜 선택 상태를 컴포넌트 내부에 독립적으로 갖고 있어(`TripWorkspace`의 `selectedDay`와 연결 안 됨) 이번 수정 범위에서 제외 — 타임라인 탭 기준으로만 포커스됨
+- 검증: `tsc --noEmit` 통과. 브라우저로 공유 여행 보기 페이지에서 실제 확인 — 장소 2개짜리 날짜(타이트하게 맞춰짐), 장소 1개짜리 날짜(그 장소로 확대), 빈 날짜(전체 범위로 폴백) 세 케이스 모두 스크린샷으로 정상 확인, 콘솔 에러 없음(로그인 화면의 프로필 사진 404는 시드 데이터 문제로 무관)
+
 **다음 세션 할 일**
 - (신규) 쿼리 최적화 2차 후보: `/trips`는 병렬 쿼리 7개인데도 약 0.8초 — 원격 풀러에 새 연결을 여는 비용일 수 있어 Prisma 연결 풀 설정(`connection_limit`)·쿼리 합치기 검토. 운영 DB를 서울로 옮기면 대부분 해소될 문제라 우선순위는 낮음
 - (신규) 배포 전 준비는 [docs/DEPLOYMENT_PLAN.md](docs/DEPLOYMENT_PLAN.md)의 "단계 0 — 개발하면서 미리 해두면 좋은 것"부터(쿼리 최적화·마이그레이션 드리프트 정리·개발 DB 분리·`directUrl`)
