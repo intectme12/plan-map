@@ -48,7 +48,6 @@ export function SharedTripView({
 }) {
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [reviewsModalPlaceId, setReviewsModalPlaceId] = useState<string | null>(null);
 
   function handleSelectSegment(id: string) {
@@ -219,7 +218,7 @@ export function SharedTripView({
   }, [places]);
 
   return (
-    <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6">
+    <div className="relative h-[calc(100vh-4rem)] w-full overflow-hidden">
       {reviewsModalPlaceId
         ? (() => {
             const place = places.find((p) => p.id === reviewsModalPlaceId);
@@ -234,128 +233,117 @@ export function SharedTripView({
           })()
         : null}
 
-      {/* 왼쪽(히어로+지도, 지도와 같은 폭) : 오른쪽 패널 — 오른쪽 패널은 높이를 따로
-          지정하지 않고 flex 기본 stretch로 왼쪽 열(히어로+지도) 전체 높이에 맞춰 늘어난다 */}
-      <div className="relative mt-6 flex flex-col gap-4 lg:flex-row">
-        <div className="flex flex-col gap-4 lg:flex-1">
-          <TripHeroBanner coverPhotoKey={trip.coverPhotoKey ?? null}>
-            <div className="absolute right-3 top-3 z-10">
-              <LikeButton
-                tripId={trip.id}
-                initialLiked={trip.likedByMe}
-                initialCount={trip.likeCount}
-                className="flex h-8 flex-none items-center gap-1 rounded-full border border-white/30 bg-white/15 px-3 text-xs text-white backdrop-blur"
-              />
-            </div>
+      {/* 내 여행 상세(TripWorkspace.tsx)와 같은 레이아웃 — 카카오맵을 페이지 전체 배경으로 깔고,
+          히어로(대표사진+제목)를 맨 위에 포함한 오른쪽 패널을 그 위에 오버레이로 띄운다 */}
+      <div className="absolute inset-0">
+        <KakaoMapCanvas
+          points={points}
+          segments={segments}
+          selectedPlaceId={selectedPlaceId}
+          selectedSegmentId={selectedSegmentId}
+          onOpenReviews={setReviewsModalPlaceId}
+          onSelectSegment={handleSelectSegment}
+        />
+      </div>
+
+      {/* AI 여행 도우미는 내 여행일 때만(남의 여행엔 장소를 추가할 수 없음) — 지도 왼쪽 위 독립 카드 */}
+      {isOwnTrip ? (
+        <div className="absolute left-4 right-4 top-4 z-20 sm:right-auto sm:w-[360px]">
+          <AIAssistantCard href={`/trips/${trip.id}/import`} />
+        </div>
+      ) : null}
+
+      {/* 모바일에서는 하단 시트, sm 이상에서는 오른쪽 위~아래 전체 높이 (TripWorkspace와 동일) */}
+      <aside className="absolute inset-x-4 bottom-4 z-20 flex h-[55vh] flex-col overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-xl sm:inset-x-auto sm:right-4 sm:top-4 sm:h-auto sm:w-[380px] lg:w-[420px]">
+        <TripHeroBanner coverPhotoKey={trip.coverPhotoKey ?? null} squareBottom compact>
+          <div className="absolute right-3 top-3 z-10">
+            <LikeButton
+              tripId={trip.id}
+              initialLiked={trip.likedByMe}
+              initialCount={trip.likeCount}
+              className="flex h-8 flex-none items-center gap-1 rounded-full border border-white/30 bg-white/15 px-3 text-xs text-white backdrop-blur"
+            />
+          </div>
+          <div className="flex flex-col gap-3">
             <div>
               <h1 className="text-lg font-bold text-white drop-shadow-sm sm:text-xl">{trip.name}</h1>
               <p className="text-xs text-white/85 drop-shadow-sm sm:text-sm">
                 {new Date(trip.startDate).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })}{" "}
                 – {new Date(trip.endDate).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" })} ·{" "}
-                {trip.personnel}명 · {trip.ownerNickname}
+                {trip.personnel}명 · {trip.ownerNickname}님의 여행
               </p>
             </div>
             {isOwnTrip ? (
-              <span className="mt-1.5 inline-block rounded-full border border-white/30 bg-white/15 px-3 py-1 text-xs text-white backdrop-blur">
+              <span className="inline-block self-start rounded-full border border-white/30 bg-white/15 px-3 py-1 text-xs text-white backdrop-blur">
                 내가 만든 여행입니다
               </span>
             ) : trip.visibility !== "PRIVATE" ? (
-              <div className="mt-1.5">
+              <div className="self-start">
                 <CopyTripButton tripId={trip.id} />
               </div>
             ) : null}
-          </TripHeroBanner>
+          </div>
+        </TripHeroBanner>
 
-          <div className="relative h-[420px] overflow-hidden rounded-3xl border border-neutral-100 shadow-sm lg:h-[560px]">
-            <KakaoMapCanvas
-              points={points}
-              segments={segments}
+        <nav className="flex gap-1 border-b border-neutral-100 px-3 pt-2">
+          {TABS.map((t) => (
+            <Link
+              key={t.key}
+              href={t.key === "timeline" ? `/trips/shared/${trip.id}` : `/trips/shared/${trip.id}?tab=${t.key}`}
+              className={`border-b-2 px-3 py-2 text-sm font-semibold ${
+                activeTab === t.key
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-neutral-500 hover:text-neutral-700"
+              }`}
+            >
+              {t.label}
+            </Link>
+          ))}
+        </nav>
+
+        {activeTab === "timeline" ? (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <SharedPlaceList
+              tripId={trip.id}
+              trip={{ startDate: trip.startDate, endDate: trip.endDate }}
+              places={places}
+              dayStats={dayStats}
+              selectedDay={safeSelectedDay}
+              onSelectDay={setSelectedDay}
               selectedPlaceId={selectedPlaceId}
-              selectedSegmentId={selectedSegmentId}
-              onOpenReviews={setReviewsModalPlaceId}
-              onSelectSegment={handleSelectSegment}
+              onSelectPlace={setSelectedPlaceId}
             />
           </div>
-        </div>
-
-        {/* 지도 넓히는(패널 접기) 버튼 — 사용하지 않아 주석 처리
-        <button
-          onClick={() => setSidebarOpen((v) => !v)}
-          aria-label={sidebarOpen ? "패널 숨기기" : "패널 열기"}
-          className="hidden h-12 w-6 flex-none items-center justify-center self-center rounded-md border border-neutral-200 bg-white text-neutral-400 shadow hover:bg-neutral-50 hover:text-neutral-600 lg:flex"
-        >
-          {sidebarOpen ? "›" : "‹"}
-        </button>
-        */}
-
-        {sidebarOpen ? (
-          <aside className="flex h-[560px] flex-col overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-sm lg:h-auto lg:w-[420px] lg:flex-none">
-            {isOwnTrip ? (
-              <div className="flex-none border-b border-neutral-100 p-3">
-                <AIAssistantCard href={`/trips/${trip.id}/import`} />
-              </div>
-            ) : null}
-            <nav className="flex gap-1 border-b border-neutral-100 px-3 pt-2">
-              {TABS.map((t) => (
-                <Link
-                  key={t.key}
-                  href={t.key === "timeline" ? `/trips/shared/${trip.id}` : `/trips/shared/${trip.id}?tab=${t.key}`}
-                  className={`border-b-2 px-3 py-2 text-sm font-semibold ${
-                    activeTab === t.key
-                      ? "border-blue-600 text-blue-600"
-                      : "border-transparent text-neutral-500 hover:text-neutral-700"
-                  }`}
-                >
-                  {t.label}
-                </Link>
-              ))}
-            </nav>
-
-            {activeTab === "timeline" ? (
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                <SharedPlaceList
-                  tripId={trip.id}
-                  trip={{ startDate: trip.startDate, endDate: trip.endDate }}
-                  places={places}
-                  dayStats={dayStats}
-                  selectedDay={safeSelectedDay}
-                  onSelectDay={setSelectedDay}
-                  selectedPlaceId={selectedPlaceId}
-                  onSelectPlace={setSelectedPlaceId}
-                />
-              </div>
-            ) : activeTab === "expense" ? (
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                <ExpenseSummary
-                  total={expenseTotal}
-                  byCategory={byCategory}
-                  places={placeTotals}
-                  selectedPlaceId={selectedPlaceId}
-                  onSelectPlace={setSelectedPlaceId}
-                />
-              </div>
-            ) : activeTab === "photos" ? (
-              <div className="min-h-0 flex-1">
-                <SharedPhotoGrid
-                  trip={{ startDate: trip.startDate, endDate: trip.endDate }}
-                  places={places}
-                  selectedPlaceId={selectedPlaceId}
-                  onSelectPlace={setSelectedPlaceId}
-                />
-              </div>
-            ) : (
-              <div className="min-h-0 flex-1">
-                <SharedReviewGallery
-                  trip={{ startDate: trip.startDate, endDate: trip.endDate }}
-                  places={places}
-                  selectedPlaceId={selectedPlaceId}
-                  onSelectPlace={setSelectedPlaceId}
-                />
-              </div>
-            )}
-          </aside>
-        ) : null}
-      </div>
+        ) : activeTab === "expense" ? (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <ExpenseSummary
+              total={expenseTotal}
+              byCategory={byCategory}
+              places={placeTotals}
+              selectedPlaceId={selectedPlaceId}
+              onSelectPlace={setSelectedPlaceId}
+            />
+          </div>
+        ) : activeTab === "photos" ? (
+          <div className="min-h-0 flex-1">
+            <SharedPhotoGrid
+              trip={{ startDate: trip.startDate, endDate: trip.endDate }}
+              places={places}
+              selectedPlaceId={selectedPlaceId}
+              onSelectPlace={setSelectedPlaceId}
+            />
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1">
+            <SharedReviewGallery
+              trip={{ startDate: trip.startDate, endDate: trip.endDate }}
+              places={places}
+              selectedPlaceId={selectedPlaceId}
+              onSelectPlace={setSelectedPlaceId}
+            />
+          </div>
+        )}
+      </aside>
     </div>
   );
 }
