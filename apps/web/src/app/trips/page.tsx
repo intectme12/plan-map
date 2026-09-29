@@ -8,7 +8,7 @@ import {
   tripSortOptions,
   type TripSortOption,
 } from "@/lib/services/trips";
-import { listConversations } from "@/lib/services/conversations";
+import { countUnreadConversations } from "@/lib/services/conversations";
 import { getFollowState } from "@/lib/services/follows";
 import { countUnreadNotifications } from "@/lib/services/notifications";
 import { HomeHeader } from "@/components/home/HomeHeader";
@@ -33,17 +33,16 @@ export default async function TripsPage({
     ? (rawSort as TripSortOption)
     : "latest";
 
-  const [trips, conversations, followState, unreadNotificationCount, featuredTrip, stats, mapOverview] =
+  const [trips, unreadMessageCount, followState, unreadNotificationCount, featuredTrip, stats, mapOverview] =
     await Promise.all([
       listTrips(user.id, sort),
-      listConversations(user.id),
+      countUnreadConversations(user.id),
       getFollowState(user.id, user.id),
       countUnreadNotifications(user.id),
       getFeaturedTripForHome(user.id),
       getTravelStats(user.id),
       getMapOverviewForUser(user.id),
     ]);
-  const unreadMessageCount = conversations.filter((c) => c.unread).length;
   const mapHref = featuredTrip ? `/trips/${featuredTrip.id}` : "/trips";
   const aiPlanHref = featuredTrip ? `/trips/${featuredTrip.id}/import` : "/trips";
   const heroBackground = trips.find((t) => t.coverPhotoKey)?.coverPhotoKey ?? null;

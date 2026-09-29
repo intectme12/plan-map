@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { listConversations } from "@/lib/services/conversations";
+import { countUnreadConversations } from "@/lib/services/conversations";
 import { countUnreadNotifications } from "@/lib/services/notifications";
 import {
   getFeaturedTripForHome,
@@ -17,15 +17,14 @@ export default async function SavedPlacesPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/");
 
-  const [conversations, unreadNotificationCount, featuredTrip, places, stats, totals] = await Promise.all([
-    listConversations(user.id),
+  const [unreadMessageCount, unreadNotificationCount, featuredTrip, places, stats, totals] = await Promise.all([
+    countUnreadConversations(user.id),
     countUnreadNotifications(user.id),
     getFeaturedTripForHome(user.id),
     listAllPlacesForUser(user.id),
     getTravelStats(user.id),
     getTravelTotals(user.id),
   ]);
-  const unreadMessageCount = conversations.filter((c) => c.unread).length;
   const mapHref = featuredTrip ? `/trips/${featuredTrip.id}` : "/trips";
   const aiPlanHref = featuredTrip ? `/trips/${featuredTrip.id}/import` : "/trips";
 

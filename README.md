@@ -1033,7 +1033,33 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - 아직 개발을 더 진행한다는 사용자 판단에 따라 바로 배포 작업은 하지 않고, 나중에 참고할 [docs/DEPLOYMENT_PLAN.md](docs/DEPLOYMENT_PLAN.md) 작성: 현재 상태와 운영에서 문제 되는 점(업로드가 로컬 디스크, 실시간 메시지가 프로세스 메모리 pub/sub, rate limit 없음, 마이그레이션 드리프트, 개발·운영 DB 미분리, 계정 탈퇴 없음), 목표 구성 2안(서울 서버 1대 — 현 구조 유지 가능해 첫 오픈 추천 / Vercel 서버리스 — 스토리지·실시간 교체 선행 필수), 단계별 체크리스트(개발 중 미리 할 것 → 배포 준비 → 인프라 → 외부 콘솔 → 오픈 직전 → 오픈 후), 운영 환경 변수 목록. [ARCHITECTURE.md](docs/ARCHITECTURE.md) 관련 문서 표에 링크 추가
 - 코드 변경 없음(문서만)
 
+**완료 (2026-09-29, 쿼리 최적화 1차 — 원격 DB 왕복 줄이기)**
+
+[docs/DEPLOYMENT_PLAN.md](docs/DEPLOYMENT_PLAN.md) "단계 0"의 첫 항목. Neon(싱가포르)은 쿼리 왕복 1번에 약 78ms라 **쿼리 수와 순차 대기**가 곧 지연이어서, 그걸 줄이는 데 집중(DB 스키마·API 응답 형식 변경 없음).
+
+- **세션 조회 1회 절약(모든 요청)**: [betterAuth.ts](apps/web/src/lib/betterAuth.ts)에 `session.cookieCache`(5분) — 매 요청마다 하던 세션 DB 조회를 서명된 쿠키로 대체. 로그아웃(`signOut`)은 캐시 쿠키도 지움(확인함). 트레이드오프: 다른 기기에서 폐기한 세션이 최대 5분 유효. [auth.ts](apps/web/src/lib/auth.ts)의 `getCurrentUser`는 React `cache()`로 감싸 한 요청 안 중복 호출 제거(User row는 방금 바뀐 닉네임 등을 반영해야 해서 캐시 없이 매번 조회)
+- **헤더 메시지 배지**: 모든 페이지가 안 읽은 대화 "수" 하나를 위해 `listConversations`(상대 프로필 조인 + 대화방별 안읽음 개수 쿼리)를 통째로 불러오던 것을 새 `countUnreadConversations`(쿼리 1번)로 교체 — 홈·내 여행계획·여행 상세·공유·저장한 장소·계정 설정 6개 페이지
+- **여행 상세·공유 페이지**: "여행 조회 → 최근 본 여행 기록 저장 → 헤더 조회"가 순서대로 기다리던 것을 여행·헤더 조회 병렬화 + 기록 저장은 응답 뒤 `after()`로(Next.js 16 문서 확인 — `after`는 `notFound()` 뒤에도 실행되므로 권한 확인 이후에 등록). 기록이 실제로 저장되는 것 확인
+- **안 읽은 메시지 개수**: `listConversations`가 안 읽은 대화방마다 `count` 쿼리를 따로 보내던 것을 대화방별 마지막 읽은 시각을 조인한 `$queryRaw` 1번으로 — 예전 방식과 값이 같은지 비교 검증(대화 4개, 불일치 0)
+- **Prisma `relationJoins`**(`schema.prisma` generator `previewFeatures`): `include`로 관계를 불러올 때 관계마다 쿼리를 따로 보내던 것을 JOIN 1번으로 — 여행 상세 조회 쿼리 5개 → 1개(794ms → 189ms), 대화 목록 3개 → 1개(473ms → 153ms). 앱 전체의 `include` 조회에 적용됨
+- **발견/주의**: `prisma generate`가 실행 중인 dev 서버가 쿼리 엔진 파일을 잡고 있어 EPERM(엔진 교체만 실패, 클라이언트 코드는 생성됨) → 사용자 동의를 받아 dev 서버 프로세스 트리를 종료하고 재생성 후 `.claude/launch.json`의 `plan-map-web`으로 다시 띄움. README 기존 주의사항대로 **Prisma 설정을 바꾸면 dev 서버 재시작 필요**
+- **측정**(임시 계정으로 여행 3개·장소 15개·안 읽은 대화 4개를 만들어 개발 서버에서 페이지별 5회 중앙값, 컴파일 워밍업 제외, 측정 후 계정 전부 삭제):
+
+  | 페이지 | 전 | 후 |
+  | --- | --- | --- |
+  | `/` 홈 | 1,425ms | 776ms |
+  | `/trips` | 1,257ms | 775ms |
+  | `/trips/[id]` 여행 상세 | 1,806ms | 617ms |
+  | `/trips/shared/[id]` | 1,485ms | 591ms |
+  | `/saved-places` | 1,057ms | 604ms |
+  | `/account` | 718ms | 502ms |
+  | `/api/conversations` | 612ms | 270ms |
+  | `/api/auth/me` | 271ms | 116ms |
+
+- 검증: `tsc --noEmit`/`eslint`/`next build` 통과, 위 페이지 전부 200, 헤더 배지 값(4)·안읽음 개수·로그아웃 후 `/api/auth/me` null·여행 상세 화면(장소·지출·경로) 정상 렌더링 확인
+
 **다음 세션 할 일**
+- (신규) 쿼리 최적화 2차 후보: `/trips`는 병렬 쿼리 7개인데도 약 0.8초 — 원격 풀러에 새 연결을 여는 비용일 수 있어 Prisma 연결 풀 설정(`connection_limit`)·쿼리 합치기 검토. 운영 DB를 서울로 옮기면 대부분 해소될 문제라 우선순위는 낮음
 - (신규) 배포 전 준비는 [docs/DEPLOYMENT_PLAN.md](docs/DEPLOYMENT_PLAN.md)의 "단계 0 — 개발하면서 미리 해두면 좋은 것"부터(쿼리 최적화·마이그레이션 드리프트 정리·개발 DB 분리·`directUrl`)
 - (신규) 계정 탈퇴 — API와 데이터 처리 정책(여행·사진·메시지·공유 등) 정한 뒤 별도 작업(사용자 결정)
 - (신규) 소셜 로그인 전용 계정으로 계정 설정 > 보안 탭 안내 문구 확인

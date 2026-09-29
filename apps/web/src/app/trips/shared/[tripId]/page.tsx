@@ -1,8 +1,9 @@
 import { notFound, redirect } from "next/navigation";
+import { after } from "next/server";
 import { getCurrentUser, isAdmin } from "@/lib/auth";
 import { getSharedTrip } from "@/lib/services/trips";
 import { recordTripView } from "@/lib/services/tripViews";
-import { listConversations } from "@/lib/services/conversations";
+import { countUnreadConversations } from "@/lib/services/conversations";
 import { countUnreadNotifications } from "@/lib/services/notifications";
 import { HomeHeader } from "@/components/home/HomeHeader";
 import { SharedTripView } from "./SharedTripView";
@@ -22,16 +23,16 @@ export default async function SharedTripDetailPage({
   const activeTab =
     tab === "expense" || tab === "photos" || tab === "reviews" ? tab : "timeline";
 
-  const trip = await getSharedTrip(tripId, user.id);
-  if (!trip) notFound();
-
-  await recordTripView(user.id, tripId);
-
-  const [conversations, unreadNotificationCount] = await Promise.all([
-    listConversations(user.id),
+  // 여행 조회와 헤더 배지 조회는 서로 기다릴 필요가 없어 동시에 보낸다(원격 DB 왕복 절약)
+  const [trip, unreadMessageCount, unreadNotificationCount] = await Promise.all([
+    getSharedTrip(tripId, user.id),
+    countUnreadConversations(user.id),
     countUnreadNotifications(user.id),
   ]);
-  const unreadMessageCount = conversations.filter((c) => c.unread).length;
+  if (!trip) notFound();
+
+  // 최근 본 여행 기록은 응답을 보낸 뒤 저장(after는 notFound 뒤에도 실행되므로 권한 확인 이후에 등록)
+  after(() => recordTripView(user.id, tripId));
 
   return (
     <main className="min-h-screen bg-slate-50">

@@ -42,6 +42,12 @@ export const auth = betterAuth({
   user: {
     fields: { name: "nickname", image: "avatarUrl" },
   },
+  // 세션을 서명된 쿠키에 5분간 캐시해 매 요청마다 하던 세션 DB 조회를 건너뛴다(DB가 원격일 때
+  // 요청당 왕복 1회 절약 — docs/DEPLOYMENT_PLAN.md 측정 참고). 로그아웃(signOut)은 캐시 쿠키도
+  // 함께 지운다. 트레이드오프: 다른 기기에서 세션을 폐기해도 이 기기에선 최대 5분간 유효할 수 있음.
+  session: {
+    cookieCache: { enabled: true, maxAge: 5 * 60 },
+  },
   account: {
     accountLinking: {
       trustedProviders: ["google", "kakao", "naver"],

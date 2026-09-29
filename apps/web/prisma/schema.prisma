@@ -1,5 +1,8 @@
 generator client {
   provider = "prisma-client-js"
+  // include로 관계를 불러올 때 관계마다 쿼리를 따로 보내지 않고 JOIN 한 번으로 가져온다.
+  // DB가 원격이라 왕복 수가 곧 지연(여행 상세 조회가 쿼리 5개 → 1개) — docs/DEPLOYMENT_PLAN.md 참고.
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {

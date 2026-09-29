@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { NotFoundError, ForbiddenError, InvalidFileError } from "../errors";
 import { saveImageFile } from "../upload";
@@ -66,29 +67,51 @@ export async function listConversations(userId: string) {
   });
 
   // 메시지 패널의 안읽음 개수 배지용 — 기존 unread(boolean) 판정으로 안읽음인 대화만 개수를 센다
-  // (내가 마지막으로 읽은 뒤 상대가 보낸 메시지 수). 안읽음이 아닌 대화는 쿼리 없이 0.
-  const unreadCounts = await Promise.all(
-    summaries.map((s) =>
-      s.unread
-        ? prisma.message.count({
-            where: {
-              conversationId: s.id,
-              senderId: { not: userId },
-              ...(s.myLastReadAt ? { createdAt: { gt: s.myLastReadAt } } : {}),
-            },
-          })
-        : 0
-    )
-  );
+  // (내가 마지막으로 읽은 뒤 상대가 보낸 메시지 수). 대화방마다 count 쿼리를 따로 보내면 원격 DB에서
+  // 대화방 수만큼 왕복이 늘어서, 대화방별 "마지막으로 읽은 시각"을 조인해 쿼리 1번으로 묶어 센다.
+  const unreadIds = summaries.filter((s) => s.unread).map((s) => s.id);
+  const unreadCounts = new Map<string, number>();
+  if (unreadIds.length > 0) {
+    const rows = await prisma.$queryRaw<{ conversationId: string; count: bigint }[]>`
+      SELECT m."conversationId", COUNT(*)::bigint AS count
+      FROM "messages" m
+      JOIN "conversations" c ON c."id" = m."conversationId"
+      WHERE m."conversationId" IN (${Prisma.join(unreadIds)})
+        AND m."senderId" <> ${userId}
+        AND m."createdAt" > COALESCE(
+          CASE WHEN c."userAId" = ${userId} THEN c."userALastReadAt" ELSE c."userBLastReadAt" END,
+          '-infinity'::timestamp
+        )
+      GROUP BY m."conversationId"`;
+    for (const row of rows) unreadCounts.set(row.conversationId, Number(row.count));
+  }
 
-  return summaries.map((s, i) => ({
+  return summaries.map((s) => ({
     id: s.id,
     other: s.other,
     lastMessageAt: s.lastMessageAt,
     lastMessagePreview: s.lastMessagePreview,
     unread: s.unread,
-    unreadCount: unreadCounts[i],
+    unreadCount: unreadCounts.get(s.id) ?? 0,
   }));
+}
+
+// 헤더의 메시지 배지용 "안 읽은 대화방 수" — listConversations와 같은 판정(마지막 메시지를 상대가
+// 보냈고 내가 그 뒤로 안 읽음)이지만, 상대 프로필 조인·대화방별 개수 쿼리 없이 쿼리 1번으로 센다.
+// 모든 페이지가 헤더 때문에 대화 목록 전체를 불러오던 것을 대체.
+export async function countUnreadConversations(userId: string) {
+  const candidates = await prisma.conversation.findMany({
+    where: {
+      OR: [{ userAId: userId }, { userBId: userId }],
+      lastMessageSenderId: { not: null },
+      NOT: { lastMessageSenderId: userId },
+    },
+    select: { userAId: true, userALastReadAt: true, userBLastReadAt: true, lastMessageAt: true },
+  });
+  return candidates.filter((c) => {
+    const myLastReadAt = c.userAId === userId ? c.userALastReadAt : c.userBLastReadAt;
+    return myLastReadAt === null || myLastReadAt < c.lastMessageAt;
+  }).length;
 }
 
 // getTrip()처럼 페이지에서 notFound() 처리할 수 있도록 throw 대신 null을 반환한다

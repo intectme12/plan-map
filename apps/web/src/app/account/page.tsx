@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, isAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { listConversations } from "@/lib/services/conversations";
+import { countUnreadConversations } from "@/lib/services/conversations";
 import { countUnreadNotifications } from "@/lib/services/notifications";
 import { getFeaturedTripForHome } from "@/lib/services/trips";
 import { HomeHeader } from "@/components/home/HomeHeader";
@@ -16,14 +16,13 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const { tab } = await searchParams;
   const initialTab = TABS.includes(tab as SettingsTab) ? (tab as SettingsTab) : "profile";
 
-  const [conversations, unreadNotificationCount, featuredTrip, accounts] = await Promise.all([
-    listConversations(user.id),
+  const [unreadMessageCount, unreadNotificationCount, featuredTrip, accounts] = await Promise.all([
+    countUnreadConversations(user.id),
     countUnreadNotifications(user.id),
     getFeaturedTripForHome(user.id),
     // 로그인 방식 표시 + 비밀번호 변경 가능 여부(이메일 가입 계정 = providerId "credential")
     prisma.account.findMany({ where: { userId: user.id }, select: { providerId: true } }),
   ]);
-  const unreadMessageCount = conversations.filter((c) => c.unread).length;
   const mapHref = featuredTrip ? `/trips/${featuredTrip.id}` : "/trips";
   const aiPlanHref = featuredTrip ? `/trips/${featuredTrip.id}/import` : "/trips";
 

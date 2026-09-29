@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
-import { listConversations } from "@/lib/services/conversations";
+import { countUnreadConversations } from "@/lib/services/conversations";
 import { countUnreadNotifications } from "@/lib/services/notifications";
 import { getFeaturedTripForHome } from "@/lib/services/trips";
 import { todaysDestination } from "@/lib/destinations";
@@ -56,13 +56,12 @@ export default async function HomePage({
     );
   }
 
-  const [conversations, unreadNotificationCount, featuredTrip, weather] = await Promise.all([
-    listConversations(user.id),
+  const [unreadMessageCount, unreadNotificationCount, featuredTrip, weather] = await Promise.all([
+    countUnreadConversations(user.id),
     countUnreadNotifications(user.id),
     getFeaturedTripForHome(user.id),
     fetchCurrentWeather(destination.lat, destination.lng),
   ]);
-  const unreadMessageCount = conversations.filter((c) => c.unread).length;
 
   const mapHref = featuredTrip ? `/trips/${featuredTrip.id}` : "/trips";
   const aiPlanHref = featuredTrip ? `/trips/${featuredTrip.id}/import` : "/trips";
