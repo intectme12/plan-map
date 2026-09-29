@@ -2,6 +2,7 @@
 
 import { DayTabSelector } from "@/app/trips/[tripId]/DayTabSelector";
 import { RouteSegmentRow } from "@/app/trips/[tripId]/RouteSegmentRow";
+import { PlaceTitle } from "@/app/trips/[tripId]/PlaceTitle";
 import { getTripDays, groupByDay, dayColor, formatDayLabel } from "@/app/trips/[tripId]/days";
 import type { PlaceEntry } from "@/app/trips/[tripId]/types";
 
@@ -85,14 +86,9 @@ export function SharedPlaceList({
                       <img src={thumbnail} alt="" className="h-12 w-12 flex-none rounded-lg object-cover" />
                     ) : null}
                     <span className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-neutral-900">{place.name}</p>
+                      <PlaceTitle name={place.name} category={place.category} />
                       {place.address ? (
-                        <p className="truncate text-xs text-neutral-400">{place.address}</p>
-                      ) : null}
-                      {place.category ? (
-                        <span className="mt-1 inline-block rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-500">
-                          {place.category}
-                        </span>
+                        <span className="block truncate text-xs text-neutral-400">{place.address}</span>
                       ) : null}
                     </span>
                   </button>

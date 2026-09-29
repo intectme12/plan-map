@@ -14,6 +14,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { RouteSegmentRow } from "./RouteSegmentRow";
 import { ExpenseButton } from "./ExpenseButton";
+import { PlaceTitle } from "./PlaceTitle";
 import { PlacePhotosInline } from "./PlacePhotosInline";
 import { PlaceForm } from "./PlaceForm";
 import { DayTabSelector } from "./DayTabSelector";
@@ -155,14 +156,9 @@ function SortablePlaceRow({
           onClick={() => onSelect(place.id)}
           className="min-w-0 flex-1 text-left"
         >
-          <p className="truncate text-sm font-semibold text-neutral-900">{place.name}</p>
+          <PlaceTitle name={place.name} category={place.category} />
           {place.address ? (
             <p className="truncate text-xs text-neutral-400">{place.address}</p>
-          ) : null}
-          {place.category ? (
-            <span className="mt-1 inline-block rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-500">
-              {place.category}
-            </span>
           ) : null}
         </button>
         <button
