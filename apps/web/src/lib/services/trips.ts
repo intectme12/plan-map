@@ -490,6 +490,21 @@ export function listTripShares(ownerId: string, tripId: string) {
   });
 }
 
+// 공유 팝업의 "함께할 사람" 목록 보조 정보 — 소유자(맨 위 고정 행)와, 여행 생성 때 이름만 등록한
+// 미가입 동행자(TripParticipant.userId 없음, 계정이 없어 공유 권한은 없음). 가입 회원 동행자는
+// 생성 시 TripShare도 같이 만들어지므로 listTripShares 쪽에 이미 나온다.
+export async function getTripShareContext(ownerId: string, tripId: string) {
+  const trip = await prisma.trip.findFirst({
+    where: { id: tripId, userId: ownerId },
+    select: {
+      user: { select: { id: true, nickname: true, avatarUrl: true } },
+      participants: { where: { userId: null }, orderBy: { createdAt: "asc" }, select: { id: true, name: true } },
+    },
+  });
+  if (!trip) throw new NotFoundError("여행을 찾을 수 없습니다.");
+  return { owner: trip.user, guests: trip.participants };
+}
+
 export async function shareTrip(ownerId: string, tripId: string, nickname: string) {
   const trip = await prisma.trip.findFirst({ where: { id: tripId, userId: ownerId } });
   if (!trip) throw new NotFoundError("여행을 찾을 수 없습니다.");

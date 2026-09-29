@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { ImagePlus, MoreVertical, Pencil, Share2 } from "lucide-react";
 import { TripCreateForm } from "../TripCreateForm";
 import { ShareLinkModal } from "./ShareLinkModal";
 import { CoverPhotoModal } from "./CoverPhotoModal";
+import { VISIBILITY_META, toVisibility } from "./visibility";
 
 type TripMeta = {
   id: string;
@@ -20,11 +20,6 @@ type TripMeta = {
   tags?: string[];
 };
 
-const VISIBILITY_OPTIONS = [
-  { value: "PRIVATE", label: "비공개" },
-  { value: "PUBLIC", label: "전체 공개" },
-] as const;
-
 function formatDate(d: string | Date) {
   return new Date(d).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" });
 }
@@ -32,10 +27,9 @@ function formatDate(d: string | Date) {
 // 여행 제목/날짜/인원 표시 + 공유·수정·더보기 버튼. 수정(연필)은 예전처럼 히어로 영역 안에
 // 인라인 폼을 펼치지 않고, "새 여행 만들기"와 같은 팝업(TripCreateForm의 수정 모드)을 띄운다.
 export function TripMetaEditor({ trip, isOwner }: { trip: TripMeta; isOwner: boolean }) {
-  const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
-  const [sharePending, setSharePending] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const visibilityMeta = VISIBILITY_META[toVisibility(trip.visibility)];
   const [coverModalOpen, setCoverModalOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
@@ -48,18 +42,6 @@ export function TripMetaEditor({ trip, isOwner }: { trip: TripMeta; isOwner: boo
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
 
-  async function onSetVisibility(visibility: string) {
-    if (visibility === trip.visibility) return;
-    setSharePending(true);
-    await fetch(`/api/trips/${trip.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ visibility }),
-    });
-    setSharePending(false);
-    router.refresh();
-  }
-
   return (
     <div className="flex flex-col gap-3">
       {/* 액션 버튼은 히어로 카드 오른쪽 위 모서리에 절대배치 — 부모(TripHeroBanner)의
@@ -68,15 +50,11 @@ export function TripMetaEditor({ trip, isOwner }: { trip: TripMeta; isOwner: boo
       <div className="absolute right-3 top-3 z-10 flex items-center gap-3">
         {isOwner ? (
           <button
-            onClick={() => {
-              // 링크 공개(UNLISTED)로 전환하면서 동시에 링크/닉네임 공유 팝업을 띄운다
-              if (trip.visibility !== "UNLISTED") onSetVisibility("UNLISTED");
-              setShareModalOpen(true);
-            }}
-            disabled={sharePending}
+            // 공개 범위는 팝업 안에서 직접 고른다(예전처럼 여는 순간 "링크 공유"로 바꾸지 않음)
+            onClick={() => setShareModalOpen(true)}
             aria-label="공유"
             title="공유"
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/30 bg-white/15 text-white backdrop-blur hover:bg-white/25 disabled:opacity-50"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/30 bg-white/15 text-white backdrop-blur hover:bg-white/25"
           >
             <Share2 className="h-4 w-4" />
           </button>
@@ -125,26 +103,26 @@ export function TripMetaEditor({ trip, isOwner }: { trip: TripMeta; isOwner: boo
           {!isOwner ? ` · ${trip.ownerNickname}님의 여행` : ""}
         </p>
       </div>
-      {isOwner ? (
-        <div className="flex items-center gap-2">
-          <div className="inline-flex rounded-full border border-white/30 bg-white/15 p-0.5 backdrop-blur">
-            {VISIBILITY_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => onSetVisibility(opt.value)}
-                disabled={sharePending}
-                className={`rounded-full px-2.5 py-1 text-xs font-semibold disabled:opacity-50 ${
-                  trip.visibility === opt.value
-                    ? "bg-white text-blue-600"
-                    : "text-white hover:bg-white/20"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
+      {/* 공개 범위 상태 배지 — 예전 비공개/전체 공개 2버튼 토글은 "링크 공유" 상태를 표시하지 못해서 배지로 대체.
+          변경은 공유 팝업의 "접근 권한"에서만 한다(소유자는 배지를 눌러 바로 열 수 있음). */}
+      <div className="flex items-center gap-2">
+        {isOwner ? (
+          <button
+            type="button"
+            onClick={() => setShareModalOpen(true)}
+            title="공개 범위 변경"
+            className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/15 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur hover:bg-white/25"
+          >
+            <visibilityMeta.icon className="h-3.5 w-3.5" />
+            {visibilityMeta.label}
+          </button>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/15 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur">
+            <visibilityMeta.icon className="h-3.5 w-3.5" />
+            {visibilityMeta.label}
+          </span>
+        )}
+      </div>
       {editOpen ? (
         <TripCreateForm
           mode="edit"
@@ -160,7 +138,12 @@ export function TripMetaEditor({ trip, isOwner }: { trip: TripMeta; isOwner: boo
         />
       ) : null}
       {shareModalOpen ? (
-        <ShareLinkModal tripId={trip.id} onClose={() => setShareModalOpen(false)} />
+        <ShareLinkModal
+          tripId={trip.id}
+          tripName={trip.name}
+          visibility={trip.visibility}
+          onClose={() => setShareModalOpen(false)}
+        />
       ) : null}
       {coverModalOpen ? (
         <CoverPhotoModal
