@@ -123,6 +123,7 @@ lib/
 | [OAUTH.md](./OAUTH.md) | 인증 방식(better-auth, OAuth 포함) |
 | [MESSAGING.md](./MESSAGING.md) | 1:1 DM(SSE 실시간 갱신) |
 | [PUBLISHING.md](./PUBLISHING.md) | 외부 API 연동 패턴 |
+| [DEPLOYMENT_PLAN.md](./DEPLOYMENT_PLAN.md) | 운영 배포 계획(아직 배포 전 — 준비 순서·체크리스트) |
 | [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) | 디자인 토큰 |
 | [UI_RULES.md](./UI_RULES.md) | UI/UX 체크리스트 |
 | [AI_CODING_RULES.md](./AI_CODING_RULES.md) | AI 코딩 에이전트용 규칙 |
