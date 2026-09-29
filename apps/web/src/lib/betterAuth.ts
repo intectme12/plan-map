@@ -5,6 +5,7 @@ import type { GoogleProfile, KakaoProfile, NaverProfile } from "better-auth/soci
 import { prisma } from "./db";
 import { hashPassword, verifyPassword } from "./password";
 import { isNicknameAvailable } from "./services/users";
+import { NICKNAME_MAX_LENGTH } from "./validation";
 
 const BETTER_AUTH_SECRET = process.env.BETTER_AUTH_SECRET;
 if (!BETTER_AUTH_SECRET) {
@@ -12,15 +13,18 @@ if (!BETTER_AUTH_SECRET) {
 }
 
 // OAuth 프로필의 이름은 다른 회원과 겹칠 수 있는데 nickname은 @unique라, 겹치면 임의의
-// 4자리 숫자를 붙여서 재시도한다(그래도 겹치면 타임스탬프로 폴백).
+// 4자리 숫자를 붙여서 재시도한다(그래도 겹치면 6자리로 폴백). 닉네임 최대 길이(NICKNAME_MAX_LENGTH)를
+// 넘지 않도록 숫자를 붙일 자리만큼 이름을 먼저 자른다.
 async function generateUniqueNickname(base: string): Promise<string> {
-  const trimmed = base.trim().slice(0, 40) || "사용자";
+  const name = [...(base.trim() || "사용자")];
+  const trimmed = name.slice(0, NICKNAME_MAX_LENGTH).join("");
   if (await isNicknameAvailable(trimmed)) return trimmed;
+  const head4 = name.slice(0, NICKNAME_MAX_LENGTH - 4).join("");
   for (let i = 0; i < 5; i++) {
-    const candidate = `${trimmed}${Math.floor(1000 + Math.random() * 9000)}`;
+    const candidate = `${head4}${Math.floor(1000 + Math.random() * 9000)}`;
     if (await isNicknameAvailable(candidate)) return candidate;
   }
-  return `${trimmed}${Date.now()}`;
+  return `${name.slice(0, NICKNAME_MAX_LENGTH - 6).join("")}${String(Date.now()).slice(-6)}`;
 }
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;

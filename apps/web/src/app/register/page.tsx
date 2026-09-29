@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { OAuthButtons } from "@/components/OAuthButtons";
+import { NICKNAME_MAX_LENGTH } from "@/lib/validation";
 
 type NicknameCheckStatus = "idle" | "checking" | "available" | "taken";
 
@@ -52,7 +53,9 @@ export default function RegisterPage() {
       const message =
         typeof data?.error === "string"
           ? data.error
-          : data?.error?.fieldErrors?.password?.[0] ?? "회원가입에 실패했습니다.";
+          : data?.error?.fieldErrors?.nickname?.[0] ??
+            data?.error?.fieldErrors?.password?.[0] ??
+            "회원가입에 실패했습니다.";
       setError(message);
       return;
     }
@@ -68,7 +71,8 @@ export default function RegisterPage() {
           <input
             type="text"
             required
-            placeholder="닉네임"
+            placeholder={`닉네임 (최대 ${NICKNAME_MAX_LENGTH}자)`}
+            maxLength={NICKNAME_MAX_LENGTH}
             value={nickname}
             onChange={(e) => onNicknameChange(e.target.value)}
             className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm"

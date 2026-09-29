@@ -1,9 +1,20 @@
 import { z } from "zod";
 
+// 새로 만들거나 바꾸는 닉네임의 최대 길이(가입·닉네임 변경·중복 확인·소셜 로그인 자동 생성 공통).
+// 이 제한 이전에 만든 10자 초과 닉네임은 그대로 쓸 수 있고, 바꿀 때만 새 규칙을 따른다 —
+// 그래서 공유 대상 지정처럼 "기존 닉네임을 찾는" 스키마는 여전히 50자까지 받는다.
+export const NICKNAME_MAX_LENGTH = 10;
+export const BIO_MAX_LENGTH = 300;
+const nicknameSchema = z
+  .string()
+  .trim()
+  .min(1, "닉네임을 입력해주세요.")
+  .max(NICKNAME_MAX_LENGTH, `닉네임은 ${NICKNAME_MAX_LENGTH}자까지 입력할 수 있습니다.`);
+
 export const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8, "비밀번호는 8자 이상이어야 합니다."),
-  nickname: z.string().min(1).max(50),
+  nickname: nicknameSchema,
 });
 
 export const loginSchema = z.object({
@@ -93,7 +104,7 @@ export const notificationsQuerySchema = z.object({
 });
 
 export const updateProfileFieldsSchema = z.object({
-  bio: z.string().max(300).optional(),
+  bio: z.string().max(BIO_MAX_LENGTH).optional(),
   showTripsOnProfile: z.boolean().optional(),
 });
 
@@ -127,11 +138,11 @@ export const aiParseRequestSchema = z.object({
 });
 
 export const updateProfileSchema = z.object({
-  nickname: z.string().min(1).max(50),
+  nickname: nicknameSchema,
 });
 
 export const nicknameCheckSchema = z.object({
-  nickname: z.string().min(1).max(50),
+  nickname: nicknameSchema,
 });
 
 export const changePasswordSchema = z.object({
