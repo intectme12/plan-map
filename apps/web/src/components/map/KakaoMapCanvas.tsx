@@ -199,6 +199,24 @@ function buildNumberedMarkerImage(label: number, color: string) {
   );
 }
 
+// highlightSelected 모드(저장한 장소 페이지) 전용 핀 — 기본 카카오 핀은 색/크기를 바꿀 수 없어서,
+// 이 모드에서만 모든 마커를 같은 모양의 SVG 핀으로 그리고 선택된 것만 파랗고 크게 바꾼다.
+function buildPinMarkerImage(selected: boolean) {
+  const w = selected ? 34 : 26;
+  const h = selected ? 46 : 36;
+  const color = selected ? "#2563EB" : "#64748B";
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 26 36">` +
+    `<path d="M13 1C6.4 1 1 6.3 1 12.9 1 21.8 13 35 13 35s12-13.2 12-22.1C25 6.3 19.6 1 13 1z" fill="${color}" stroke="white" stroke-width="2"/>` +
+    `<circle cx="13" cy="13" r="4.5" fill="white"/>` +
+    `</svg>`;
+  return new window.kakao.maps.MarkerImage(
+    `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
+    new window.kakao.maps.Size(w, h),
+    { offset: new window.kakao.maps.Point(w / 2, h) }
+  );
+}
+
 function buildRouteLabelContent(segment: MapSegment, selected: boolean): HTMLElement {
   const label = document.createElement("button");
   label.type = "button";
@@ -219,6 +237,8 @@ export function KakaoMapCanvas({
   selectedSegmentId,
   onOpenReviews,
   onSelectSegment,
+  onSelectPoint,
+  highlightSelected = false,
 }: {
   points: MapPoint[];
   segments?: MapSegment[];
@@ -226,7 +246,20 @@ export function KakaoMapCanvas({
   selectedSegmentId?: string | null;
   onOpenReviews?: (placeId: string) => void;
   onSelectSegment?: (segmentId: string) => void;
+  // 마커 클릭을 바깥(목록)에 알려준다 — 지도→목록 방향 선택 연동용
+  onSelectPoint?: (placeId: string) => void;
+  // 선택된 장소의 마커를 파랗고 크게 강조(번호 마커를 쓰지 않는 화면 전용)
+  highlightSelected?: boolean;
 }) {
+  // 지도 생성 effect는 points/segments가 바뀔 때만 다시 돌아서, 그 안의 마커 클릭 리스너가
+  // 옛 콜백/선택값을 붙잡지 않도록 ref로 최신 값을 읽는다.
+  const onSelectPointRef = useRef(onSelectPoint);
+  const selectedPlaceIdRef = useRef(selectedPlaceId);
+  useEffect(() => {
+    onSelectPointRef.current = onSelectPoint;
+    selectedPlaceIdRef.current = selectedPlaceId;
+  });
+  const highlightedIdRef = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [sdkReady, setSdkReady] = useState(false);
   const mapRef = useRef<any>(null);
@@ -301,18 +334,33 @@ export function KakaoMapCanvas({
         const bounds = new window.kakao.maps.LatLngBounds();
         points.forEach((point) => {
           const position = new window.kakao.maps.LatLng(point.lat, point.lng);
+          const isSelected = highlightSelected && point.id === selectedPlaceIdRef.current;
           const marker = new window.kakao.maps.Marker({
             map,
             position,
             title: point.name,
-            image: point.label != null ? buildNumberedMarkerImage(point.label, point.markerColor ?? "#2563EB") : undefined,
+            image:
+              point.label != null
+                ? buildNumberedMarkerImage(point.label, point.markerColor ?? "#2563EB")
+                : highlightSelected
+                  ? buildPinMarkerImage(isSelected)
+                  : undefined,
+            zIndex: isSelected ? 3 : 1,
           });
           markersRef.current.set(point.id, marker);
           pointsRef.current.set(point.id, point);
           bounds.extend(position);
 
-          window.kakao.maps.event.addListener(marker, "click", () => openInfoOverlay(point.id));
+          window.kakao.maps.event.addListener(marker, "click", () => {
+            openInfoOverlay(point.id);
+            onSelectPointRef.current?.(point.id);
+          });
         });
+        // 필터로 지도가 다시 만들어져도 선택 강조가 이어지도록 기억해 둔다
+        highlightedIdRef.current =
+          highlightSelected && selectedPlaceIdRef.current && markersRef.current.has(selectedPlaceIdRef.current)
+            ? selectedPlaceIdRef.current
+            : null;
 
         segments.forEach((segment, index) => {
           // 실제 도로 경로가 로딩되기 전에는 출발-도착을 잇는 직선으로 대체 표시하지 않고,
@@ -364,7 +412,14 @@ export function KakaoMapCanvas({
           // 극단적인 확대 레벨을 계산해버려 타일이 아예 안 뜨는 버그가 있었다(저장한 장소
           // 페이지에서 장소 1개짜리 여행을 선택했을 때 재현). 이 경우만 중심 이동+고정
           // 확대 레벨로 대신 처리한다.
-          if (points.length === 1) {
+          // 선택 강조 모드에서 이미 선택된 장소가 있으면(필터 변경·모바일 탭 전환으로 지도가 다시
+          // 만들어진 경우) 전체 범위 대신 그 장소로 맞추고 정보 카드도 다시 띄운다.
+          const keepSelected = highlightedIdRef.current;
+          if (keepSelected) {
+            map.setLevel(SELECTED_PLACE_ZOOM_LEVEL);
+            map.setCenter(markersRef.current.get(keepSelected).getPosition());
+            openInfoOverlay(keepSelected);
+          } else if (points.length === 1) {
             map.setCenter(new window.kakao.maps.LatLng(points[0].lat, points[0].lng));
             map.setLevel(SELECTED_PLACE_ZOOM_LEVEL);
           } else {
@@ -412,6 +467,20 @@ export function KakaoMapCanvas({
 
   // 타임라인/비용/사진 탭에서 장소를 선택하면 지도를 이동+확대하고, 그 장소의 정보 카드도 띄운다.
   useEffect(() => {
+    // 선택 강조 모드: 이전 강조 마커는 기본 핀으로 되돌리고 새 선택만 파란 큰 핀으로 바꾼다
+    if (highlightSelected && mapRef.current) {
+      const prevId = highlightedIdRef.current;
+      if (prevId && prevId !== selectedPlaceId) {
+        const prev = markersRef.current.get(prevId);
+        prev?.setImage(buildPinMarkerImage(false));
+        prev?.setZIndex(1);
+      }
+      const next = selectedPlaceId ? markersRef.current.get(selectedPlaceId) : null;
+      next?.setImage(buildPinMarkerImage(true));
+      next?.setZIndex(3);
+      highlightedIdRef.current = next ? selectedPlaceId ?? null : null;
+      if (!selectedPlaceId) infoOverlayRef.current?.setMap(null);
+    }
     if (!selectedPlaceId || !mapRef.current) return;
     const marker = markersRef.current.get(selectedPlaceId);
     if (!marker) return;

@@ -95,6 +95,7 @@ export async function getTravelTotals(userId: string) {
     prisma.expense.aggregate({
       where: { placeEntry: { trip: { userId } } },
       _sum: { amount: true },
+      _count: true,
     }),
   ]);
 
@@ -108,7 +109,12 @@ export async function getTravelTotals(userId: string) {
     }
   }
 
-  return { totalDistanceM, totalSpentWon: expenseSum._sum.amount ?? 0 };
+  // expenseCount: 화면에서 "기록/조회된 게 없어서 0"과 "실제로 0"을 구분해 "—"로 보여주기 위함
+  return {
+    totalDistanceM,
+    totalSpentWon: expenseSum._sum.amount ?? 0,
+    expenseCount: expenseSum._count,
+  };
 }
 
 // 홈 지도 위젯("가장 가까운 여행 하나")과 달리, /trips의 "내 여행 지도"는 내 모든 여행의
@@ -141,8 +147,13 @@ export function listAllPlacesForUser(userId: string) {
       address: true,
       roadAddress: true,
       category: true,
+      scheduledAt: true,
       createdAt: true,
       trip: { select: { id: true, name: true } },
+      // 목록 썸네일(첫 사진)·사진 수·지출 합계 표시용
+      photos: { select: { storageKey: true }, orderBy: { createdAt: "asc" }, take: 1 },
+      _count: { select: { photos: true } },
+      expenses: { select: { amount: true } },
     },
   });
 }

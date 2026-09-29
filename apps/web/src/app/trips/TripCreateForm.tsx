@@ -44,7 +44,8 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   );
 }
 
-export function TripCreateForm() {
+// trigger: "card"는 내 여행계획 그리드의 점선 카드(기본), "button"은 페이지 헤더용 작은 버튼(저장한 장소 등)
+export function TripCreateForm({ trigger = "card" }: { trigger?: "card" | "button" } = {}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -218,6 +219,18 @@ export function TripCreateForm() {
     setOpen(false);
     resetForm();
     router.push(`/trips/${trip.id}`);
+  }
+
+  if (!open && trigger === "button") {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex h-10 flex-none items-center gap-1.5 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+      >
+        <Plus className="h-4 w-4" /> 새 여행
+      </button>
+    );
   }
 
   if (!open) {
