@@ -46,7 +46,7 @@ export async function listConversations(userId: string) {
     },
   });
 
-  return conversations.map((c) => {
+  const summaries = conversations.map((c) => {
     const isUserA = c.userAId === userId;
     const other = isUserA ? c.userB : c.userA;
     const myLastReadAt = isUserA ? c.userALastReadAt : c.userBLastReadAt;
@@ -61,8 +61,34 @@ export async function listConversations(userId: string) {
       lastMessageAt: c.lastMessageAt,
       lastMessagePreview: c.lastMessagePreview,
       unread,
+      myLastReadAt,
     };
   });
+
+  // 메시지 패널의 안읽음 개수 배지용 — 기존 unread(boolean) 판정으로 안읽음인 대화만 개수를 센다
+  // (내가 마지막으로 읽은 뒤 상대가 보낸 메시지 수). 안읽음이 아닌 대화는 쿼리 없이 0.
+  const unreadCounts = await Promise.all(
+    summaries.map((s) =>
+      s.unread
+        ? prisma.message.count({
+            where: {
+              conversationId: s.id,
+              senderId: { not: userId },
+              ...(s.myLastReadAt ? { createdAt: { gt: s.myLastReadAt } } : {}),
+            },
+          })
+        : 0
+    )
+  );
+
+  return summaries.map((s, i) => ({
+    id: s.id,
+    other: s.other,
+    lastMessageAt: s.lastMessageAt,
+    lastMessagePreview: s.lastMessagePreview,
+    unread: s.unread,
+    unreadCount: unreadCounts[i],
+  }));
 }
 
 // getTrip()처럼 페이지에서 notFound() 처리할 수 있도록 throw 대신 null을 반환한다
