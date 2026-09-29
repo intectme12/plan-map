@@ -112,11 +112,34 @@ export function TripWorkspace({
   });
   const safeSelectedDay = Math.min(selectedDay, days.length - 1);
 
-  // 지도 범위(fitBounds)를 지금 선택된 날짜의 장소로만 좁힌다 — 마커 자체는 points 전부
-  // 그대로 그려서 다른 날짜 위치도 참고할 수 있게 두고, 확대/이동만 그 날짜에 포커스한다.
+  // 사진/후기 탭도 타임라인과 같은 날짜 탭 UI를 쓰지만, 그 선택 상태는 타임라인과 독립적으로
+  // 유지해야 해서(탭을 오가도 각자 보던 날짜를 기억) selectedDay와 별도로 하나씩 더 둔다.
+  // 다만 지도 포커스 계산은 지금 활성화된 탭 기준으로 이 중 하나만 쓴다(아래 focusPlaceIds).
+  const [photoDay, setPhotoDay] = useState(() => {
+    const firstWithPlaces = groups.findIndex((g) => g.length > 0);
+    return firstWithPlaces >= 0 ? firstWithPlaces : 0;
+  });
+  const safePhotoDay = Math.min(photoDay, days.length - 1);
+  const [reviewDay, setReviewDay] = useState(() => {
+    const firstWithPlaces = groups.findIndex((g) => g.length > 0);
+    return firstWithPlaces >= 0 ? firstWithPlaces : 0;
+  });
+  const safeReviewDay = Math.min(reviewDay, days.length - 1);
+
+  // 지도 범위(fitBounds)를 지금 보고 있는 탭의 날짜 장소로만 좁힌다 — 마커 자체는 points
+  // 전부 그대로 그려서 다른 날짜 위치도 참고할 수 있게 두고, 확대/이동만 포커스한다.
+  // 비용 탭은 날짜 개념이 없어(전체 지출 합산) 이 경우 focusPlaceIds를 비워 전체 범위로 둔다.
+  const focusDay =
+    activeTab === "timeline"
+      ? safeSelectedDay
+      : activeTab === "photos"
+        ? safePhotoDay
+        : activeTab === "reviews"
+          ? safeReviewDay
+          : null;
   const focusPlaceIds = useMemo(
-    () => (groups[safeSelectedDay] ?? []).map((p) => p.id),
-    [groups, safeSelectedDay]
+    () => (focusDay != null ? (groups[focusDay] ?? []).map((p) => p.id) : []),
+    [groups, focusDay]
   );
 
   // 같은 날짜 안에서 연속된 장소 쌍만 뽑아서, 순서가 안 바뀌면 재조회하지 않도록 함
@@ -447,6 +470,8 @@ export function TripWorkspace({
               tripId={trip.id}
               trip={{ startDate: trip.startDate, endDate: trip.endDate }}
               places={items}
+              selectedDay={safePhotoDay}
+              onSelectDay={setPhotoDay}
               selectedPlaceId={selectedPlaceId}
               onSelectPlace={setSelectedPlaceId}
             />
@@ -458,6 +483,8 @@ export function TripWorkspace({
               trip={{ startDate: trip.startDate, endDate: trip.endDate }}
               places={items}
               currentUserId={currentUserId}
+              selectedDay={safeReviewDay}
+              onSelectDay={setReviewDay}
               selectedPlaceId={selectedPlaceId}
               onSelectPlace={setSelectedPlaceId}
             />

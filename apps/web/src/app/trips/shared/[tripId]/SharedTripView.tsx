@@ -85,18 +85,39 @@ export function SharedTripView({
   );
 
   // 타임라인 탭에서 지금 보고 있는 날짜 하나 — 지도 이동경로 표시도 이 날짜 기준으로 맞춘다
-  // (owner용 TripWorkspace.tsx와 동일한 패턴. 사진/후기 탭은 각자 자기만의 날짜 선택 상태를
-  // 따로 가짐 — SharedPhotoGrid/SharedReviewGallery 내부 참고)
+  // (owner용 TripWorkspace.tsx와 동일한 패턴)
   const [selectedDay, setSelectedDay] = useState(() => {
     const firstWithPlaces = groups.findIndex((g) => g.length > 0);
     return firstWithPlaces >= 0 ? firstWithPlaces : 0;
   });
   const safeSelectedDay = Math.min(selectedDay, days.length - 1);
 
-  // 지도 범위(fitBounds)를 지금 선택된 날짜의 장소로만 좁힌다(owner용 TripWorkspace.tsx와 동일 패턴)
+  // 사진/후기 탭도 각자 자기만의 날짜 선택 상태를 가지지만(탭을 오가도 각자 보던 날짜를
+  // 기억), 지도 포커스에 반영할 수 있게 여기서 같이 들고 있는다(owner용과 동일 패턴)
+  const [photoDay, setPhotoDay] = useState(() => {
+    const firstWithPlaces = groups.findIndex((g) => g.length > 0);
+    return firstWithPlaces >= 0 ? firstWithPlaces : 0;
+  });
+  const safePhotoDay = Math.min(photoDay, days.length - 1);
+  const [reviewDay, setReviewDay] = useState(() => {
+    const firstWithPlaces = groups.findIndex((g) => g.length > 0);
+    return firstWithPlaces >= 0 ? firstWithPlaces : 0;
+  });
+  const safeReviewDay = Math.min(reviewDay, days.length - 1);
+
+  // 지도 범위(fitBounds)를 지금 보고 있는 탭의 날짜 장소로만 좁힌다(owner용 TripWorkspace.tsx와
+  // 동일 패턴) — 비용 탭은 날짜 개념이 없어 focusPlaceIds를 비워 전체 범위로 둔다.
+  const focusDay =
+    activeTab === "timeline"
+      ? safeSelectedDay
+      : activeTab === "photos"
+        ? safePhotoDay
+        : activeTab === "reviews"
+          ? safeReviewDay
+          : null;
   const focusPlaceIds = useMemo(
-    () => (groups[safeSelectedDay] ?? []).map((p) => p.id),
-    [groups, safeSelectedDay]
+    () => (focusDay != null ? (groups[focusDay] ?? []).map((p) => p.id) : []),
+    [groups, focusDay]
   );
 
   const pairKey = groups
@@ -336,6 +357,8 @@ export function SharedTripView({
             <SharedPhotoGrid
               trip={{ startDate: trip.startDate, endDate: trip.endDate }}
               places={places}
+              selectedDay={safePhotoDay}
+              onSelectDay={setPhotoDay}
               selectedPlaceId={selectedPlaceId}
               onSelectPlace={setSelectedPlaceId}
             />
@@ -345,6 +368,8 @@ export function SharedTripView({
             <SharedReviewGallery
               trip={{ startDate: trip.startDate, endDate: trip.endDate }}
               places={places}
+              selectedDay={safeReviewDay}
+              onSelectDay={setReviewDay}
               selectedPlaceId={selectedPlaceId}
               onSelectPlace={setSelectedPlaceId}
             />

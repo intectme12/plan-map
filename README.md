@@ -1064,8 +1064,16 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 
 - [KakaoMapCanvas.tsx](apps/web/src/components/map/KakaoMapCanvas.tsx)에 `focusPlaceIds?: string[] | null` prop 추가 — 마커는 `points` 전부 그대로 그리되(다른 날짜 위치도 참고 가능), 지도가 맞출 범위만 이 id들로 좁힘. 비었으면(빈 날짜) 기존처럼 전체 범위로 폴백, 1개짜리면 기존 단일 포인트 특수처리(`SELECTED_PLACE_ZOOM_LEVEL`)도 그대로 적용
 - [TripWorkspace.tsx](apps/web/src/app/trips/%5BtripId%5D/TripWorkspace.tsx)(내 여행 상세)·[SharedTripView.tsx](apps/web/src/app/trips/shared/%5BtripId%5D/SharedTripView.tsx)(다른 사람 여행 보기) 둘 다 같은 패턴이 중복돼 있어 동일하게 수정 — 지금 선택된 날짜(`safeSelectedDay`)의 장소 id 목록을 `focusPlaceIds`로 계산해 전달
-- 사진/후기 탭(`PhotoGallery`/`ReviewGallery`, `SharedPhotoGrid`/`SharedReviewGallery`)은 날짜 선택 상태를 컴포넌트 내부에 독립적으로 갖고 있어(`TripWorkspace`의 `selectedDay`와 연결 안 됨) 이번 수정 범위에서 제외 — 타임라인 탭 기준으로만 포커스됨
+- 사진/후기 탭(`PhotoGallery`/`ReviewGallery`, `SharedPhotoGrid`/`SharedReviewGallery`)은 날짜 선택 상태를 컴포넌트 내부에 독립적으로 갖고 있어(`TripWorkspace`의 `selectedDay`와 연결 안 됨) 이번 수정 범위에서 제외 — 타임라인 탭 기준으로만 포커스됨(**2026-09-30에 이 제약도 같이 해소함, 아래 해당 날짜 로그 참고**)
 - 검증: `tsc --noEmit` 통과. 브라우저로 공유 여행 보기 페이지에서 실제 확인 — 장소 2개짜리 날짜(타이트하게 맞춰짐), 장소 1개짜리 날짜(그 장소로 확대), 빈 날짜(전체 범위로 폴백) 세 케이스 모두 스크린샷으로 정상 확인, 콘솔 에러 없음(로그인 화면의 프로필 사진 404는 시드 데이터 문제로 무관)
+
+**완료 (2026-09-30, 지도 날짜별 포커스를 사진/후기 탭까지 확장)**
+
+바로 위 항목에서 범위 밖으로 남겼던 사진/후기 탭도 지도 포커스가 되게 해달라는 후속 요청.
+
+- `PhotoGallery`/`ReviewGallery`([해당 파일](apps/web/src/app/trips/[tripId]))와 `SharedPhotoGrid`/`SharedReviewGallery`([해당 파일](apps/web/src/app/trips/shared/[tripId])) 4개 컴포넌트 모두 내부 `useState`로 갖고 있던 날짜 선택 상태를 `selectedDay`/`onSelectDay` controlled prop으로 전환(`PlaceList`가 이미 쓰던 패턴과 동일)
+- `TripWorkspace.tsx`·`SharedTripView.tsx`에 `photoDay`/`reviewDay` state를 타임라인의 `selectedDay`와 별도로 추가(탭을 오가도 각자 보던 날짜를 유지해야 해서 하나로 합치지 않음) — 지도에 넘기는 `focusPlaceIds`는 지금 활성화된 탭(`activeTab`)에 맞는 날짜의 장소 id로 계산. 비용 탭은 날짜 개념이 없어 그대로 전체 범위 유지
+- 검증: `tsc --noEmit`/`eslint` 통과. 브라우저로 공유 여행 보기 페이지에서 확인 — 사진 탭 9/8(장소 1개짜리 날짜)로 바꾸면 지도가 그 장소로 재포커스, 후기 탭으로 넘어가면 그쪽은 독립적으로 9/7을 그대로 유지, 다시 타임라인 탭으로 가도 그쪽 역시 9/7을 그대로 유지하는 것까지 확인(세 탭이 서로의 날짜 선택에 영향 안 줌)
 
 **다음 세션 할 일**
 - (신규) 쿼리 최적화 2차 후보: `/trips`는 병렬 쿼리 7개인데도 약 0.8초 — 원격 풀러에 새 연결을 여는 비용일 수 있어 Prisma 연결 풀 설정(`connection_limit`)·쿼리 합치기 검토. 운영 DB를 서울로 옮기면 대부분 해소될 문제라 우선순위는 낮음

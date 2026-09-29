@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { DayTabSelector } from "@/app/trips/[tripId]/DayTabSelector";
 import { StaticStars } from "@/app/trips/[tripId]/PlaceRating";
 import { getTripDays, groupByDay, formatDayLabel } from "@/app/trips/[tripId]/days";
@@ -11,32 +10,33 @@ function formatDateTime(d: string | Date) {
 }
 
 // 내 여행계획(ReviewGallery.tsx)과 같은 "날짜 하나만 선택하는 탭" 레이아웃. 타임라인 탭에서
-// 보고 있는 날짜와는 독립적인 이 탭만의 선택 상태(owner용과 동일한 구조).
+// 보고 있는 날짜와는 독립적인 이 탭만의 선택 상태(owner용과 동일한 구조, 선택 state는 지도
+// 포커스에 반영할 수 있도록 SharedTripView가 들고 있고, 여기선 controlled prop으로만 받는다).
 export function SharedReviewGallery({
   trip,
   places,
+  selectedDay,
+  onSelectDay,
   selectedPlaceId,
   onSelectPlace,
 }: {
   trip: { startDate: string | Date; endDate: string | Date };
   places: PlaceEntry[];
+  selectedDay: number;
+  onSelectDay: (dayIndex: number) => void;
   selectedPlaceId: string | null;
   onSelectPlace: (placeId: string) => void;
 }) {
   const days = getTripDays(trip.startDate, trip.endDate);
   const groups = groupByDay(places, days);
 
-  const [selectedDay, setSelectedDay] = useState(() => {
-    const firstWithPlaces = groups.findIndex((g) => g.length > 0);
-    return firstWithPlaces >= 0 ? firstWithPlaces : 0;
-  });
   const safeSelectedDay = Math.min(selectedDay, days.length - 1);
   const currentDate = days[safeSelectedDay];
   const currentGroup = groups[safeSelectedDay] ?? [];
 
   return (
     <div className="flex h-full flex-col">
-      <DayTabSelector days={days} selectedDay={safeSelectedDay} onSelect={setSelectedDay} />
+      <DayTabSelector days={days} selectedDay={safeSelectedDay} onSelect={onSelectDay} />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
         <p className="mb-2 text-sm font-bold text-neutral-900">
