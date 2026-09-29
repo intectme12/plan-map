@@ -1,5 +1,6 @@
 import { prisma } from "../db";
-import { NotFoundError, ForbiddenError } from "../errors";
+import { NotFoundError, ForbiddenError, InvalidInputError } from "../errors";
+import { TRIP_DATE_ORDER_MESSAGE } from "../validation";
 import { saveImageFile, deleteStoredFile } from "../upload";
 import { getReviewsForCoordinates, coordKey } from "./reviews";
 import { getTripDays, groupByDay } from "@/app/trips/[tripId]/days";
@@ -213,9 +214,14 @@ export async function updateTrip(
 ) {
   const trip = await prisma.trip.findFirst({
     where: { id: tripId, OR: [{ userId }, { shares: { some: { userId } } }] },
-    select: { userId: true },
+    select: { userId: true, startDate: true, endDate: true },
   });
   if (!trip) return false;
+
+  // 날짜 하나만 바꾸는 요청도 기존 날짜와 합쳐서 종료일<시작일이 되지 않게 막는다
+  const nextStart = data.startDate ?? trip.startDate;
+  const nextEnd = data.endDate ?? trip.endDate;
+  if (nextEnd < nextStart) throw new InvalidInputError(TRIP_DATE_ORDER_MESSAGE);
 
   // 공개 범위(공유) 설정은 오너만 바꿀 수 있다 — 공유받은 회원은 내용은 전부 수정해도 접근 권한 자체는 못 건드린다
   if (data.visibility !== undefined && trip.userId !== userId) {

@@ -951,10 +951,18 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - 참여자 입력 Enter에 `isComposing` 가드 추가(메시지 전송에서 고쳤던 한글 IME 조합 Enter 중복 처리와 같은 유형 예방)
 - 브라우저 E2E(로컬에 검증용 임시 계정을 만들어 확인 후 계정째 삭제, 만든 여행도 cascade로 삭제 확인): 빈 제출 시 3개 안내+제목 포커스, 역순 날짜 차단+종료일 포커스, 기간 "1박 2일" 자동 계산, 태그 선택/해제, 회원 검색 추가·이미 추가된 회원 "추가됨" 비활성, 미가입자 추가·칩 삭제, 작은 높이(455px)에서 본문만 스크롤되고 하단 고정, 데스크톱 폭 768px·날짜 3열, 모바일 375px 가로 넘침 없음, 생성 → 201 → 상세 페이지 이동 + 모달 닫힘, DB에 저장된 제목/날짜/인원/태그/참여자/공유가 기존 형식 그대로인 것까지 확인. `tsc --noEmit`/`eslint` 통과
 
+**완료 (2026-09-29, 모달 리디자인 후속 4건 — 서버 날짜 검증 / 검색 전 Enter / 사용자 입력 태그 / 모달 ESC 닫기)**
+
+- **서버 날짜 검증**: [validation.ts](apps/web/src/lib/validation.ts)의 `createTripSchema`에 종료일≥시작일 `refine`, `updateTripSchema`는 두 날짜가 다 올 때 `refine`. 날짜 하나만 바꾸는 PATCH는 스키마만으론 판단 못 해서 [updateTrip](apps/web/src/lib/services/trips.ts)에서 DB의 기존 날짜와 합쳐 한 번 더 검사 → 새 `InvalidInputError`([errors.ts](apps/web/src/lib/errors.ts), [http.ts](apps/web/src/lib/http.ts)에서 400 매핑). 여행 정보 수정 화면([TripMetaEditor.tsx](apps/web/src/app/trips/[tripId]/TripMetaEditor.tsx))도 종료일 `min` + 제출 전 검사, 서버 오류 문구를 그대로 표시
+- **검색 전 Enter**: 원인은 `participantResults`가 어떤 검색어의 결과인지 몰라, 디바운스(300ms) 전 Enter 시 빈/이전 결과로 매칭해 미가입자로 추가되던 것. `resultsQuery`로 결과의 검색어를 기록하고, 지금 입력값의 결과가 없으면 Enter 시점에 즉시 조회 후 매칭. 늦게 도착한 옛 응답이 새 결과를 덮어쓰지 않도록 `latestQueryRef` 가드, 연속 Enter 중복 추가 방지
+- **사용자 입력 태그**: DB `trips.tags`는 원래 `TEXT[]`라 **스키마/마이그레이션 변경 없음** — 검증만 `z.enum(tripCategories)` → 문자열(앞의 `#`·앞뒤 공백 제거, 1~15자, 공백/`#` 불가, 중복 제거, 최대 10개)로 완화. 홈 카테고리 필터(`tag` 쿼리)는 기본 6개 enum 그대로라 직접 입력 태그는 카드에 `#태그`로 표시만 되고 홈 카테고리 탭엔 안 뜸. 생성 모달에 "+ 태그 추가"(인라인 입력, Enter 추가, ESC는 입력칸만 닫음) + `n / 10` 카운터
+- **ESC 닫기**: 공통 [Modal.tsx](apps/web/src/components/Modal.tsx)에 추가(이 셸을 쓰는 8개 팝업 전부 적용). 모달이 겹치면 맨 위 하나만 닫히게 열린 순서 스택으로 관리, 한글 조합 중 ESC·이미 처리된(`defaultPrevented`) ESC는 무시. `PlacePhotos` 모달 위에 뜨는 [PhotoLightbox](apps/web/src/app/trips/[tripId]/PhotoLightbox.tsx)는 원래 자체 ESC가 있어 한 번에 둘 다 닫힐 수 있었으므로, capture 단계 등록 + `preventDefault`로 라이트박스만 닫히게 함. `LoginPopup`은 원래 ESC 지원
+- 검증: `tsc --noEmit`/`eslint` 통과. API(로컬 임시 계정으로 확인 후 계정째 삭제): 역순 생성 400, 태그 `["바다","#혼자여행"," 혼자여행 ","맛집"]` → `["바다","혼자여행","맛집"]`로 저장, 공백 태그·11개 태그 400, PATCH 시작일만 바꿔 역순이 되는 경우 400(안내 문구 반환)·둘 다 역순 400·정상 200. 브라우저: ESC로 생성 모달 닫힘, 태그 입력칸 ESC는 입력칸만 닫힘, 직접 태그 추가·공백 태그 안내, 입력 직후 바로 Enter로 가입 회원이 회원으로 추가됨, 목록 카드에 직접 입력 태그 표시. **미확인**: 사진이 있는 장소가 필요해 PlacePhotos 모달 위 라이트박스 ESC(라이트박스만 닫힘)는 코드로만 확인
+
 **다음 세션 할 일**
-- (신규) 서버 `createTripSchema`/`updateTripSchema`에 종료일≥시작일 검증 추가 검토 — 지금은 생성 모달(클라이언트)에서만 막고, API 직접 호출이나 여행 정보 수정 화면은 여전히 역순 날짜 허용
-- (신규) 참여자 입력에서 검색 결과(300ms 디바운스)가 도착하기 전에 Enter를 누르면 가입 회원도 미가입자로 추가됨(기존 동작, E2E 중 확인) — 필요하면 검색 중엔 Enter를 잠시 막거나 결과 도착 후 매칭하도록 개선
-- (신규) 사용자 입력 태그("+ 태그 추가") — 태그 enum 제한을 풀기 위한 API/스키마 변경과 함께 진행 예정
+- (신규) 모달 위 사진 라이트박스에서 ESC 시 라이트박스만 닫히는지 사진 있는 장소로 브라우저 확인
+- (신규) 직접 입력 태그로도 홈/둘러보기에서 검색·필터할지 결정(지금은 기본 6개 카테고리만 필터)
+- (신규) 여행 정보 수정 화면에서 태그 편집은 아직 없음(생성 시에만 설정) — 필요하면 추가
 - (신규) 저장한 장소 통계 카드의 "총 이동거리"/"사용한 금액" 5칸 레이아웃을 로그인 상태에서 데스크톱/모바일로 한 번 확인 필요
 - (신규) `AppBadgeSync.tsx`도 `MessagesPanelProvider`와 동일하게 `/api/auth/me`를 마운트 시 1회만 조회함 — 로그인 후 리마운트 없이 배지가 갱신되는지 확인 필요, 필요하면 이번 수정과 같은 방식(재시도 가능한 가드)으로 통일
 - **(중요, 상태 변경)** 네이버 로그인 `invalid_code` / 카카오모빌리티 경로조회 미검증 — 둘 다 원인이 `SELF_SIGNED_CERT_IN_CHAIN`이었고, 이번 세션에서 그 근본 원인(Node가 Windows 인증서 저장소를 안 씀)을 `--use-system-ca`로 고쳤다. **재현 여부 재확인 필요** — 이제는 정상 동작할 가능성이 높음

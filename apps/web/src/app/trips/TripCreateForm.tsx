@@ -6,7 +6,7 @@ import { CalendarDays, Loader2, Minus, Plane, Plus, Search, Sparkles, X } from "
 import { Avatar } from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/Modal";
-import { tripCategories } from "@/lib/validation";
+import { TRIP_TAG_MAX_LENGTH, TRIP_TAGS_MAX_COUNT, tripCategories } from "@/lib/validation";
 import { formatTripDuration } from "@/lib/formatTripDuration";
 
 type UserResult = { id: string; nickname: string; bio: string | null; avatarUrl: string | null };
@@ -59,21 +59,37 @@ export function TripCreateForm() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [participantQuery, setParticipantQuery] = useState("");
   const [participantResults, setParticipantResults] = useState<UserResult[]>([]);
+  // participantResults가 어떤 검색어의 결과인지 — 디바운스(300ms)가 끝나기 전에 Enter를 누르면
+  // 이전 검색어의 결과(또는 빈 결과)로 매칭해 가입 회원을 미가입자로 추가하던 문제를 막는 데 쓴다
+  const [resultsQuery, setResultsQuery] = useState("");
   const [searching, setSearching] = useState(false);
+  const [customTagInput, setCustomTagInput] = useState("");
+  const [customTagOpen, setCustomTagOpen] = useState(false);
+  const [tagError, setTagError] = useState<string | null>(null);
 
   const nameRef = useRef<HTMLInputElement>(null);
   const startRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLInputElement>(null);
+  const latestQueryRef = useRef("");
+  const submittingParticipantRef = useRef(false);
 
-  // 검색어가 비어있으면 조회하지 않고, 렌더 쪽에서 이미 결과 목록을 숨기니 여기서 지울 필요는 없다
+  async function searchUsers(query: string): Promise<UserResult[]> {
+    const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`);
+    return res.ok ? await res.json() : [];
+  }
+
+  // 검색어가 비어있으면 조회하지 않고, 렌더 쪽에서 이미 결과 목록을 숨기니 여기서 지울 필요는 없다.
+  // 응답이 늦게 와서 그 사이 검색어가 바뀌었으면(latestQueryRef) 옛 결과로 덮어쓰지 않는다.
   useEffect(() => {
+    latestQueryRef.current = participantQuery;
     if (!participantQuery.trim()) return;
     const timer = setTimeout(async () => {
       setSearching(true);
-      const res = await fetch(`/api/users/search?q=${encodeURIComponent(participantQuery)}`);
-      const data: UserResult[] = res.ok ? await res.json() : [];
+      const data = await searchUsers(participantQuery);
+      if (latestQueryRef.current !== participantQuery) return;
       setSearching(false);
       setParticipantResults(data);
+      setResultsQuery(participantQuery);
     }, 300);
     return () => clearTimeout(timer);
   }, [participantQuery]);
@@ -85,27 +101,66 @@ export function TripCreateForm() {
     });
     setParticipantQuery("");
     setParticipantResults([]);
+    setResultsQuery("");
+    setSearching(false);
   }
 
   function removeParticipant(key: string) {
     setParticipants((prev) => prev.filter((p) => p.key !== key));
   }
 
-  function onParticipantInputSubmit() {
-    const trimmed = participantQuery.trim();
-    if (!trimmed) return;
-    // 검색 결과 중 정확히 일치하는 가입 회원이 있으면 그 회원으로, 없으면 미가입자(이름만)로 추가한다
-    const exactMatch = participantResults.find((u) => u.nickname === trimmed);
-    if (exactMatch) {
-      addParticipant({ name: exactMatch.nickname, userId: exactMatch.id, avatarUrl: exactMatch.avatarUrl });
-    } else {
-      addParticipant({ name: trimmed });
+  async function onParticipantInputSubmit() {
+    const query = participantQuery;
+    const trimmed = query.trim();
+    if (!trimmed || submittingParticipantRef.current) return;
+    submittingParticipantRef.current = true;
+    try {
+      // 지금 입력값에 대한 검색 결과가 아직 없으면(디바운스 대기/조회 중) 바로 조회해서 매칭한다
+      let results = participantResults;
+      if (resultsQuery !== query) {
+        setSearching(true);
+        results = await searchUsers(query);
+        if (latestQueryRef.current !== query) return; // 기다리는 사이 입력이 바뀌면 추가하지 않는다
+      }
+      // 검색 결과 중 정확히 일치하는 가입 회원이 있으면 그 회원으로, 없으면 미가입자(이름만)로 추가한다
+      const exactMatch = results.find((u) => u.nickname === trimmed);
+      if (exactMatch) {
+        addParticipant({ name: exactMatch.nickname, userId: exactMatch.id, avatarUrl: exactMatch.avatarUrl });
+      } else {
+        addParticipant({ name: trimmed });
+      }
+    } finally {
+      submittingParticipantRef.current = false;
     }
+  }
+
+  const customTags = tags.filter((t) => !(tripCategories as readonly string[]).includes(t));
+
+  function onAddCustomTag() {
+    const tag = customTagInput.trim().replace(/^#+/, "").trim();
+    if (!tag) return;
+    if (/[\s#]/.test(tag)) return setTagError("태그에는 공백이나 #을 넣을 수 없어요.");
+    if (tag.length > TRIP_TAG_MAX_LENGTH) return setTagError(`태그는 ${TRIP_TAG_MAX_LENGTH}자까지 입력할 수 있어요.`);
+    if (!tags.includes(tag) && tags.length >= TRIP_TAGS_MAX_COUNT) {
+      return setTagError(`태그는 최대 ${TRIP_TAGS_MAX_COUNT}개까지 선택할 수 있어요.`);
+    }
+    setTags((prev) => (prev.includes(tag) ? prev : [...prev, tag]));
+    setCustomTagInput("");
+    setTagError(null);
+  }
+
+  function toggleTag(tag: string) {
+    if (!tags.includes(tag) && tags.length >= TRIP_TAGS_MAX_COUNT) {
+      setTagError(`태그는 최대 ${TRIP_TAGS_MAX_COUNT}개까지 선택할 수 있어요.`);
+      return;
+    }
+    setTagError(null);
+    setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
   }
 
   const addedUserIds = new Set(participants.filter((p) => p.userId).map((p) => p.userId));
 
-  // 서버(createTripSchema)는 종료일<시작일을 막지 않아서, 여기서 한 번 걸러준다
+  // 서버(createTripSchema)도 종료일<시작일을 막지만, 칸 아래 안내와 포커스 이동을 위해 여기서 먼저 거른다
   function validate(): FieldErrors {
     const next: FieldErrors = {};
     if (!name.trim()) next.name = "여행 제목을 입력해주세요.";
@@ -121,6 +176,9 @@ export function TripCreateForm() {
     setEndDate("");
     setPersonnel(1);
     setTags([]);
+    setCustomTagInput("");
+    setCustomTagOpen(false);
+    setTagError(null);
     setParticipants([]);
     setParticipantQuery("");
     setFieldErrors({});
@@ -297,35 +355,91 @@ export function TripCreateForm() {
           </div>
         </div>
 
-        {/* 여행 태그 — createTripSchema가 tripCategories만 받아서, 사용자 직접 입력 태그는 아직 없음 */}
+        {/* 여행 태그 — 기본 카테고리는 홈 카테고리 탭에 노출되고, 직접 입력한 태그는 카드에 표시만 된다 */}
         <div>
-          <p className={labelClass}>여행 태그</p>
-          <p className="mt-1 text-xs text-slate-500">홈 카테고리에 노출될 태그를 선택하세요.</p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className={labelClass}>여행 태그</p>
+              <p className="mt-1 text-xs text-slate-500">
+                홈 카테고리에 노출될 태그를 선택하세요. 직접 입력한 태그는 여행 카드에 표시돼요.
+              </p>
+            </div>
+            <span className="flex-none pt-0.5 text-xs text-slate-400 tabular-nums">
+              {tags.length} / {TRIP_TAGS_MAX_COUNT}
+            </span>
+          </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            {tripCategories.map((category) => {
-              const active = tags.includes(category);
+            {[...tripCategories, ...customTags].map((tag) => {
+              const active = tags.includes(tag);
               return (
                 <button
-                  key={category}
+                  key={tag}
                   type="button"
                   aria-pressed={active}
-                  onClick={() =>
-                    setTags((prev) =>
-                      prev.includes(category) ? prev.filter((t) => t !== category) : [...prev, category]
-                    )
-                  }
+                  onClick={() => toggleTag(tag)}
                   className={`flex h-9 items-center gap-1.5 rounded-full border px-4 text-sm font-medium transition-colors focus-visible:ring-3 focus-visible:ring-blue-600/20 focus-visible:outline-none ${
                     active
                       ? "border-blue-300 bg-blue-50 text-blue-700"
                       : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
                   }`}
                 >
-                  #{category}
+                  #{tag}
                   {active ? <X aria-hidden className="h-3.5 w-3.5" /> : null}
                 </button>
               );
             })}
+            {customTagOpen ? (
+              <div className="flex h-9 items-center gap-1 rounded-full border border-blue-300 bg-white pr-1 pl-3 focus-within:ring-3 focus-within:ring-blue-600/15">
+                <span aria-hidden className="text-sm text-slate-400">#</span>
+                <input
+                  autoFocus
+                  aria-label="추가할 태그"
+                  value={customTagInput}
+                  maxLength={TRIP_TAG_MAX_LENGTH + 1}
+                  onChange={(e) => {
+                    setCustomTagInput(e.target.value);
+                    if (tagError) setTagError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.nativeEvent.isComposing) return;
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      onAddCustomTag();
+                    } else if (e.key === "Escape") {
+                      // 입력칸만 닫고 모달은 그대로 둔다(Modal은 defaultPrevented인 ESC를 무시)
+                      e.preventDefault();
+                      setCustomTagOpen(false);
+                      setCustomTagInput("");
+                      setTagError(null);
+                    }
+                  }}
+                  placeholder="태그 입력"
+                  className="w-24 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                />
+                <button
+                  type="button"
+                  onClick={onAddCustomTag}
+                  disabled={!customTagInput.trim()}
+                  className="h-7 rounded-full bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-40"
+                >
+                  추가
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setCustomTagOpen(true)}
+                className="flex h-9 items-center gap-1 rounded-full border border-dashed border-slate-300 px-4 text-sm font-medium text-slate-500 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
+              >
+                <Plus className="h-3.5 w-3.5" /> 태그 추가
+              </button>
+            )}
           </div>
+          {tagError ? (
+            <p role="alert" className="mt-1.5 text-xs text-red-600">
+              {tagError}
+            </p>
+          ) : null}
         </div>
 
         {/* 함께할 사람 + 인원 */}

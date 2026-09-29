@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
@@ -10,6 +10,36 @@ const MAX_WIDTH_CLASSES = {
   lg: "max-w-lg",
   "3xl": "max-w-3xl",
 } as const;
+
+// 지금 열려 있는 Modal들(열린 순서) — 모달 위에 모달이 겹쳤을 때 ESC는 맨 위 하나만 닫는다
+const openModalStack: symbol[] = [];
+
+// ESC로 닫기. 모달 위에 PhotoLightbox처럼 자체 ESC 처리를 하는 레이어가 떠 있으면 그쪽이
+// capture 단계에서 preventDefault 하므로(defaultPrevented) 여기서는 무시한다.
+// 한글 입력 조합 중 ESC(조합 취소)나 date picker 등이 이미 처리한 ESC도 건드리지 않는다.
+function useCloseOnEscape(onClose: () => void) {
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
+  useEffect(() => {
+    const id = Symbol("modal");
+    openModalStack.push(id);
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Escape" || e.isComposing || e.defaultPrevented) return;
+      if (openModalStack[openModalStack.length - 1] !== id) return;
+      e.preventDefault();
+      onCloseRef.current();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      const idx = openModalStack.indexOf(id);
+      if (idx >= 0) openModalStack.splice(idx, 1);
+    };
+  }, []);
+}
 
 // 팝업 배경(오버레이) + 흰 카드 + 헤더(제목/닫기버튼)를 공유하는 셸.
 // document.body에 직접 렌더링(createPortal)해서, 이 팝업을 여는 쪽 조상에 걸린 CSS
@@ -38,6 +68,7 @@ export function Modal({
   children: React.ReactNode;
 }) {
   const titleId = useId();
+  useCloseOnEscape(onClose);
   const rich = icon != null || description != null || footer != null;
 
   if (rich) {

@@ -7,6 +7,7 @@ import {
   InvalidFileError,
   InvalidCredentialsError,
   NicknameTakenError,
+  InvalidInputError,
 } from "./errors";
 
 export function unauthorized() {
@@ -31,6 +32,9 @@ export function handleRouteError(err: unknown) {
     return NextResponse.json({ error: err.message }, { status: 503 });
   }
   if (err instanceof InvalidFileError) {
+    return NextResponse.json({ error: err.message }, { status: 400 });
+  }
+  if (err instanceof InvalidInputError) {
     return NextResponse.json({ error: err.message }, { status: 400 });
   }
   if (err instanceof InvalidCredentialsError) {

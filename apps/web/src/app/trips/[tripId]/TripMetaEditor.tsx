@@ -69,6 +69,10 @@ export function TripMetaEditor({ trip, isOwner }: { trip: TripMeta; isOwner: boo
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (endDate < startDate) {
+      setError("종료일은 시작일과 같거나 이후여야 해요.");
+      return;
+    }
     setPending(true);
     const res = await fetch(`/api/trips/${trip.id}`, {
       method: "PATCH",
@@ -77,7 +81,8 @@ export function TripMetaEditor({ trip, isOwner }: { trip: TripMeta; isOwner: boo
     });
     setPending(false);
     if (!res.ok) {
-      setError("수정하지 못했습니다.");
+      const body = await res.json().catch(() => null);
+      setError(typeof body?.error === "string" ? body.error : "수정하지 못했습니다.");
       return;
     }
     setEditing(false);
@@ -207,6 +212,7 @@ export function TripMetaEditor({ trip, isOwner }: { trip: TripMeta; isOwner: boo
           type="date"
           required
           value={endDate}
+          min={startDate || undefined}
           onChange={(e) => setEndDate(e.target.value)}
           className="w-1/2 rounded-md border border-neutral-300 px-2 py-1.5 text-sm"
         />

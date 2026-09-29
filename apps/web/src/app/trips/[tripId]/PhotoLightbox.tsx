@@ -19,12 +19,17 @@ export function PhotoLightbox({
 }) {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      // 아래에 깔린 Modal(예: PlacePhotos)까지 같이 닫히지 않게 — Modal은 defaultPrevented인 ESC를 무시한다
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
       if (e.key === "ArrowLeft") onNavigate((index - 1 + photos.length) % photos.length);
       if (e.key === "ArrowRight") onNavigate((index + 1) % photos.length);
     }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    // capture 단계로 등록해 Modal의 ESC 리스너(bubble)보다 먼저 처리한다
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [index, photos.length, onClose, onNavigate]);
 
   const photo = photos[index];

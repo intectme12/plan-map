@@ -18,24 +18,50 @@ export const tripParticipantInputSchema = z.object({
 
 export const tripCategories = ["바다", "맛집", "카페", "액티비티", "자연", "도시"] as const;
 
-export const createTripSchema = z.object({
-  name: z.string().min(1).max(100),
-  startDate: z.coerce.date(),
-  endDate: z.coerce.date(),
-  personnel: z.coerce.number().int().min(1).max(50).default(1),
-  participants: z.array(tripParticipantInputSchema).max(50).optional(),
-  tags: z.array(z.enum(tripCategories)).max(tripCategories.length).optional(),
-});
+// 여행 태그 — 기본 카테고리(tripCategories) 외에 사용자가 직접 입력한 태그도 허용한다.
+// 홈 카테고리 필터(discoverTripsQuerySchema의 tag)는 여전히 기본 카테고리만 받으므로,
+// 직접 입력 태그는 카드에 "#태그"로 표시만 되고 홈 카테고리 탭에는 안 뜬다.
+export const TRIP_TAG_MAX_LENGTH = 15;
+export const TRIP_TAGS_MAX_COUNT = 10;
+
+const tripTagSchema = z
+  .string()
+  .transform((t) => t.trim().replace(/^#+/, "").trim())
+  .pipe(z.string().min(1).max(TRIP_TAG_MAX_LENGTH).regex(/^[^\s#]+$/, "태그에는 공백이나 #을 넣을 수 없습니다."));
+
+export const tripTagsSchema = z
+  .array(tripTagSchema)
+  .transform((tags) => [...new Set(tags)])
+  .pipe(z.array(z.string()).max(TRIP_TAGS_MAX_COUNT));
+
+export const TRIP_DATE_ORDER_MESSAGE = "종료일은 시작일과 같거나 이후여야 합니다.";
+
+export const createTripSchema = z
+  .object({
+    name: z.string().min(1).max(100),
+    startDate: z.coerce.date(),
+    endDate: z.coerce.date(),
+    personnel: z.coerce.number().int().min(1).max(50).default(1),
+    participants: z.array(tripParticipantInputSchema).max(50).optional(),
+    tags: tripTagsSchema.optional(),
+  })
+  .refine((d) => d.endDate >= d.startDate, { message: TRIP_DATE_ORDER_MESSAGE, path: ["endDate"] });
 
 export const tripVisibilities = ["PRIVATE", "UNLISTED", "PUBLIC"] as const;
 
-export const updateTripSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-  startDate: z.coerce.date().optional(),
-  endDate: z.coerce.date().optional(),
-  personnel: z.coerce.number().int().min(1).max(50).optional(),
-  visibility: z.enum(tripVisibilities).optional(),
-});
+// 날짜 중 하나만 바꾸는 요청은 여기서 비교할 수 없어 updateTrip(서비스)에서 DB 값과 합쳐 한 번 더 검사한다
+export const updateTripSchema = z
+  .object({
+    name: z.string().min(1).max(100).optional(),
+    startDate: z.coerce.date().optional(),
+    endDate: z.coerce.date().optional(),
+    personnel: z.coerce.number().int().min(1).max(50).optional(),
+    visibility: z.enum(tripVisibilities).optional(),
+  })
+  .refine((d) => !d.startDate || !d.endDate || d.endDate >= d.startDate, {
+    message: TRIP_DATE_ORDER_MESSAGE,
+    path: ["endDate"],
+  });
 
 export const shareTripSchema = z.object({
   nickname: z.string().min(1).max(50),
