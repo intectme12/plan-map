@@ -38,11 +38,10 @@ export function DestinationCard({
   trip: DestinationCardData;
   viewerLoggedIn?: boolean;
 }) {
+  // 카드 전체 클릭 → 여행 상세, 작성자 클릭 → 프로필. <a> 안에 <a>를 넣을 수 없어서 카드 자체는 div로 두고
+  // 여행 상세 링크를 카드 위에 덮는(absolute inset-0, z-10) 방식으로 깔고, 좋아요·작성자만 z-20으로 올린다.
   return (
-    <Link
-      href={`/trips/shared/${trip.id}`}
-      className="group flex flex-col overflow-hidden rounded-2xl border border-neutral-100 bg-white shadow-[0_2px_12px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_8px_24px_rgba(15,23,42,0.12)]"
-    >
+    <div className="group relative isolate flex h-full flex-col overflow-hidden rounded-2xl border border-neutral-100 bg-white shadow-[0_2px_12px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_8px_24px_rgba(15,23,42,0.12)]">
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-neutral-100">
         {trip.coverPhotoKey ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -69,7 +68,7 @@ export function DestinationCard({
               tripId={trip.id}
               initialLiked={trip.likedByMe}
               initialCount={trip.likeCount}
-              className="flex items-center gap-1 rounded-full bg-black/40 px-2 py-1 text-xs text-white backdrop-blur"
+              className="relative z-20 flex items-center gap-1 rounded-full bg-black/40 px-2 py-1 text-xs text-white backdrop-blur"
             />
           ) : (
             <span className="flex items-center gap-1 rounded-full bg-black/40 px-2 py-1 text-xs text-white backdrop-blur">
@@ -80,17 +79,29 @@ export function DestinationCard({
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 p-4">
+      <div className="flex flex-1 flex-col gap-2 p-4">
         <p className="truncate text-base font-semibold text-neutral-900">{trip.name}</p>
         {trip.tags.length > 0 ? (
           <p className="truncate text-xs text-blue-600">{trip.tags.map((t) => `#${t}`).join(" ")}</p>
         ) : null}
 
-        <div className="mt-1 flex items-center justify-between border-t border-neutral-100 pt-3">
-          <span className="flex min-w-0 items-center gap-1.5 text-xs text-neutral-500">
-            <Avatar url={trip.user.avatarUrl} nickname={trip.user.nickname} size={20} />
-            <span className="truncate">{trip.user.nickname}의 여행기</span>
-          </span>
+        {/* 태그가 없어도 같은 줄의 다른 카드와 작성자 줄 높이가 맞도록 mt-auto로 카드 맨 아래에 고정 */}
+        <div className="mt-auto flex items-center justify-between border-t border-neutral-100 pt-3">
+          {/* 프로필 페이지는 로그인 전용(비로그인 시 홈으로 redirect)이라 게스트에게는 링크를 걸지 않는다 */}
+          {viewerLoggedIn ? (
+            <Link
+              href={`/users/${encodeURIComponent(trip.user.nickname)}`}
+              className="relative z-20 flex min-w-0 items-center gap-1.5 text-xs text-neutral-500 hover:text-blue-600"
+            >
+              <Avatar url={trip.user.avatarUrl} nickname={trip.user.nickname} size={20} />
+              <span className="truncate">{trip.user.nickname}의 여행기</span>
+            </Link>
+          ) : (
+            <span className="flex min-w-0 items-center gap-1.5 text-xs text-neutral-500">
+              <Avatar url={trip.user.avatarUrl} nickname={trip.user.nickname} size={20} />
+              <span className="truncate">{trip.user.nickname}의 여행기</span>
+            </span>
+          )}
           <span className="flex flex-none items-center gap-2 text-[11px] text-neutral-400">
             <span className="flex items-center gap-0.5">
               <MapPin className="h-3 w-3" /> {trip._count.places}곳
@@ -101,6 +112,8 @@ export function DestinationCard({
           </span>
         </div>
       </div>
-    </Link>
+
+      <Link href={`/trips/shared/${trip.id}`} aria-label={trip.name} className="absolute inset-0 z-10" />
+    </div>
   );
 }
