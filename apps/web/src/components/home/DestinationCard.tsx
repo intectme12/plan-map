@@ -81,9 +81,9 @@ export function DestinationCard({
 
       <div className="flex flex-1 flex-col gap-2 p-4">
         <p className="truncate text-base font-semibold text-neutral-900">{trip.name}</p>
-        {trip.tags.length > 0 ? (
-          <p className="truncate text-xs text-blue-600">{trip.tags.map((t) => `#${t}`).join(" ")}</p>
-        ) : null}
+        {/* 태그가 없어도 한 줄(h-4) 자리를 비워둔다 — 그리드 행이 따로인 "추천 여행지"와 "내 팔로잉 피드"는
+            행 높이를 서로 맞춰주지 않아서, 태그 유무에 따라 양쪽 카드 높이가 달라졌던 문제 */}
+        <p className="h-4 truncate text-xs text-blue-600">{trip.tags.map((t) => `#${t}`).join(" ")}</p>
 
         {/* 태그가 없어도 같은 줄의 다른 카드와 작성자 줄 높이가 맞도록 mt-auto로 카드 맨 아래에 고정 */}
         <div className="mt-auto flex items-center justify-between border-t border-neutral-100 pt-3">
