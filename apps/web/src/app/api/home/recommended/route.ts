@@ -17,7 +17,11 @@ export async function GET(request: Request) {
       ? rawCategory
       : undefined;
 
-    const trips = await listPopularSharedTrips(category, user?.id, 8);
+    // 로그인 홈은 팔로잉 피드와 반씩 나눠 6개(3열×2줄), 게스트 홈은 8개(4열×2줄)를 쓴다
+    const rawLimit = Number(searchParams.get("limit"));
+    const limit = Number.isInteger(rawLimit) && rawLimit >= 1 && rawLimit <= 12 ? rawLimit : 8;
+
+    const trips = await listPopularSharedTrips(category, user?.id, limit);
     return NextResponse.json(trips);
   } catch (err) {
     return handleRouteError(err);

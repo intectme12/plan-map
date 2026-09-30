@@ -6,11 +6,23 @@ import { RecommendedGrid } from "./RecommendedGrid";
 export async function RecommendedDestinations({
   userId,
   category,
+  limit = 8,
+  columns = 4,
 }: {
   userId?: string;
   category?: string;
+  limit?: number;
+  columns?: 3 | 4;
 }) {
-  const trips = await listPopularSharedTrips(category, userId, 8);
+  const trips = await listPopularSharedTrips(category, userId, limit);
 
-  return <RecommendedGrid initialTrips={trips} initialCategory={category} viewerLoggedIn={!!userId} />;
+  return (
+    <RecommendedGrid
+      initialTrips={trips}
+      initialCategory={category}
+      viewerLoggedIn={!!userId}
+      limit={limit}
+      columns={columns}
+    />
+  );
 }

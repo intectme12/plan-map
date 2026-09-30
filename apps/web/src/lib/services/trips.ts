@@ -394,6 +394,25 @@ export async function listFollowingTrips(cursor: number, viewerUserId: string) {
   return trips.map(withLikeInfo);
 }
 
+// 홈 화면 "내 팔로잉 피드"용 — listFollowingTrips와 같은 대상이지만 페이지네이션 없이 최신 N개만.
+// 팔로잉 탭의 무한 스크롤 동작은 건드리지 않기 위해 별도 함수로 둔다.
+export async function listRecentFollowingTrips(viewerUserId: string, limit = 6) {
+  const trips = await prisma.trip.findMany({
+    where: {
+      visibility: "PUBLIC",
+      user: { followers: { some: { followerId: viewerUserId } } },
+    },
+    orderBy: { sharedAt: "desc" },
+    take: limit,
+    include: {
+      user: { select: { nickname: true, avatarUrl: true } },
+      ...likesInclude(viewerUserId),
+    },
+  });
+
+  return trips.map(withLikeInfo);
+}
+
 // 링크 전용/특정 회원 지정 공유는 목록에 안 뜨므로, id를 아는 사람이 직접 열람할 때만 이 함수를 거친다
 export async function getSharedTrip(tripId: string, viewerUserId: string) {
   const trip = await prisma.trip.findFirst({

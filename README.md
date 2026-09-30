@@ -1104,6 +1104,14 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - 검증: `tsc --noEmit`/`eslint` 통과, 브라우저(로컬 임시 계정, 확인 후 삭제)에서 헤더 메뉴가 "홈 / 내 여행계획 / 저장한 장소 / AI 여행계획" 4개로 나오는 것 확인. `/trips?tab=shared`(둘러보기) 페이지 자체와 여행 상세 지도는 그대로 있어 주소로는 접근 가능
 - (참고) 직전 원격 커밋(`d3387e6`)에서 README의 "**다음 세션 할 일**" 제목 줄이 빠져 목록만 남아 있어서 제목 줄을 복원함
 
+**완료 (2026-09-30, 홈 레이아웃 개편 — 추천 여행지/팔로잉 피드 반반 + 하단 3열)**
+
+- 로그인 홈([page.tsx](apps/web/src/app/page.tsx))에서 오른쪽 사이드 컬럼(`lg:grid-cols-[1fr_360px]`)을 없애고, 위쪽은 "추천 여행지 | 내 팔로잉 피드"를 `lg:grid-cols-2`로 반씩, 그 아래에 "내 여행계획 / 빠른 시작 / 최근 본 여행"을 `lg:grid-cols-3` 한 줄로 배치. 세 컴포넌트는 형태 그대로 위치만 이동
+- 추천 여행지: [RecommendedGrid.tsx](apps/web/src/components/home/RecommendedGrid.tsx)/[RecommendedDestinations.tsx](apps/web/src/components/home/RecommendedDestinations.tsx)에 `limit`·`columns` prop 추가 — 로그인 홈은 6개(3열×2줄), 게스트 홈은 기존대로 8개(4열). 카테고리 변경 시 재조회하는 [/api/home/recommended](apps/web/src/app/api/home/recommended/route.ts)도 `?limit=`(1~12, 기본 8)을 받게 해서 개수가 첫 렌더와 어긋나지 않게 함
+- 내 팔로잉 피드: 신규 [FollowingFeed.tsx](apps/web/src/components/home/FollowingFeed.tsx) — 추천과 같은 `DestinationCard`·3열 그리드, 최신 6개, "전체보기 →"는 `/trips?tab=following`, 비었을 때 점선 빈 상태. 데이터는 [trips.ts](apps/web/src/lib/services/trips.ts)에 `listRecentFollowingTrips(userId, limit)` 추가(기존 `listFollowingTrips`는 커서 페이지네이션용이라 건드리지 않음). 카테고리 필터는 추천에만 적용
+- 최근 본 여행이 없으면 `RecentlyViewed`가 `null`이라 하단 줄 세 번째 칸은 비어 보임(의도된 동작)
+- 검증: `tsc --noEmit`/`eslint` 통과. 브라우저(로컬 임시 계정, 공개 여행이 있는 회원 1명 팔로우 → 확인 후 계정 삭제)에서 1440px 기준 3+3 반반 배치·하단 3열, 팔로잉 피드 카드 노출, 카테고리 클릭 시 `?limit=6&category=…`로 추천만 갱신, 375px 모바일에서 세로로 쌓이고 가로 스크롤 없음, 게스트 홈은 4열·8개 그대로인 것 확인
+
 **다음 세션 할 일**
 - (신규) 쿼리 최적화 2차 후보: `/trips`는 병렬 쿼리 7개인데도 약 0.8초 — 원격 풀러에 새 연결을 여는 비용일 수 있어 Prisma 연결 풀 설정(`connection_limit`)·쿼리 합치기 검토. 운영 DB를 서울로 옮기면 대부분 해소될 문제라 우선순위는 낮음
 - (신규) 배포 전 준비는 [docs/DEPLOYMENT_PLAN.md](docs/DEPLOYMENT_PLAN.md)의 "단계 0 — 개발하면서 미리 해두면 좋은 것"부터(쿼리 최적화·마이그레이션 드리프트 정리·개발 DB 분리·`directUrl`)

@@ -11,10 +11,14 @@ export function RecommendedGrid({
   initialTrips,
   initialCategory,
   viewerLoggedIn,
+  limit,
+  columns,
 }: {
   initialTrips: DestinationCardData[];
   initialCategory?: string;
   viewerLoggedIn: boolean;
+  limit: number;
+  columns: 3 | 4;
 }) {
   const { category } = useHomeCategory();
   const [trips, setTrips] = useState(initialTrips);
@@ -27,8 +31,9 @@ export function RecommendedGrid({
 
     let cancelled = false;
     setLoading(true);
-    const qs = category ? `?category=${encodeURIComponent(category)}` : "";
-    fetch(`/api/home/recommended${qs}`)
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (category) params.set("category", category);
+    fetch(`/api/home/recommended?${params}`)
       .then((res) => (res.ok ? res.json() : []))
       .then((data: DestinationCardData[]) => {
         if (!cancelled) setTrips(data);
@@ -40,7 +45,7 @@ export function RecommendedGrid({
     return () => {
       cancelled = true;
     };
-  }, [category]);
+  }, [category, limit]);
 
   return (
     <section>
@@ -57,7 +62,9 @@ export function RecommendedGrid({
         </p>
       ) : (
         <div
-          className={`mt-6 grid grid-cols-1 gap-4 transition-opacity sm:grid-cols-2 lg:grid-cols-4 ${
+          className={`mt-6 grid grid-cols-1 gap-4 transition-opacity sm:grid-cols-2 ${
+            columns === 3 ? "lg:grid-cols-3" : "lg:grid-cols-4"
+          } ${
             loading ? "opacity-50" : ""
           }`}
         >

@@ -15,6 +15,7 @@ import { RecommendedDestinations } from "@/components/home/RecommendedDestinatio
 import { MyTripsPanel } from "@/components/home/MyTripsPanel";
 import { QuickStartCards } from "@/components/home/QuickStartCards";
 import { RecentlyViewed } from "@/components/home/RecentlyViewed";
+import { FollowingFeed } from "@/components/home/FollowingFeed";
 import { AIPlanCTA } from "@/components/home/AIPlanCTA";
 import { GuestAIPlanButton } from "@/components/home/GuestAIPlanButton";
 import { LoginPopupProvider } from "@/components/auth/LoginPopupContext";
@@ -87,14 +88,15 @@ export default async function HomePage({
         <HomeCategoryProvider initialCategory={category}>
           <CategoryNav />
 
-          <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_360px]">
-            <RecommendedDestinations userId={user.id} category={category} />
+          <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-2">
+            <RecommendedDestinations userId={user.id} category={category} limit={6} columns={3} />
+            <FollowingFeed userId={user.id} />
+          </div>
 
-            <div className="flex flex-col gap-10">
-              <MyTripsPanel trip={featuredTrip} />
-              <QuickStartCards mapHref={mapHref} aiPlanHref={aiPlanHref} />
-              <RecentlyViewed userId={user.id} />
-            </div>
+          <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-3">
+            <MyTripsPanel trip={featuredTrip} />
+            <QuickStartCards mapHref={mapHref} aiPlanHref={aiPlanHref} />
+            <RecentlyViewed userId={user.id} />
           </div>
         </HomeCategoryProvider>
 
