@@ -27,7 +27,9 @@ function isLinkActive(href: string, pathname: string, search: string): boolean {
   return pathname === hrefPath;
 }
 
-export function HomeTopNav({ mapHref, aiPlanHref }: { mapHref: string; aiPlanHref: string }) {
+// mapHref는 "지도" 메뉴를 주석 처리한 동안 쓰지 않지만, 헤더를 쓰는 페이지들이 계속 넘기고 있어
+// 다시 켤 때 호출부를 건드리지 않도록 prop 타입은 그대로 둔다.
+export function HomeTopNav({ aiPlanHref }: { mapHref: string; aiPlanHref: string }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -35,8 +37,9 @@ export function HomeTopNav({ mapHref, aiPlanHref }: { mapHref: string; aiPlanHre
 
   const links: NavLink[] = [
     { label: "홈", href: "/" },
-    { label: "지도", href: mapHref },
-    { label: "둘러보기", href: "/trips?tab=shared" },
+    // 헤더 메뉴에서 잠시 숨김(사용자 요청, 2026-09-30) — 다시 쓰려면 아래 두 줄 주석 해제 + 위 함수 인자에 mapHref 복원
+    // { label: "지도", href: mapHref },
+    // { label: "둘러보기", href: "/trips?tab=shared" },
     { label: "내 여행계획", href: "/trips" },
     { label: "저장한 장소", href: "/saved-places" },
     { label: "AI 여행계획", href: aiPlanHref },
