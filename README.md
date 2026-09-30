@@ -1098,6 +1098,13 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - 이미 만든 여행 상세 화면 안의 AI 카드([AIAssistantCard.tsx](apps/web/src/app/trips/[tripId]/AIAssistantCard.tsx), "추천받기 →")는 그대로 유지 — 그 여행에 이어서 장소를 추가하는 보조 기능이라는 위치가 명확해짐
 - 검증: `tsc --noEmit`/`eslint` 통과. 브라우저로 여행 3개 있는 계정에서 확인 — 상단 nav·홈 배너·빠른 시작 카드 링크가 전부 `/trips/new/import`로 바뀐 것, 반대로 여행 상세 화면 안의 "추천받기" 카드는 여전히 그 여행 고유 id로 가는 것(`/trips/{tripId}/import`) 확인
 
+**완료 (2026-09-30, 헤더 메뉴 "지도"·"둘러보기" 숨김)**
+
+- 사용자 요청으로 [HomeTopNav.tsx](apps/web/src/components/home/HomeTopNav.tsx)의 링크 목록에서 "지도"·"둘러보기" 두 줄을 주석 처리(데스크톱·모바일 메뉴 공통 목록). 다시 켤 수 있게 삭제 대신 주석으로 두고, 헤더를 쓰는 페이지들이 넘기는 `mapHref` prop 타입은 유지(컴포넌트에서만 안 씀 — 호출부 수정 없음)
+- 검증: `tsc --noEmit`/`eslint` 통과, 브라우저(로컬 임시 계정, 확인 후 삭제)에서 헤더 메뉴가 "홈 / 내 여행계획 / 저장한 장소 / AI 여행계획" 4개로 나오는 것 확인. `/trips?tab=shared`(둘러보기) 페이지 자체와 여행 상세 지도는 그대로 있어 주소로는 접근 가능
+- (참고) 직전 원격 커밋(`d3387e6`)에서 README의 "**다음 세션 할 일**" 제목 줄이 빠져 목록만 남아 있어서 제목 줄을 복원함
+
+**다음 세션 할 일**
 - (신규) 쿼리 최적화 2차 후보: `/trips`는 병렬 쿼리 7개인데도 약 0.8초 — 원격 풀러에 새 연결을 여는 비용일 수 있어 Prisma 연결 풀 설정(`connection_limit`)·쿼리 합치기 검토. 운영 DB를 서울로 옮기면 대부분 해소될 문제라 우선순위는 낮음
 - (신규) 배포 전 준비는 [docs/DEPLOYMENT_PLAN.md](docs/DEPLOYMENT_PLAN.md)의 "단계 0 — 개발하면서 미리 해두면 좋은 것"부터(쿼리 최적화·마이그레이션 드리프트 정리·개발 DB 분리·`directUrl`)
 - (신규) 계정 탈퇴 — API와 데이터 처리 정책(여행·사진·메시지·공유 등) 정한 뒤 별도 작업(사용자 결정)
