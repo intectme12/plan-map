@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { listNotifications, markAllNotificationsRead } from "@/lib/services/notifications";
 import { formatNotificationDate, notificationText, notificationHref } from "@/lib/notificationDisplay";
 import { Avatar } from "@/components/Avatar";
+import { UserProfileTrigger } from "@/components/UserProfileTrigger";
 
 export default async function NotificationsPage() {
   const user = await getCurrentUser();
@@ -24,12 +25,12 @@ export default async function NotificationsPage() {
         <p className="text-sm text-neutral-500">아직 알림이 없습니다.</p>
       ) : (
         <ul className="flex flex-col gap-2">
-          {notifications.map((n) => (
-            <li key={n.id}>
-              <Link
-                href={notificationHref(n)}
-                className="flex items-center gap-3 rounded-lg border border-neutral-200 px-4 py-3 hover:bg-neutral-50"
-              >
+          {notifications.map((n) => {
+            const href = notificationHref(n);
+            const itemClass =
+              "flex w-full items-center gap-3 rounded-lg border border-neutral-200 px-4 py-3 hover:bg-neutral-50";
+            const content = (
+              <>
                 <Avatar url={n.actor.avatarUrl} nickname={n.actor.nickname} size={40} />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm">
@@ -38,9 +39,23 @@ export default async function NotificationsPage() {
                   </p>
                   <p className="text-xs text-neutral-400">{formatNotificationDate(n.createdAt)}</p>
                 </div>
-              </Link>
-            </li>
-          ))}
+              </>
+            );
+            return (
+              <li key={n.id}>
+                {/* 좋아요 알림은 내 여행계획으로 이동, 팔로우 알림은 상대 프로필 팝업 */}
+                {href ? (
+                  <Link href={href} className={itemClass}>
+                    {content}
+                  </Link>
+                ) : (
+                  <UserProfileTrigger nickname={n.actor.nickname} className={itemClass}>
+                    {content}
+                  </UserProfileTrigger>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </main>

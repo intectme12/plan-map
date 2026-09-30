@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, ArrowUpRight, Camera, CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
+import { UserProfileTrigger } from "@/components/UserProfileTrigger";
 import { useToast } from "@/components/toast/ToastProvider";
 import { BIO_MAX_LENGTH, NICKNAME_MAX_LENGTH } from "@/lib/validation";
 import { SettingsCard } from "./SettingsCard";
@@ -198,12 +198,13 @@ export function ProfileSection({
       title="프로필 정보"
       description="다른 회원에게 보여지는 정보를 관리할 수 있어요."
       action={
-        <Link
-          href={`/users/${encodeURIComponent(saved.nickname)}`}
+        // 다른 회원에게 보이는 모습을 페이지 이동 없이 팝업으로 확인
+        <UserProfileTrigger
+          nickname={saved.nickname}
           className="flex h-9 flex-none items-center gap-1 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50"
         >
           내 프로필 보기 <ArrowUpRight className="h-3.5 w-3.5" />
-        </Link>
+        </UserProfileTrigger>
       }
     >
       <div className="flex flex-col gap-6 lg:flex-row lg:gap-8">

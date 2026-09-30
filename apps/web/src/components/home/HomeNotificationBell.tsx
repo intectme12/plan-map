@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
+import { UserProfileModal } from "@/components/UserProfileModal";
 import {
   formatNotificationDate,
   notificationText,
@@ -22,6 +23,8 @@ export function HomeNotificationBell({ initialUnreadCount }: { initialUnreadCoun
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationItem[] | null>(null);
   const [loading, setLoading] = useState(false);
+  // 팔로우 알림을 누르면 알림 드롭다운은 닫고 상대 프로필 팝업을 연다
+  const [profileNickname, setProfileNickname] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -59,7 +62,9 @@ export function HomeNotificationBell({ initialUnreadCount }: { initialUnreadCoun
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: n.id }),
     }).catch(() => {});
-    router.push(notificationHref(n));
+    const href = notificationHref(n);
+    if (href) router.push(href);
+    else setProfileNickname(n.actor.nickname);
   }
 
   return (
@@ -122,6 +127,10 @@ export function HomeNotificationBell({ initialUnreadCount }: { initialUnreadCoun
             )}
           </div>
         </div>
+      ) : null}
+
+      {profileNickname ? (
+        <UserProfileModal nickname={profileNickname} onClose={() => setProfileNickname(null)} />
       ) : null}
     </div>
   );

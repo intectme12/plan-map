@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { Avatar } from "@/components/Avatar";
+import { UserProfileTrigger } from "@/components/UserProfileTrigger";
 
 const PAGE_SIZE = 20;
 
@@ -44,16 +44,16 @@ export function FollowUserList({
       <ul className="flex flex-col gap-2">
         {users.map((u) => (
           <li key={u.id}>
-            <Link
-              href={`/users/${u.nickname}`}
-              className="flex min-w-0 items-center gap-3 rounded-lg border border-neutral-200 px-4 py-3 hover:bg-neutral-50"
+            <UserProfileTrigger
+              nickname={u.nickname}
+              className="flex w-full min-w-0 items-center gap-3 rounded-lg border border-neutral-200 px-4 py-3 hover:bg-neutral-50"
             >
               <Avatar url={u.avatarUrl} nickname={u.nickname} size={40} />
               <div className="min-w-0 flex-1">
                 <p className="font-semibold">{u.nickname}</p>
                 {u.bio ? <p className="truncate text-sm text-neutral-500">{u.bio}</p> : null}
               </div>
-            </Link>
+            </UserProfileTrigger>
           </li>
         ))}
       </ul>

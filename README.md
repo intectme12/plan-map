@@ -1125,6 +1125,15 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - [DestinationCard.tsx](apps/web/src/components/home/DestinationCard.tsx): 태그 줄을 조건부 렌더 대신 항상 `h-4`로 렌더해서 태그가 없어도 한 줄 자리를 비워둠 → 모든 카드가 "태그 있는 추천 카드" 높이로 통일
 - 검증: `eslint` 통과. 브라우저(로컬 임시 계정으로 공개 여행 있는 회원 팔로우, 확인 후 삭제) 1440px에서 추천 6장·팔로잉 1장 모두 높이 281px, 첫 줄 top 위치도 동일한 것 확인
 
+**완료 (2026-09-30, 회원 클릭 시 프로필 페이지 이동 → 프로필 팝업으로 전면 변경)**
+
+- 무엇을: 회원을 누르면 `/users/[nickname]` 페이지로 이동하던 곳을 전부 프로필 팝업([UserProfileModal.tsx](apps/web/src/components/UserProfileModal.tsx))으로 바꿈 — 홈 카드 작성자([DestinationCard.tsx](apps/web/src/components/home/DestinationCard.tsx)), 회원검색([UserSearchBrowser.tsx](apps/web/src/app/trips/UserSearchBrowser.tsx)), 팔로워/팔로잉 목록([FollowUserList.tsx](apps/web/src/components/FollowUserList.tsx)), 팔로우 알림(상단 알림 드롭다운 [HomeNotificationBell.tsx](apps/web/src/components/home/HomeNotificationBell.tsx) + [/notifications](apps/web/src/app/notifications/page.tsx)), 계정 설정의 "내 프로필 보기"([ProfileSection.tsx](apps/web/src/app/account/ProfileSection.tsx)). `/trips` 카드(`SharedTripCard`/`TripGridCard`)는 원래 팝업이었음
+- 어떻게: 버튼+팝업 열림 상태를 묶은 [UserProfileTrigger.tsx](apps/web/src/components/UserProfileTrigger.tsx) 신규 — 서버 컴포넌트(홈 카드, 알림 페이지)에서도 그대로 쓸 수 있게 상태를 안에 가둠. [notificationDisplay.ts](apps/web/src/lib/notificationDisplay.ts)의 `notificationHref`는 좋아요 알림만 경로를 주고 팔로우 알림은 `null`(→ 팝업)
+- 팝업 보강: 기존 팝업엔 팔로우 버튼·팔로워/팔로잉 수가 없어 페이지보다 정보가 적었음. [/api/users/[nickname]](apps/web/src/app/api/users/[nickname]/route.ts)이 `getFollowState`·`isOwnProfile`을 함께 내려주고, 팝업에 팔로워/팔로잉 수(누르면 목록 페이지로 이동하며 팝업 닫힘)·[FollowButton](apps/web/src/components/FollowButton.tsx) 추가(내 프로필이면 팔로우/메시지 버튼 숨김). FollowButton에 `onChange` 콜백을 추가해 팝업의 팔로워 수를 즉시 ±1
+- 예방 수정: [Modal.tsx](apps/web/src/components/Modal.tsx)는 `createPortal`로 body에 붙지만 React 이벤트는 React 부모로 버블링됨 → `<Link>` 안에서 연 팝업(TripGridCard 작성자 아바타)의 배경을 누르면 클릭이 그 링크까지 올라가 페이지 이동이 될 수 있어서, 배경 클릭은 `stopPropagation` 후 닫기만 하도록 함
+- `/users/[nickname]` 페이지 자체는 유지(주소로 직접 접근 가능)
+- 검증: `tsc --noEmit` 통과, 변경 파일 `eslint` 통과(전체 lint의 기존 오류는 이번 변경과 무관한 파일들). 브라우저(로컬 임시 계정 2개 — A가 B·jihwan 팔로우, 확인 후 둘 다 삭제)에서 홈 카드 작성자/회원검색/팔로워 목록/내 프로필 보기/알림 드롭다운/알림 페이지 모두 주소 변화 없이 팝업이 뜨는 것, 팔로우 해제→재팔로우 시 버튼과 팔로워 수(2→1→2) 갱신, ESC·배경 클릭·✕로 닫힘, 팝업의 "팔로잉" 클릭 시 팝업 닫히고 목록 페이지로 이동, 내 프로필 팝업엔 팔로우/메시지 버튼 없음, `/trips?tab=following` 카드 아바타 팝업 배경 클릭 시 페이지 이동 없음 확인
+
 **다음 세션 할 일**
 - (신규) 쿼리 최적화 2차 후보: `/trips`는 병렬 쿼리 7개인데도 약 0.8초 — 원격 풀러에 새 연결을 여는 비용일 수 있어 Prisma 연결 풀 설정(`connection_limit`)·쿼리 합치기 검토. 운영 DB를 서울로 옮기면 대부분 해소될 문제라 우선순위는 낮음
 - (신규) 배포 전 준비는 [docs/DEPLOYMENT_PLAN.md](docs/DEPLOYMENT_PLAN.md)의 "단계 0 — 개발하면서 미리 해두면 좋은 것"부터(쿼리 최적화·마이그레이션 드리프트 정리·개발 DB 분리·`directUrl`)

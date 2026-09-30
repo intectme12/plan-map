@@ -20,8 +20,9 @@ export function notificationText(n: Pick<NotificationItem, "type" | "trip">) {
   return "새 알림이 있습니다";
 }
 
-// 팔로우 알림은 상대 프로필로, 좋아요 알림은 좋아요 받은 내 여행계획으로 이동한다.
-export function notificationHref(n: Pick<NotificationItem, "type" | "trip" | "actor">) {
+// 좋아요 알림은 좋아요 받은 내 여행계획으로 이동한다. 그 외(팔로우 등)는 null — 페이지 이동 대신
+// 상대(actor)의 프로필 팝업(UserProfileModal)을 연다.
+export function notificationHref(n: Pick<NotificationItem, "type" | "trip">) {
   if (n.type === "LIKE" && n.trip) return `/trips/${n.trip.id}`;
-  return `/users/${n.actor.nickname}`;
+  return null;
 }

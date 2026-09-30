@@ -70,12 +70,19 @@ export function Modal({
   const titleId = useId();
   useCloseOnEscape(onClose);
   const rich = icon != null || description != null || footer != null;
+  // createPortal로 DOM은 body에 붙지만 React 이벤트는 여전히 "React 부모"로 버블링된다. 팝업을 연
+  // 쪽이 <Link> 안(예: TripGridCard의 작성자 아바타)이면 배경 클릭이 그 링크까지 올라가 페이지가
+  // 이동해버리므로, 배경 클릭은 닫기만 하고 전파를 끊는다(본문 클릭은 아래 dialog에서 이미 끊음).
+  function onOverlayClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    onClose();
+  }
 
   if (rich) {
     return createPortal(
       <div
         className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-3 sm:p-6"
-        onClick={onClose}
+        onClick={onOverlayClick}
       >
         <div
           role="dialog"
@@ -122,7 +129,7 @@ export function Modal({
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
+      onClick={onOverlayClick}
     >
       <div
         role="dialog"

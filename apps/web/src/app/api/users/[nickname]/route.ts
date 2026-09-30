@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getPublicProfile } from "@/lib/services/users";
 import { listSharedTrips } from "@/lib/services/trips";
+import { getFollowState } from "@/lib/services/follows";
 import { unauthorized, notFound, handleRouteError } from "@/lib/http";
 
 export async function GET(
@@ -19,10 +20,15 @@ export async function GET(
     const profile = await getPublicProfile(nickname);
     if (!profile) return notFound();
 
-    const canSeeTrips = profile.id === user.id || profile.showTripsOnProfile;
-    const trips = canSeeTrips ? await listSharedTrips(undefined, 0, profile.id, user.id) : [];
+    const isOwnProfile = profile.id === user.id;
+    const canSeeTrips = isOwnProfile || profile.showTripsOnProfile;
+    // 프로필 팝업(UserProfileModal)이 /users/[nickname] 페이지와 같은 정보(팔로우 버튼·팔로워/팔로잉 수)를 보여주도록 함께 내려준다
+    const [trips, followState] = await Promise.all([
+      canSeeTrips ? listSharedTrips(undefined, 0, profile.id, user.id) : Promise.resolve([]),
+      getFollowState(user.id, profile.id),
+    ]);
 
-    return NextResponse.json({ profile, trips, canSeeTrips });
+    return NextResponse.json({ profile, trips, canSeeTrips, isOwnProfile, followState });
   } catch (err) {
     return handleRouteError(err);
   }
