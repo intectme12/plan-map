@@ -501,6 +501,66 @@ export async function listTripsSharedWithMe(userId: string, cursor: number) {
   return trips.map(withLikeInfo);
 }
 
+const PROFILE_PHOTO_LIMIT = 30;
+const PROFILE_TASTE_TAG_LIMIT = 4;
+
+// 프로필 팝업(UserProfileModal)용 부가 정보 — 사진 갤러리·취향 태그·커버 사진·"나에게 공유한 여행".
+// 사진/태그/커버는 전체공개(PUBLIC) 여행에서만 뽑고, 회원이 프로필 여행목록을 비공개로 했으면(canSeeTrips=false)
+// 아예 조회하지 않는다. "나에게 공유한 여행"은 TripShare로 이미 열람 권한을 받은 여행이라 그 설정과 무관하게 보여준다.
+export async function getProfileHighlights(profileUserId: string, viewerUserId: string, canSeeTrips: boolean) {
+  const publicTrip = { userId: profileUserId, visibility: "PUBLIC" };
+  const isOwnProfile = profileUserId === viewerUserId;
+
+  const [photos, photoCount, tagRows, coverTrip, sharedWithMe] = await Promise.all([
+    canSeeTrips
+      ? prisma.photo.findMany({
+          where: { placeEntry: { trip: publicTrip } },
+          orderBy: { createdAt: "desc" },
+          take: PROFILE_PHOTO_LIMIT,
+          select: { id: true, storageKey: true },
+        })
+      : Promise.resolve([]),
+    canSeeTrips ? prisma.photo.count({ where: { placeEntry: { trip: publicTrip } } }) : Promise.resolve(0),
+    canSeeTrips
+      ? prisma.trip.findMany({ where: publicTrip, select: { tags: true }, orderBy: { sharedAt: "desc" }, take: 100 })
+      : Promise.resolve([]),
+    canSeeTrips
+      ? prisma.trip.findFirst({
+          where: { ...publicTrip, coverPhotoKey: { not: null } },
+          orderBy: { sharedAt: "desc" },
+          select: { coverPhotoKey: true },
+        })
+      : Promise.resolve(null),
+    isOwnProfile
+      ? Promise.resolve([])
+      : prisma.trip.findMany({
+          where: { userId: profileUserId, shares: { some: { userId: viewerUserId } } },
+          orderBy: { createdAt: "desc" },
+          take: SHARED_PAGE_SIZE,
+          include: {
+            user: { select: { nickname: true, avatarUrl: true } },
+            ...likesInclude(viewerUserId),
+          },
+        }),
+  ]);
+
+  // 공개 여행에 실제로 많이 붙인 태그 순 — 태그를 하나도 안 썼으면 빈 배열(팝업에서 영역 자체를 숨김)
+  const tagCounts = new Map<string, number>();
+  for (const { tags } of tagRows) for (const tag of tags) tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+  const tasteTags = [...tagCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, PROFILE_TASTE_TAG_LIMIT)
+    .map(([tag]) => tag);
+
+  return {
+    photos,
+    photoCount,
+    tasteTags,
+    coverPhotoKey: coverTrip?.coverPhotoKey ?? photos[0]?.storageKey ?? null,
+    sharedWithMe: sharedWithMe.map(withLikeInfo),
+  };
+}
+
 export function listTripShares(ownerId: string, tripId: string) {
   return prisma.tripShare.findMany({
     where: { tripId, trip: { userId: ownerId } },

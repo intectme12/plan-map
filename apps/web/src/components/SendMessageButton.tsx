@@ -5,7 +5,16 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast/ToastProvider";
 import { useMessagesPanel } from "@/components/messages/MessagesPanelProvider";
 
-export function SendMessageButton({ userId, className }: { userId: string; className?: string }) {
+export function SendMessageButton({
+  userId,
+  className,
+  onOpened,
+}: {
+  userId: string;
+  className?: string;
+  // 메시지 패널(z-40)은 팝업(z-50) 아래에 뜨므로, 팝업 안에서 쓸 때는 대화가 열리면 팝업을 닫게 한다
+  onOpened?: () => void;
+}) {
   const [sending, setSending] = useState(false);
   const { openConversation } = useMessagesPanel();
   const toast = useToast();
@@ -24,6 +33,7 @@ export function SendMessageButton({ userId, className }: { userId: string; class
     }
     const conversation = await res.json();
     openConversation(conversation.id);
+    onOpened?.();
   }
 
   return (

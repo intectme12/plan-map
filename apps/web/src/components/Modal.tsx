@@ -41,6 +41,95 @@ function useCloseOnEscape(onClose: () => void) {
   }, []);
 }
 
+// 모달이 열린 동안 뒤 페이지 스크롤을 막는다(LoginPopup과 같은 방식). overflow만 바꾸므로 닫으면
+// 원래 스크롤 위치 그대로 돌아온다. 모달이 겹치면 열린 역순으로 닫히며 이전 값이 차례로 복원된다.
+function useBodyScrollLock() {
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+}
+
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+// 열릴 때 대화상자로 포커스를 옮기고, Tab/Shift+Tab이 대화상자 밖으로 나가지 않게 순환시키며,
+// 닫히면 팝업을 열었던 요소로 포커스를 돌려준다
+function useFocusTrap(ref: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    ref.current?.focus();
+
+    function onKeyDown(e: KeyboardEvent) {
+      const root = ref.current;
+      if (e.key !== "Tab" || !root) return;
+      const items = [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null);
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (!root.contains(active)) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && (active === first || active === root)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      opener?.focus?.();
+    };
+  }, [ref]);
+}
+
+// 헤더/여백 없이 내용이 카드를 꽉 채우는 큰 팝업(프로필 팝업 등). 768px 미만에서는 전체 화면으로 바뀌고,
+// 닫기 버튼·제목 표시는 내용 쪽이 직접 그린다(title은 스크린리더용 이름으로만 쓴다).
+export function FullBleedModal({
+  onClose,
+  title,
+  children,
+}: {
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useCloseOnEscape(onClose);
+  useBodyScrollLock();
+  useFocusTrap(dialogRef);
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 md:p-6"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClose();
+      }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
+        className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-white outline-none md:h-auto md:max-h-[90vh] md:max-w-[960px] md:rounded-2xl md:border md:border-slate-200 md:shadow-[0_20px_50px_rgba(15,23,42,0.18)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // 팝업 배경(오버레이) + 흰 카드 + 헤더(제목/닫기버튼)를 공유하는 셸.
 // document.body에 직접 렌더링(createPortal)해서, 이 팝업을 여는 쪽 조상에 걸린 CSS
 // transform이 fixed 자손의 기준점을 바꿔버려 팝업이 화면 가운데가 아니라 그 조상 안에
