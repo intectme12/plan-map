@@ -16,6 +16,7 @@ import { PlaceReviewsModal } from "./PlaceReviewsModal";
 import { getTripDays, groupByDay, dayColor, dayIndexForPlace } from "./days";
 import { useToast } from "@/components/toast/ToastProvider";
 import { SharedTripsModal } from "./SharedTripsModal";
+import { RouteDetailsContext, type RouteDetail } from "./RouteDetailsContext";
 import type { PlaceEntry } from "./types";
 
 const TABS = [
@@ -146,10 +147,8 @@ export function TripWorkspace({
   const pairKey = groups
     .flatMap((group, dayIndex) => group.slice(0, -1).map((p, i) => `${dayIndex}:${p.id}-${group[i + 1].id}`))
     .join(",");
-  // path 외에 durationSec/distanceM도 같이 들고 있는다 — 지도 위 경로 라벨과 "여행 요약"
-  // 카드가 같은 값을 쓴다(사이드바의 RouteSegmentRow는 그 카드 안에서 독립적으로 표시만
-  // 하던 그대로 유지 — 여기서는 지도/요약용으로 별도 보관).
-  type RouteDetail = { path?: { lat: number; lng: number }[]; durationSec?: number; distanceM?: number };
+  // 지도 경로선·라벨, "여행 요약" 카드, 타임라인의 RouteSegmentRow(RouteDetailsContext로 전달)가
+  // 모두 이 한 번의 조회 결과를 같이 쓴다 — 구간마다 요청이 한 번만 나가도록.
   const [routeDetails, setRouteDetails] = useState<Record<string, RouteDetail>>({});
 
   useEffect(() => {
@@ -180,6 +179,7 @@ export function TripWorkspace({
           path: Array.isArray(path) && path.length > 1 ? path : undefined,
           durationSec: typeof result?.durationSec === "number" ? result.durationSec : undefined,
           distanceM: typeof result?.distanceM === "number" ? result.distanceM : undefined,
+          fareWon: typeof result?.fareWon === "number" ? result.fareWon : null,
         };
       });
       setRouteDetails(next);
@@ -378,6 +378,7 @@ export function TripWorkspace({
   }
 
   return (
+    <RouteDetailsContext.Provider value={routeDetails}>
     <div className="relative h-[calc(100vh-4rem)] w-full overflow-hidden">
       {sharedModalOpen ? (
         <SharedTripsModal onClose={() => setSharedModalOpen(false)} />
@@ -492,5 +493,6 @@ export function TripWorkspace({
         )}
       </aside>
     </div>
+    </RouteDetailsContext.Provider>
   );
 }

@@ -14,6 +14,7 @@ import { SharedPhotoGrid } from "./SharedPhotoGrid";
 import { SharedReviewGallery } from "./SharedReviewGallery";
 import { CopyTripButton } from "./CopyTripButton";
 import { PlaceReviewsModal } from "@/app/trips/[tripId]/PlaceReviewsModal";
+import { RouteDetailsContext, type RouteDetail } from "@/app/trips/[tripId]/RouteDetailsContext";
 
 const TABS = [
   { key: "timeline", label: "타임라인" },
@@ -123,7 +124,7 @@ export function SharedTripView({
   const pairKey = groups
     .flatMap((group, dayIndex) => group.slice(0, -1).map((p, i) => `${dayIndex}:${p.id}-${group[i + 1].id}`))
     .join(",");
-  type RouteDetail = { path?: { lat: number; lng: number }[]; durationSec?: number; distanceM?: number };
+  // 지도·요약·타임라인(RouteSegmentRow, RouteDetailsContext로 전달)이 이 한 번의 조회 결과를 같이 쓴다
   const [routeDetails, setRouteDetails] = useState<Record<string, RouteDetail>>({});
 
   useEffect(() => {
@@ -154,6 +155,7 @@ export function SharedTripView({
           path: Array.isArray(path) && path.length > 1 ? path : undefined,
           durationSec: typeof result?.durationSec === "number" ? result.durationSec : undefined,
           distanceM: typeof result?.distanceM === "number" ? result.distanceM : undefined,
+          fareWon: typeof result?.fareWon === "number" ? result.fareWon : null,
         };
       });
       setRouteDetails(next);
@@ -245,6 +247,7 @@ export function SharedTripView({
   }, [places]);
 
   return (
+    <RouteDetailsContext.Provider value={routeDetails}>
     <div className="relative h-[calc(100vh-4rem)] w-full overflow-hidden">
       {reviewsModalPlaceId
         ? (() => {
@@ -377,5 +380,6 @@ export function SharedTripView({
         )}
       </aside>
     </div>
+    </RouteDetailsContext.Provider>
   );
 }

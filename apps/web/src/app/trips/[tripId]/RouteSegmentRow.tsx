@@ -1,66 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useRouteDetail } from "./RouteDetailsContext";
 
-type RouteData = {
-  distanceM: number;
-  durationSec: number;
-  fareWon: number | null;
-};
-
-type FetchState = "loading" | "unavailable" | "ready";
-
+// 이동정보는 직접 조회하지 않고 상위(TripWorkspace/SharedTripView)가 조회한 결과를 받아 표시만 한다
 export function RouteSegmentRow({
-  tripId,
   fromPlaceId,
   toPlaceId,
 }: {
-  tripId: string;
   fromPlaceId: string;
   toPlaceId: string;
 }) {
-  const [state, setState] = useState<FetchState>("loading");
-  const [data, setData] = useState<RouteData | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setState("loading");
-
-    fetch(`/api/trips/${tripId}/routes?from=${fromPlaceId}&to=${toPlaceId}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((result) => {
-        if (cancelled) return;
-        if (!result || result.distanceM == null || result.durationSec == null) {
-          setState("unavailable");
-          setData(null);
-        } else {
-          setState("ready");
-          setData(result);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setState("unavailable");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [tripId, fromPlaceId, toPlaceId]);
+  const detail = useRouteDetail(fromPlaceId, toPlaceId);
+  const ready = detail?.distanceM != null && detail?.durationSec != null;
 
   return (
     <div className="flex items-center gap-x-3 gap-y-0.5 border-t border-dashed border-neutral-200 px-3 py-2 text-xs text-neutral-500">
       <span className="inline-flex items-center gap-1">
         🚗{" "}
-        {state === "loading" ? (
+        {!detail ? (
           "조회 중..."
-        ) : state === "unavailable" ? (
+        ) : !ready ? (
           <span className="text-neutral-400">이동정보를 불러올 수 없음</span>
         ) : (
-          `${Math.round(data!.durationSec / 60)}분 · ${(data!.distanceM / 1000).toFixed(1)}km`
+          `${Math.round(detail.durationSec! / 60)}분 · ${(detail.distanceM! / 1000).toFixed(1)}km`
         )}
       </span>
-      {state === "ready" && data?.fareWon != null ? (
-        <span className="inline-flex items-center gap-1">🚕 택시 {data.fareWon.toLocaleString()}원</span>
+      {ready && detail?.fareWon != null ? (
+        <span className="inline-flex items-center gap-1">🚕 택시 {detail.fareWon.toLocaleString()}원</span>
       ) : null}
     </div>
   );

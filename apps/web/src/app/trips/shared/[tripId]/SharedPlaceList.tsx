@@ -93,7 +93,7 @@ export function SharedPlaceList({
                     </span>
                   </button>
                   {nextPlace ? (
-                    <RouteSegmentRow tripId={tripId} fromPlaceId={place.id} toPlaceId={nextPlace.id} />
+                    <RouteSegmentRow fromPlaceId={place.id} toPlaceId={nextPlace.id} />
                   ) : null}
                 </li>
               );

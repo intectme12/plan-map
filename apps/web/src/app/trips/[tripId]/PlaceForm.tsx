@@ -23,35 +23,43 @@ export function PlaceForm({ tripId, scheduledAt }: { tripId: string; scheduledAt
   const [error, setError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 지금 화면에 결과가 떠 있는 검색어 — 앞뒤 공백만 바뀐 경우처럼 같은 검색어면 다시 요청하지 않는다.
+  // (카카오 Local API는 운영정책상 결과 캐시/저장이 금지라, 지나간 검색어의 결과를 보관해 재사용하지는 않음)
+  const lastQueryRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     const trimmed = query.trim();
     if (trimmed.length < 2) {
+      lastQueryRef.current = null;
       setResults([]);
       setSearching(false);
       return;
     }
+    if (trimmed === lastQueryRef.current) return;
 
     debounceRef.current = setTimeout(async () => {
+      lastQueryRef.current = trimmed;
       setSearching(true);
       const res = await fetch(`/api/places/search?q=${encodeURIComponent(trimmed)}`);
       setSearching(false);
 
       if (res.status === 503) {
+        lastQueryRef.current = null;
         setUnavailable(true);
         setResults([]);
         return;
       }
       if (!res.ok) {
+        lastQueryRef.current = null;
         setResults([]);
         return;
       }
       const data = await res.json();
       setUnavailable(false);
       setResults(data.candidates ?? []);
-    }, 300);
+    }, 400);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
