@@ -129,7 +129,6 @@ function SortablePlaceRow({
     id: place.id,
   });
   const [photosOpen, setPhotosOpen] = useState(false);
-  const thumbnail = place.photos[0]?.storageKey;
 
   return (
     <li
@@ -147,10 +146,6 @@ function SortablePlaceRow({
         >
           {index + 1}
         </span>
-        {thumbnail ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={thumbnail} alt="" className="h-12 w-12 flex-none rounded-lg object-cover" />
-        ) : null}
         <button
           type="button"
           onClick={() => onSelect(place.id)}
