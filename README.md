@@ -1159,7 +1159,24 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
   - 검색: [PlaceForm.tsx](apps/web/src/app/trips/[tripId]/PlaceForm.tsx) 디바운스 300→400ms, 화면에 이미 결과가 떠 있는 검색어와 같으면(앞뒤 공백만 바뀐 경우 등) 재요청 안 함(실패 시엔 다시 시도 가능하게 초기화). 지나간 검색어 결과를 보관해 재사용하는 캐시는 정책상 넣지 않음
 - 검증: `tsc --noEmit` 통과, 변경 파일 eslint는 `PlaceForm.tsx`의 기존 `set-state-in-effect` 1건(이번 변경 전부터 있던 코드)만. 로컬 브라우저가 비로그인 상태라(공유 상세도 로그인 필요) 화면 확인은 못 함
 
+**완료 (2026-10-13, 보안 계획 수립 + 1단계: 회원가입/로그인 요청 제한)**
+
+- 무엇을/왜: DDoS·여행 대량 생성·외부 API 비용 소진 공격 대비. 사용자가 정리한 보완 지시서와 기존 계획을 현재 코드 기준으로 비교·보충해 [docs/SECURITY_PLAN.md](docs/SECURITY_PLAN.md)로 저장(전 항목 승인 — PG 카운터 사용, Better Auth 기본 이메일 경로 차단, 초기 한도값). 7단계 중 1단계 구현
+- 발견한 문제: ① `/api/auth/login`·`/register`는 `auth.api.*`를 서버에서 호출하는데 Better Auth 문서상 이 경로엔 Better Auth 요청 제한이 적용되지 않음 → 로그인 대입·대량 가입이 무제한이었음 ② Better Auth 기본 경로 `/api/auth/sign-up/email`·`/sign-in/email`이 `[...all]`로 열려 있어 우리 라우트(닉네임 검사 등)를 우회 가능 ③ 프로젝트 전체에 요청 제한·클라이언트 IP 처리 코드가 없었음
+- 어떻게:
+  - [lib/clientIp.ts](apps/web/src/lib/clientIp.ts): `TRUST_PROXY`(cloudflare→`cf-connecting-ip`, nginx→`x-real-ip`)로 지정한 헤더만 신뢰, `x-forwarded-for` 위조 무시, IPv6는 /64로 묶음. 미설정이면 IP 기준 제한은 건너뜀
+  - [lib/rateLimit.ts](apps/web/src/lib/rateLimit.ts): Redis가 없어서 PostgreSQL `INSERT … ON CONFLICT DO UPDATE … RETURNING` 한 문장으로 원자적 고정 창 카운터(`rate_limit_counters`). 여러 규칙을 한 번에 적용하고 초과 시 [http.ts](apps/web/src/lib/http.ts)의 `tooManyRequests`로 429 + `Retry-After`. DB 오류 시 통과(fail-open), 만료 행은 1% 확률로 정리, 이메일은 해시로만 키에 사용, 로그엔 규칙 이름만
+  - 가입: IP 10분 5회·하루 20회 + 서비스 전체 1시간 200회. 로그인: IP 10분 20회 + 이메일 10분 10회
+  - [betterAuth.ts](apps/web/src/lib/betterAuth.ts): `disabledPaths`로 기본 이메일 가입/로그인 경로 차단(우리 라우트의 `auth.api` 호출엔 영향 없음), 자체 요청 제한을 개발에서도 켜고 DB(`rate_limits`)에 저장, IP 헤더를 `lib/clientIp.ts`와 동일하게
+  - 마이그레이션 `20261013120000_add_rate_limits`(새 테이블 2개만) — `migrate diff`로 추가분만 뽑아 `migrate deploy`(기존 드리프트 우회 절차와 동일)
+  - 테스트 도구가 없어서 Node 내장 `node:test` + 이미 설치돼 있던 `jiti`(devDependency로 명시)로 `npm test --workspace=web` 추가
+- 발견한 버그: 설정 후 실행 중이던 dev 서버에서 로그인 실패가 401이 아니라 500 — 원인은 Better Auth가 `storage: "database"`일 때 Prisma 클라이언트에 `rateLimit` 모델이 있는지 검사하는데, dev 서버가 마이그레이션 전 클라이언트를 메모리에 들고 있어서(`SCHEMA_MISMATCH`). 새 클라이언트로 같은 호출을 따로 실행하면 정상 401 → **dev 서버 재시작 필요**. 운영 배포도 반드시 마이그레이션+generate 후 기동해야 함(계획 문서에 명시)
+- 검증: 테스트 11개 통과(IP 헤더 위조 무시·IPv6 /64, 단일 사용자 초과 시 Retry-After, 여러 계정 서비스 전체 한도, 25개 동시 요청 중 정확히 10개만 통과(원자성), 창 전환, fail-open — 실제 DB에 고유 키로 실행 후 정리). `tsc --noEmit`·변경 파일 eslint 통과. 실행 중인 dev 서버에 직접 호출해 같은 이메일 12번째 로그인에서 429 + `retry-after` 헤더, `/api/auth/sign-up/email`·`/sign-in/email` 404 확인
+
 **다음 세션 할 일**
+- **(중요, 신규)** 로컬 dev 서버 재시작 필요(2026-10-13 rate limit 마이그레이션 후 Prisma 클라이언트 갱신 — 재시작 전엔 로그인/가입이 500). 재시작 후 로그인 성공·실패(401) 정상 확인
+- (신규) 보안 계획 [docs/SECURITY_PLAN.md](docs/SECURITY_PLAN.md) 2단계(AI·카카오 타임아웃·예산·회로 차단기·동시 실행 수)부터 이어서 진행
+- (신규) 배포 시 `TRUST_PROXY` 환경변수 설정 필수 — 미설정이면 IP 기준 제한이 꺼짐
 - **(중요, 신규, 사용자 결정 필요)** 카카오 정책상 기존 구조에도 저장 이슈가 있음: ① `PlaceEntry`가 장소 검색 결과의 이름·좌표·주소·전화를 저장(허용은 장소 ID·place_url만) ② `RouteSegment`가 길찾기 결과를 10분 DB 캐시. 정책을 엄격히 따르려면 장소는 카카오 장소 ID 저장 + 표시 시 실시간 조회 구조로, 경로는 캐시 제거가 필요하지만 둘 다 호출량이 오히려 늘어남. 카카오에 서비스 구조로 직접 문의(데브톡)하거나, 저장이 허용되는 다른 데이터 소스(공공데이터 등) 검토 필요
 - (신규) 경로 중복 제거(RouteDetailsContext) 후 로그인 상태에서 타임라인 이동정보/택시요금 표시와 네트워크 탭에서 구간당 `/routes` 요청 1회인지 확인
 - (신규) 프로필 커버 사진 업로드·지역 표시는 `User`에 컬럼 추가가 필요해 이번엔 제외(현재 커버는 공개 여행 사진 자동 사용) — 원하면 마이그레이션 + `/account` 업로드 UI로 다음 단계

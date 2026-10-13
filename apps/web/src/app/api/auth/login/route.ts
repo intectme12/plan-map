@@ -3,12 +3,21 @@ import { APIError } from "better-auth";
 import { headers } from "next/headers";
 import { auth } from "@/lib/betterAuth";
 import { loginSchema } from "@/lib/validation";
-import { handleRouteError } from "@/lib/http";
+import { handleRouteError, tooManyRequests } from "@/lib/http";
+import { getClientIp } from "@/lib/clientIp";
+import { enforceRateLimits, hashSubject, RATE_RULES } from "@/lib/rateLimit";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => null);
     const { email, password } = loginSchema.parse(body);
+
+    // IP 기준(여러 계정에 대입) + 이메일 기준(한 계정에 여러 IP로 대입) 둘 다 센다. 이메일은 해시로만 저장.
+    const limited = await enforceRateLimits([
+      { rule: RATE_RULES.loginPerIp10m, subject: getClientIp(request.headers) },
+      { rule: RATE_RULES.loginPerEmail10m, subject: hashSubject(email) },
+    ]);
+    if (!limited.ok) return tooManyRequests(limited.retryAfterSec);
 
     let user;
     try {

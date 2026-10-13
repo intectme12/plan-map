@@ -5,10 +5,21 @@ import { headers } from "next/headers";
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/betterAuth";
 import { registerSchema } from "@/lib/validation";
-import { handleRouteError } from "@/lib/http";
+import { handleRouteError, tooManyRequests } from "@/lib/http";
+import { getClientIp } from "@/lib/clientIp";
+import { enforceRateLimits, GLOBAL_SUBJECT, RATE_RULES } from "@/lib/rateLimit";
 
 export async function POST(request: Request) {
   try {
+    // 입력 검증보다 먼저 센다 — 잘못된 요청을 반복해 보내는 것도 시도 횟수로 친다
+    const ip = getClientIp(request.headers);
+    const limited = await enforceRateLimits([
+      { rule: RATE_RULES.registerPerIp10m, subject: ip },
+      { rule: RATE_RULES.registerPerIpDay, subject: ip },
+      { rule: RATE_RULES.registerGlobalHour, subject: GLOBAL_SUBJECT },
+    ]);
+    if (!limited.ok) return tooManyRequests(limited.retryAfterSec);
+
     const body = await request.json().catch(() => null);
     const { email, password, nickname } = registerSchema.parse(body);
 

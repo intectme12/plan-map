@@ -6,6 +6,7 @@ import { prisma } from "./db";
 import { hashPassword, verifyPassword } from "./password";
 import { isNicknameAvailable } from "./services/users";
 import { NICKNAME_MAX_LENGTH } from "./validation";
+import { trustedIpHeader } from "./clientIp";
 
 const BETTER_AUTH_SECRET = process.env.BETTER_AUTH_SECRET;
 if (!BETTER_AUTH_SECRET) {
@@ -33,6 +34,8 @@ const kakaoClientId = process.env.KAKAO_CLIENT_ID;
 const kakaoClientSecret = process.env.KAKAO_CLIENT_SECRET;
 const naverClientId = process.env.NAVER_CLIENT_ID;
 const naverClientSecret = process.env.NAVER_CLIENT_SECRET;
+const trustedIp = trustedIpHeader();
+const trustedIpHeaders = trustedIp ? [trustedIp] : [];
 
 export const auth = betterAuth({
   secret: BETTER_AUTH_SECRET,
@@ -118,6 +121,17 @@ export const auth = betterAuth({
           },
         }
       : {}),
+  },
+  // 이메일 가입/로그인은 우리 라우트(/api/auth/register, /api/auth/login)로만 받는다 — 거기서 닉네임 검사와
+  // 요청 제한(lib/rateLimit.ts)을 하는데, better-auth 기본 경로가 열려 있으면 그걸 그대로 우회할 수 있어서.
+  // (우리 라우트가 쓰는 auth.api.* 서버 호출은 이 설정의 영향을 받지 않는다.) docs/SECURITY_PLAN.md 참고.
+  disabledPaths: ["/sign-up/email", "/sign-in/email"],
+  // 남은 better-auth 경로(소셜 로그인 시작/콜백 등)의 자체 요청 제한 — 기본은 운영에서만 메모리 저장이라
+  // 개발에서도 켜고, 재시작·서버 여러 대에서도 유지되게 DB(rate_limits)에 저장한다.
+  rateLimit: { enabled: true, storage: "database" },
+  advanced: {
+    // 기본은 x-forwarded-for(클라이언트가 위조 가능) — 우리가 둔 프록시 헤더만 믿는다(lib/clientIp.ts와 동일)
+    ipAddress: { ipAddressHeaders: trustedIpHeaders },
   },
   // Route Handler에서 auth.api.*를 직접 호출해도 Set-Cookie를 자동으로 반영해준다.
   plugins: [nextCookies()],

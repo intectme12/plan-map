@@ -156,6 +156,30 @@ model Verification {
   @@map("verifications")
 }
 
+// better-auth 자체 요청 제한 저장소(rateLimit.storage = "database") — 소셜 로그인 등 better-auth 경로용.
+// 필드는 better-auth가 요구하는 그대로(key unique, lastRequest = 밀리초 bigint).
+model RateLimit {
+  id          String @id @default(cuid())
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+
+  @@map("rate_limits")
+}
+
+// 우리 API 요청 제한 카운터(고정 창) — lib/rateLimit.ts, docs/SECURITY_PLAN.md.
+// key = "{규칙}:{주체}", windowStart = 창 시작 시각. 만료된 행은 lib/rateLimit.ts가 가끔 지운다.
+model RateLimitCounter {
+  key         String
+  windowStart DateTime
+  count       Int      @default(0)
+  expiresAt   DateTime
+
+  @@id([key, windowStart])
+  @@index([expiresAt])
+  @@map("rate_limit_counters")
+}
+
 model Notice {
   id        String   @id @default(cuid())
   authorId  String

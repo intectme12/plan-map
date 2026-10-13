@@ -14,6 +14,14 @@ export function unauthorized() {
   return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
 }
 
+// 요청 제한 초과 — Retry-After(초)를 함께 보내 클라이언트가 언제 다시 시도할지 알 수 있게 한다
+export function tooManyRequests(retryAfterSec: number) {
+  return NextResponse.json(
+    { error: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.", retryAfterSec },
+    { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
+  );
+}
+
 export function notFound(message = "찾을 수 없습니다.") {
   return NextResponse.json({ error: message }, { status: 404 });
 }
