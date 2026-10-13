@@ -9,7 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --env-file-if-exists=.env --import jiti/register --test \"src/**/*.test.ts\"",
+    "test": "node --env-file-if-exists=.env --import ./scripts/test-setup.mjs --test \"src/**/*.test.ts\"",
     "prisma:generate": "prisma generate"
   },
   "dependencies": {

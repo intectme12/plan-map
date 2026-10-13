@@ -11,7 +11,7 @@ export async function POST(_request: Request, { params }: Context) {
     if (!user) return unauthorized();
 
     const { tripId } = await params;
-    const trip = await copyTrip(user.id, tripId);
+    const trip = await copyTrip(user, tripId);
     return NextResponse.json(trip, { status: 201 });
   } catch (err) {
     return handleRouteError(err);

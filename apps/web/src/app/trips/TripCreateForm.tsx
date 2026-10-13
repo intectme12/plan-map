@@ -101,6 +101,8 @@ export function TripCreateForm(props: TripFormProps = {}) {
   const endRef = useRef<HTMLInputElement>(null);
   const latestQueryRef = useRef("");
   const submittingParticipantRef = useRef(false);
+  // 이번 "만들기" 한 건을 식별하는 키 — 더블클릭·재전송돼도 서버가 여행을 하나만 만든다. 성공해서 폼을 비울 때 새로 발급.
+  const idempotencyKeyRef = useRef(crypto.randomUUID());
 
   async function searchUsers(query: string): Promise<UserResult[]> {
     const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`);
@@ -200,6 +202,7 @@ export function TripCreateForm(props: TripFormProps = {}) {
   }
 
   function resetForm() {
+    idempotencyKeyRef.current = crypto.randomUUID();
     setName("");
     setStartDate("");
     setEndDate("");
@@ -245,7 +248,7 @@ export function TripCreateForm(props: TripFormProps = {}) {
     }
     const res = await fetch("/api/trips", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKeyRef.current },
       body: JSON.stringify({
         name,
         startDate,
@@ -257,7 +260,9 @@ export function TripCreateForm(props: TripFormProps = {}) {
     });
     setPending(false);
     if (!res.ok) {
-      setError("여행을 만들지 못했습니다. 입력값을 확인해주세요.");
+      // 생성 한도(429)·보유 여행 수 상한(403) 등은 서버 안내 문구를 그대로 보여준다
+      const body = await res.json().catch(() => null);
+      setError(typeof body?.error === "string" ? body.error : "여행을 만들지 못했습니다. 입력값을 확인해주세요.");
       return;
     }
     const trip = await res.json();

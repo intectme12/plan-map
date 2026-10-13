@@ -5,6 +5,7 @@ import {
   ForbiddenError,
   ServiceUnavailableError,
   RateLimitedError,
+  PayloadTooLargeError,
   InvalidFileError,
   InvalidCredentialsError,
   NicknameTakenError,
@@ -26,6 +27,21 @@ export function tooManyRequests(
   );
 }
 
+// 요청 본문을 크기 상한을 두고 JSON으로 읽는다(너무 큰 본문으로 서버 메모리·DB 쓰기를 부풀리는 요청 차단).
+// 앞단(nginx client_max_body_size)에서도 막지만 앱에서 한 번 더. 상한 초과면 PayloadTooLargeError(413),
+// JSON이 아니면 null(→ 이어지는 zod 검증이 400).
+export async function readJsonBody(request: Request, maxBytes = 64 * 1024): Promise<unknown> {
+  const declared = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) throw new PayloadTooLargeError();
+  const text = await request.text().catch(() => "");
+  if (Buffer.byteLength(text) > maxBytes) throw new PayloadTooLargeError();
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 export function notFound(message = "찾을 수 없습니다.") {
   return NextResponse.json({ error: message }, { status: 404 });
 }
@@ -39,6 +55,9 @@ export function handleRouteError(err: unknown) {
   }
   if (err instanceof ForbiddenError) {
     return NextResponse.json({ error: err.message }, { status: 403 });
+  }
+  if (err instanceof PayloadTooLargeError) {
+    return NextResponse.json({ error: err.message }, { status: 413 });
   }
   if (err instanceof RateLimitedError) {
     return tooManyRequests(err.retryAfterSec, err.message);

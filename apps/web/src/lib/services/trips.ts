@@ -1,5 +1,7 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { NotFoundError, ForbiddenError, InvalidInputError } from "../errors";
+import { assertCanCreateTrip, withTripWriteSlot, type QuotaUser } from "./tripQuota";
 import { TRIP_DATE_ORDER_MESSAGE } from "../validation";
 import { saveImageFile, deleteStoredFile } from "../upload";
 import { getReviewsForCoordinates, coordKey } from "./reviews";
@@ -158,8 +160,10 @@ export function listAllPlacesForUser(userId: string) {
   });
 }
 
+// idempotencyKey: 클라이언트가 보낸 Idempotency-Key — 같은 키로 이미 만든 여행이 있으면 새로 만들지 않고
+// 그 여행을 돌려준다(created: false). 한도 검사는 실제로 새로 만들 때만 센다. docs/SECURITY_PLAN.md 3단계.
 export async function createTrip(
-  userId: string,
+  user: QuotaUser,
   data: {
     name: string;
     startDate: Date;
@@ -167,12 +171,42 @@ export async function createTrip(
     personnel: number;
     participants?: { name: string; userId?: string }[];
     tags?: string[];
-  }
+  },
+  idempotencyKey?: string
+) {
+  const userId = user.id;
+  const findExisting = () =>
+    idempotencyKey
+      ? prisma.trip.findUnique({ where: { userId_idempotencyKey: { userId, idempotencyKey } } })
+      : Promise.resolve(null);
+
+  return withTripWriteSlot(userId, async () => {
+    const existing = await findExisting();
+    if (existing) return { trip: existing, created: false };
+
+    await assertCanCreateTrip(user, "create");
+    try {
+      return { trip: await insertTrip(userId, data, idempotencyKey), created: true };
+    } catch (err) {
+      // 다른 서버에서 같은 키로 동시에 만든 경우(유일 제약 충돌) — 먼저 만들어진 쪽을 돌려준다
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        const raced = await findExisting();
+        if (raced) return { trip: raced, created: false };
+      }
+      throw err;
+    }
+  });
+}
+
+async function insertTrip(
+  userId: string,
+  data: Parameters<typeof createTrip>[1],
+  idempotencyKey: string | undefined
 ) {
   const { participants, ...tripData } = data;
 
   return prisma.$transaction(async (tx) => {
-    const trip = await tx.trip.create({ data: { ...tripData, userId } });
+    const trip = await tx.trip.create({ data: { ...tripData, userId, idempotencyKey } });
 
     if (participants && participants.length > 0) {
       await tx.tripParticipant.createMany({
@@ -446,13 +480,25 @@ export async function getSharedTrip(tripId: string, viewerUserId: string) {
 }
 
 // 특정 회원에게만 공유된(PRIVATE+TripShare) 트립은 더 사적인 공유로 보고 복사는 막고 열람만 허용한다
-export async function copyTrip(userId: string, sourceTripId: string) {
+export async function copyTrip(user: QuotaUser, sourceTripId: string) {
+  const userId = user.id;
   const source = await prisma.trip.findFirst({
     where: { id: sourceTripId, visibility: { in: ["PUBLIC", "UNLISTED"] } },
     include: { places: { orderBy: { order: "asc" } } },
   });
   if (!source) throw new NotFoundError("복사할 여행을 찾을 수 없습니다.");
 
+  // 복사도 여행 하나를 새로 만드는 것이라 같은 동시 생성 제한·보유 여행 수·서비스 전체 생성량에 들어간다
+  return withTripWriteSlot(userId, async () => {
+    await assertCanCreateTrip(user, "copy");
+    return insertCopy(userId, source);
+  });
+}
+
+async function insertCopy(
+  userId: string,
+  source: Prisma.TripGetPayload<{ include: { places: true } }>
+) {
   return prisma.$transaction(async (tx) => {
     const trip = await tx.trip.create({
       data: {

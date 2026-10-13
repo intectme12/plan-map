@@ -205,6 +205,9 @@ model Trip {
   sharedAt   DateTime?
   coverPhotoKey String?
   tags       String[] @default([]) // 홈 화면 카테고리 필터용(바다/맛집/카페/액티비티/자연/도시). 생성 시 선택, 선택 안 해도 됨.
+  // 생성 요청의 Idempotency-Key 헤더 값 — 같은 키로 다시 온 생성 요청(더블클릭·재전송)은 새로 만들지 않고 이 여행을 돌려준다.
+  // 헤더 없이 만든 여행(기존 데이터, 복사본)은 null. docs/SECURITY_PLAN.md 3단계.
+  idempotencyKey String?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
@@ -216,7 +219,8 @@ model Trip {
   views        TripView[]
   notifications Notification[]
 
-  @@index([userId])
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
   @@index([visibility, sharedAt])
   @@map("trips")
 }

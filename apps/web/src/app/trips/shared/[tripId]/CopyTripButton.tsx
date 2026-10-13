@@ -15,7 +15,9 @@ export function CopyTripButton({ tripId }: { tripId: string }) {
     const res = await fetch(`/api/trips/${tripId}/copy`, { method: "POST" });
     setPending(false);
     if (!res.ok) {
-      toast.show("복사하지 못했습니다.");
+      // 복사 한도(429)·보유 여행 수 상한(403) 등은 서버 안내 문구를 그대로 보여준다
+      const body = await res.json().catch(() => null);
+      toast.show(typeof body?.error === "string" ? body.error : "복사하지 못했습니다.");
       return;
     }
     const trip = await res.json();

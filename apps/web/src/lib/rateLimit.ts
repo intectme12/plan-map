@@ -47,6 +47,16 @@ export const RATE_RULES = {
     offsetSec: KST_OFFSET_SEC,
   },
 
+  // 여행 생성·복사 — 신규 계정(가입 24시간 미만)은 일일 한도가 따로 더 낮다. 서비스 전체 한도는 생성+복사 합산.
+  tripCreatePerUserMin: { name: "trip-create:user:1m", limit: 5, windowSec: MINUTE },
+  tripCreatePerUserDay: { name: "trip-create:user:1d", limit: 30, windowSec: DAY, offsetSec: KST_OFFSET_SEC },
+  tripCreateNewUserDay: { name: "trip-create:new-user:1d", limit: 3, windowSec: DAY, offsetSec: KST_OFFSET_SEC },
+  tripCopyPerUserHour: { name: "trip-copy:user:1h", limit: 10, windowSec: HOUR },
+  tripCopyNewUserDay: { name: "trip-copy:new-user:1d", limit: 2, windowSec: DAY, offsetSec: KST_OFFSET_SEC },
+  tripWriteGlobalMin: { name: "trip-create:all:1m", limit: 300, windowSec: MINUTE },
+  // 장소 추가 — AI 일정 저장은 장소(최대 30개)를 연달아 추가하므로 그보다 넉넉히
+  placeAddPerUserMin: { name: "place-add:user:1m", limit: 60, windowSec: MINUTE },
+
   // 카카오 — 사용자별 요청 횟수(우리 API 기준). 경로는 여행 상세를 열 때 구간 수만큼 한꺼번에 요청하므로 넉넉히.
   placeSearchPerUserMin: { name: "place-search:user:1m", limit: 60, windowSec: MINUTE },
   routePerUserMin: { name: "route:user:1m", limit: 120, windowSec: MINUTE },

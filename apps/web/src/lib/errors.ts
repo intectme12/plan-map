@@ -10,6 +10,11 @@ export class RateLimitedError extends Error {
     super(message);
   }
 }
+export class PayloadTooLargeError extends Error {
+  constructor(message = "요청 데이터가 너무 큽니다.") {
+    super(message);
+  }
+}
 export class InvalidFileError extends Error {}
 export class InvalidCredentialsError extends Error {}
 export class NicknameTakenError extends Error {}

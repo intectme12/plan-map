@@ -1187,8 +1187,22 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - 함께 고친 것: AI 응답이 비거나 JSON이 깨지면 "GROQ_API_KEY 설정 필요"라는 엉뚱한 오류가 나던 것 → 빈 결과("장소를 찾지 못했습니다")로. Groq 호출 실패가 500이던 것 → 503 안내
 - 검증: 테스트 21개 통과(2단계 신규 10개 — 회로 차단·half-open·성공 시 초기화, 동시 실행 수, 토큰 예산 누적, 한국 자정 창 전환, 카카오 예산 95% 차단·카운터 장애 시 허용·400 미집계·연속 장애 후 fetch 자체 생략·API별 회로 분리 — 카카오 테스트는 fetch/DB를 가짜로 바꿔 실제 호출 없음). `tsc --noEmit` 통과, 변경 파일 eslint는 `PlaceForm.tsx` 기존 1건만. 실제 키로 장소검색 1회(후보 5개)·**길찾기 1회 정상 응답**(`--use-system-ca` — 예전 세션에서 로컬 인증서 문제로 못 하던 확인) 및 일일 예산 카운터가 한국 자정 창으로 1씩 기록되는 것 확인. AI는 실제 토큰을 쓰지 않으려고 실호출 검증은 안 함
 
+**완료 (2026-10-13, 보안 3단계: 여행 대량 생성 방어)**
+
+- 무엇을/왜: [docs/SECURITY_PLAN.md](docs/SECURITY_PLAN.md) 3단계. 로그인만 하면 여행 생성·복사·장소 추가를 제한 없이 반복할 수 있었고, 더블클릭·재전송 시 같은 여행이 여러 개 생길 수 있었음
+- 어떻게:
+  - [tripQuota.ts](apps/web/src/lib/services/tripQuota.ts)(신규): 생성 분당 5·하루 30(가입 24시간 미만은 하루 3), 복사 시간당 10(신규는 하루 2), 서비스 전체 생성+복사 분당 300, 보유 여행 300개, 여행당 장소 150개, 장소 추가 사용자 분당 60, 사용자당 동시 생성 1개. 한도 초과는 429 + Retry-After, 개수 상한은 403 + 안내 문구
+  - Idempotency-Key: `trips.idempotencyKey` + `(userId, idempotencyKey)` 유일 제약. [/api/trips](apps/web/src/app/api/trips/route.ts)가 헤더를 받아 같은 키면 새로 만들지 않고 기존 여행을 200으로(한도도 안 씀). 다른 서버 동시 생성으로 유일 제약에 걸리면 먼저 만든 쪽을 반환. [TripCreateForm](apps/web/src/app/trips/TripCreateForm.tsx)·[AiPlanFlow](apps/web/src/components/ai-plan/AiPlanFlow.tsx)가 생성 한 건마다 UUID를 보냄
+  - [http.ts](apps/web/src/lib/http.ts) `readJsonBody`: 본문 64KB 상한(→ 413), 여행 생성·장소 추가에 적용
+  - 화면: 여행 만들기·AI 일정 저장·복사·장소 추가 실패 시 고정 문구 대신 서버 안내 문구(한도·상한 이유)를 보여주게 수정
+  - 마이그레이션 `20261013150000_add_trip_idempotency_key`(nullable 컬럼 + 인덱스만, 기존 `userId` 단일 인덱스는 `(userId, createdAt)`로 대체) — 기존과 같은 `migrate diff` → `migrate deploy`
+  - 테스트 실행 설정 [scripts/test-setup.mjs](apps/web/scripts/test-setup.mjs): jiti가 `@/` 경로 별칭을 못 풀어서 `JITI_TSCONFIG_PATHS`를 켬(Windows cmd에서 npm 스크립트에 환경변수를 못 붙여서 파일로)
+- 계획 대비 조정: 장소 추가 한도 분당 30 → 60(AI 일정 저장이 장소 최대 30개를 연달아 추가)
+- 검증: 테스트 29개 통과(3단계 신규 8개 — 실제 DB에 임시 회원을 만들어 확인 후 회원·카운터 삭제, 잔여 0건 확인): 신규 계정 하루 3개, 일반 계정 분당 5개, 같은 키 5번 재요청해도 여행 1개·한도 미사용, 같은 사용자 동시 5건 중 1건만 생성, 보유 수 상한 시 생성·복사 403, 신규 계정 복사 하루 2번·비공개 여행 복사 404, 장소 수 상한 403, 본문 크기 413/JSON 아님 null. `tsc --noEmit`·변경 파일 eslint 통과
+
 **다음 세션 할 일**
-- (신규) 보안 계획 [docs/SECURITY_PLAN.md](docs/SECURITY_PLAN.md) 3단계(여행 생성·복사·장소 제한, 총량 상한, Idempotency-Key)부터 이어서 진행
+- **(중요, 신규)** 로컬 dev 서버 재시작 필요(2026-10-13 `trips.idempotencyKey` 마이그레이션 — 재시작 전엔 여행 만들기가 실패). 재시작 후 로그인 상태에서 여행 만들기·복사·장소 추가 한 번씩 확인
+- (신규) 보안 계획 [docs/SECURITY_PLAN.md](docs/SECURITY_PLAN.md) 4단계(업로드 매직 바이트·장수 상한, SSE 연결 상한 + 지출·사진·메시지 쓰기 속도 제한 검토)부터 이어서 진행
 - (신규) 카카오 개발자 콘솔·카카오모빌리티 콘솔에서 실제 일일 쿼터를 확인해 `KAKAO_LOCAL_DAILY_QUOTA`/`KAKAO_DIRECTIONS_DAILY_QUOTA` 설정(지금은 임시 기본값 100,000/10,000), Groq 요금제에 맞춰 `AI_DAILY_TOKEN_BUDGET` 설정
 - (신규) 로그인 상태에서 AI 분석 1회 실행해 정상 동작·토큰 사용량 기록 확인(이번엔 실제 토큰을 안 쓰려고 생략)
 - (신규) 배포 시 `TRUST_PROXY` 환경변수 설정 필수 — 미설정이면 IP 기준 제한이 꺼짐

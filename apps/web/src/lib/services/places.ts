@@ -1,6 +1,7 @@
 import { prisma } from "../db";
 import { NotFoundError } from "../errors";
 import { assertTripEditAccess } from "./tripAccess";
+import { assertCanAddPlace } from "./tripQuota";
 import { getReviewsForCoordinates, coordKey } from "./reviews";
 
 export async function listPlaces(userId: string, tripId: string) {
@@ -36,6 +37,8 @@ type PlaceInput = {
 
 export async function createPlace(userId: string, tripId: string, data: PlaceInput) {
   await assertTripEditAccess(userId, tripId);
+  // 사용자별 추가 속도 + 여행당 장소 수 상한(docs/SECURITY_PLAN.md 3단계). 공유받은 편집자가 추가해도 같은 상한.
+  await assertCanAddPlace(userId, tripId);
   const last = await prisma.placeEntry.findFirst({
     where: { tripId },
     orderBy: { order: "desc" },

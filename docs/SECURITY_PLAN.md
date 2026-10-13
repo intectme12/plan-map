@@ -104,7 +104,7 @@ DDoS, 계정/여행 대량 생성, 외부 API(AI·카카오) 비용 소진 공�
 |---|---|---|
 | 1 (P0) | 회원가입/로그인 제한, IP 함수, PG 카운터, 429 응답, Better Auth 설정(DB 저장·IP 헤더·기본 이메일 경로 비활성화) | **완료 (2026-10-13)** |
 | 2 (P0) | AI·카카오 타임아웃, 예산, 회로 차단기, 동시 실행 수 | **완료 (2026-10-13)** |
-| 3 (P1) | 여행 생성·복사·장소 제한, 총량 상한, Idempotency-Key | 대기 |
+| 3 (P1) | 여행 생성·복사·장소 제한, 총량 상한, Idempotency-Key | **완료 (2026-10-13)** |
 | 4 (P1) | 업로드 매직 바이트·장수 상한, SSE 연결 상한 | 대기 |
 | 5 (P1) | 긴급 차단 플래그 + 관리자 토글 | 대기 |
 | 6 (P2) | 회원가입 Turnstile | 대기 |
@@ -125,6 +125,15 @@ DDoS, 계정/여행 대량 생성, 외부 API(AI·카카오) 비용 소진 공�
 - 장소검색 일시 장애/예산 소진/요청 과다는 503·429 + 안내 문구(예전엔 모든 503을 "API 키 설정 필요"로 표시하던 것 수정).
 - AI: Groq SDK 기본 자동 재시도(2회) 끔, 응답이 비거나 JSON이 깨지면 예전처럼 "GROQ_API_KEY 필요" 오류가 아니라 빈 결과("장소를 찾지 못했습니다")로.
 - AI 동시 실행: 사용자당 1개(초과 시 429 "이전 분석 진행 중"), 서버 전체 `AI_MAX_CONCURRENCY`(기본 4, 초과 시 503).
+
+### 3단계 구현 메모
+- 파일: `lib/services/tripQuota.ts`(`assertCanCreateTrip`, `assertCanAddPlace`, `withTripWriteSlot`, `TRIP_LIMITS`), `lib/services/trips.ts`(`createTrip`/`copyTrip`가 회원 객체를 받음), `lib/services/places.ts`, `lib/http.ts`(`readJsonBody` 64KB → 413), `api/trips`, `api/trips/[tripId]/{copy,places}`, 화면(`TripCreateForm`, `AiPlanFlow`, `CopyTripButton`, `PlaceForm`).
+- 마이그레이션 `20261013150000_add_trip_idempotency_key`: `trips.idempotencyKey`(nullable) + `(userId, idempotencyKey)` 유일, `(userId, createdAt)` 인덱스(기존 `userId` 단일 인덱스 대체).
+- 검사 순서: 동시 생성 1개 → (키가 있으면) 같은 키 여행 조회 → 속도 한도 → 보유 수 → 생성. 같은 키 재요청은 **한도를 쓰지 않고** 기존 여행을 200으로 돌려준다(새로 만들면 201). 다른 서버에서 같은 키로 동시에 만들어 유일 제약에 걸리면 먼저 만든 쪽을 돌려준다.
+- 같은 사용자의 동시 요청은 하나만 처리하고 나머지는 429(Retry-After 2초) — 화면 버튼은 처리 중 비활성화되므로 실사용 영향 없음.
+- 복사: 공개/링크공개 여부를 먼저 확인(비공개면 한도를 쓰지 않고 404) 후 생성과 같은 동시 제한·보유 수·서비스 전체 생성량 적용.
+- 장소 추가: 사용자 분당 60(계획의 30에서 상향 — AI 일정 저장이 장소 최대 30개를 연달아 추가), 여행당 150개(공유 편집자 포함).
+- 지출·사진·메시지 등 나머지 쓰기 API의 속도 제한은 4단계(업로드)와 함께 검토.
 
 ## 배포 시 필요한 환경변수
 | 변수 | 값 | 설명 |

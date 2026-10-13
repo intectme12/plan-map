@@ -195,6 +195,8 @@ export function AiPlanFlow(props: AiPlanFlowProps) {
   const [commitStatus, setCommitStatus] = useState<Record<string, CommitStatus>>({});
   const [commitMessage, setCommitMessage] = useState<string | null>(null);
   const createdTripIdRef = useRef<string | null>(null);
+  // 새 여행 생성 요청의 Idempotency-Key — 저장 재시도·중복 클릭에도 여행은 하나만 생긴다. 새로 분석할 때 새로 발급.
+  const idempotencyKeyRef = useRef(crypto.randomUUID());
   const abortRef = useRef<AbortController | null>(null);
 
   function validateNewFields() {
@@ -247,6 +249,7 @@ export function AiPlanFlow(props: AiPlanFlowProps) {
     setCommitMessage(null);
     setCommitStatus({});
     createdTripIdRef.current = null;
+    idempotencyKeyRef.current = crypto.randomUUID();
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -379,13 +382,13 @@ export function AiPlanFlow(props: AiPlanFlowProps) {
     [dayGroups]
   );
 
-  async function ensureTargetTripId(): Promise<string | null> {
-    if (props.mode === "existing") return props.tripId;
-    if (createdTripIdRef.current) return createdTripIdRef.current;
+  async function ensureTargetTripId(): Promise<{ id: string } | { error: string }> {
+    if (props.mode === "existing") return { id: props.tripId };
+    if (createdTripIdRef.current) return { id: createdTripIdRef.current };
 
     const res = await fetch("/api/trips", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKeyRef.current },
       body: JSON.stringify({
         name: destination.trim(),
         startDate: newStartDate,
@@ -393,10 +396,14 @@ export function AiPlanFlow(props: AiPlanFlowProps) {
         personnel: newPersonnel,
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      // 생성 한도(429)·보유 여행 수 상한(403) 등은 서버 안내 문구를 그대로 보여준다
+      const body = await res.json().catch(() => null);
+      return { error: typeof body?.error === "string" ? body.error : "여행을 만들지 못했습니다. 잠시 후 다시 시도해주세요." };
+    }
     const trip = await res.json();
     createdTripIdRef.current = trip.id;
-    return trip.id;
+    return { id: trip.id };
   }
 
   async function performCommit() {
@@ -404,12 +411,13 @@ export function AiPlanFlow(props: AiPlanFlowProps) {
     setSubmitting(true);
     setCommitMessage(null);
 
-    const tripId = await ensureTargetTripId();
-    if (!tripId) {
+    const target = await ensureTargetTripId();
+    if ("error" in target) {
       setSubmitting(false);
-      setCommitMessage("여행을 만들지 못했습니다. 잠시 후 다시 시도해주세요.");
+      setCommitMessage(target.error);
       return;
     }
+    const tripId = target.id;
 
     // 이미 성공적으로 저장된 항목은 재시도 시 건너뛴다 — 중복 저장 방지
     const toCommit = items.filter(

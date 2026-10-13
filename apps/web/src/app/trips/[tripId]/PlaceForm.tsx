@@ -90,7 +90,9 @@ export function PlaceForm({ tripId, scheduledAt }: { tripId: string; scheduledAt
 
     setAddingName(null);
     if (!res.ok) {
-      setError("장소를 추가하지 못했습니다.");
+      // 장소 수 상한(403)·추가 요청 과다(429) 등은 서버 안내 문구를 그대로 보여준다
+      const body = await res.json().catch(() => null);
+      setError(typeof body?.error === "string" ? body.error : "장소를 추가하지 못했습니다.");
       return;
     }
     setQuery("");
