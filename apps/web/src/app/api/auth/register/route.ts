@@ -8,6 +8,7 @@ import { registerSchema } from "@/lib/validation";
 import { handleRouteError, tooManyRequests } from "@/lib/http";
 import { getClientIp } from "@/lib/clientIp";
 import { enforceRateLimits, GLOBAL_SUBJECT, RATE_RULES } from "@/lib/rateLimit";
+import { assertFeatureEnabled } from "@/lib/featureFlags";
 
 export async function POST(request: Request) {
   try {
@@ -19,6 +20,7 @@ export async function POST(request: Request) {
       { rule: RATE_RULES.registerGlobalHour, subject: GLOBAL_SUBJECT },
     ]);
     if (!limited.ok) return tooManyRequests(limited.retryAfterSec);
+    await assertFeatureEnabled("signup");
 
     const body = await request.json().catch(() => null);
     const { email, password, nickname } = registerSchema.parse(body);

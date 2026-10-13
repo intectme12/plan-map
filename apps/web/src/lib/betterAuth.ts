@@ -1,4 +1,4 @@
-import { betterAuth } from "better-auth";
+import { betterAuth, APIError } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import type { GoogleProfile, KakaoProfile, NaverProfile } from "better-auth/social-providers";
@@ -7,6 +7,7 @@ import { hashPassword, verifyPassword } from "./password";
 import { isNicknameAvailable } from "./services/users";
 import { NICKNAME_MAX_LENGTH } from "./validation";
 import { trustedIpHeader } from "./clientIp";
+import { FEATURES, isFeatureDisabled } from "./featureFlags";
 
 const BETTER_AUTH_SECRET = process.env.BETTER_AUTH_SECRET;
 if (!BETTER_AUTH_SECRET) {
@@ -132,6 +133,19 @@ export const auth = betterAuth({
   advanced: {
     // 기본은 x-forwarded-for(클라이언트가 위조 가능) — 우리가 둔 프록시 헤더만 믿는다(lib/clientIp.ts와 동일)
     ipAddress: { ipAddressHeaders: trustedIpHeaders },
+  },
+  // 긴급 차단(회원가입)이 켜져 있으면 새 회원 생성 자체를 막는다 — 이메일 가입은 /api/auth/register가 먼저 막지만,
+  // 소셜 로그인으로 처음 들어오는 사람(=신규 가입)은 여기서만 막을 수 있다. 기존 회원의 소셜 로그인은 영향 없음.
+  databaseHooks: {
+    user: {
+      create: {
+        before: async () => {
+          if (await isFeatureDisabled("signup")) {
+            throw new APIError("FORBIDDEN", { message: FEATURES.signup.message });
+          }
+        },
+      },
+    },
   },
   // Route Handler에서 auth.api.*를 직접 호출해도 Set-Cookie를 자동으로 반영해준다.
   plugins: [nextCookies()],

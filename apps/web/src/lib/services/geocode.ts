@@ -1,5 +1,6 @@
 import { ServiceUnavailableError } from "../errors";
 import { kakaoGet } from "./kakaoClient";
+import { FEATURES } from "../featureFlags";
 
 export type GeocodeCandidate = {
   name: string;
@@ -34,6 +35,7 @@ export async function searchPlaceCandidates(query: string): Promise<GeocodeCandi
   const result = await kakaoGet("local", url);
   if (!result.ok) {
     if (result.reason === "no_key") return null;
+    if (result.reason === "disabled") throw new ServiceUnavailableError(FEATURES.kakaoApi.message);
     throw new ServiceUnavailableError("장소 검색이 일시적으로 원활하지 않습니다. 잠시 후 다시 시도해주세요.");
   }
 

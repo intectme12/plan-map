@@ -1,4 +1,5 @@
 import { CircuitBreaker } from "../externalGuard";
+import { isFeatureDisabled } from "../featureFlags";
 import { GLOBAL_SUBJECT, hit, KST_OFFSET_SEC, type RateRule } from "../rateLimit";
 
 // 카카오 REST API 호출은 전부 여기를 거친다(장소검색: geocode.ts, 길찾기: routes.ts) — docs/SECURITY_PLAN.md 2단계.
@@ -28,7 +29,10 @@ const breakers: Record<KakaoApi, CircuitBreaker> = {
   directions: new CircuitBreaker("kakao-directions"),
 };
 
-export type KakaoResult = { ok: true; data: unknown } | { ok: false; reason: "no_key" | "blocked" | "failed" };
+// disabled: 관리자가 긴급 차단(kakaoApi)을 켠 상태
+export type KakaoResult =
+  | { ok: true; data: unknown }
+  | { ok: false; reason: "no_key" | "disabled" | "blocked" | "failed" };
 
 // 이번 호출을 일일 예산에 1건 기록하고 아직 쓸 수 있는지 돌려준다. 80%를 넘는 순간 한 번 경고 로그.
 async function reserveDailyCall(api: KakaoApi): Promise<boolean> {
@@ -61,6 +65,7 @@ export function isKakaoConfigured() {
 
 export async function kakaoGet(api: KakaoApi, url: URL): Promise<KakaoResult> {
   if (!KAKAO_REST_API_KEY) return { ok: false, reason: "no_key" };
+  if (await isFeatureDisabled("kakaoApi")) return { ok: false, reason: "disabled" };
   const breaker = breakers[api];
   if (breaker.isOpen()) return { ok: false, reason: "blocked" };
   if (!(await reserveDailyCall(api))) return { ok: false, reason: "blocked" };

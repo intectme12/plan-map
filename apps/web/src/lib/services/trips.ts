@@ -3,6 +3,7 @@ import { prisma } from "../db";
 import { NotFoundError, ForbiddenError, InvalidInputError } from "../errors";
 import { assertCanCreateTrip, withTripWriteSlot, type QuotaUser } from "./tripQuota";
 import { withUploadQuota } from "./uploadQuota";
+import { assertFeatureEnabled } from "../featureFlags";
 import { TRIP_DATE_ORDER_MESSAGE } from "../validation";
 import { saveImageFile, deleteStoredFile } from "../upload";
 import { getReviewsForCoordinates, coordKey } from "./reviews";
@@ -186,6 +187,7 @@ export async function createTrip(
     const existing = await findExisting();
     if (existing) return { trip: existing, created: false };
 
+    await assertFeatureEnabled("tripCreate");
     await assertCanCreateTrip(user, "create");
     try {
       return { trip: await insertTrip(userId, data, idempotencyKey), created: true };
@@ -492,6 +494,7 @@ export async function copyTrip(user: QuotaUser, sourceTripId: string) {
 
   // 복사도 여행 하나를 새로 만드는 것이라 같은 동시 생성 제한·보유 여행 수·서비스 전체 생성량에 들어간다
   return withTripWriteSlot(userId, async () => {
+    await assertFeatureEnabled("tripCreate");
     await assertCanCreateTrip(user, "copy");
     return insertCopy(userId, source);
   });

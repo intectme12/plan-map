@@ -1211,9 +1211,20 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - 계획 대비 조정: SSE 사용자당 3 → 5(탭 5개), "사용자당 총 저장 용량"은 사진 크기를 DB에 기록해야 해서 오브젝트 스토리지 이전 때 도입하고 지금은 하루 용량으로 대신함
 - 검증: 테스트 37개 통과(4단계 신규 8개 — HTML·SVG·WAV를 이미지로 속인 파일 거절, 이름이 .jpg인 PNG는 png로 저장, 8MB 초과·선언 크기 초과 413, 하루 용량 초과 시 저장 안 하고 429·저장 실패분은 미집계, 장소 사진 30장 상한 시 파일 저장 전 403, 쓰기 API 분당 한도, SSE 사용자당 상한·중복 등록/해제 1회만 집계). `tsc --noEmit`·변경 파일 eslint 통과. dev 서버에서 변경 라우트 비로그인 401·홈 화면 JS 오류 없음 확인(로그인이 필요해 탭당 연결 1개 공유는 화면으로 확인 못 함). 홈의 404 1건은 기존 데이터의 프로필 사진 파일이 디스크에 없는 것으로 이번 변경과 무관
 
+**완료 (2026-10-13, 보안 5단계: 기능별 긴급 차단)**
+
+- 무엇을/왜: [docs/SECURITY_PLAN.md](docs/SECURITY_PLAN.md) 5단계. 공격·비용 폭주·외부 장애 때 기능 하나만 바로 끌 방법이 없었음(코드 수정·재배포 필요)
+- 어떻게:
+  - [featureFlags.ts](apps/web/src/lib/featureFlags.ts)(신규): 회원가입·AI 일정 분석·카카오 장소검색/길찾기·여행 만들기/복사·사진 업로드 5개 스위치. 새 테이블 `feature_flags`(행 없으면 정상) + 서버 메모리 30초 캐시(같은 서버 즉시), DB를 못 읽으면 마지막 상태 유지, 환경변수 `DISABLED_FEATURES`는 DB와 무관하게 강제 차단(비상구)
+  - 쓰기·외부 호출 직전에만 검사 → 꺼도 기존 여행·장소·사진·이동정보 조회는 그대로. 회원가입은 `/api/auth/register` + Better Auth `databaseHooks.user.create.before`(소셜 첫 가입까지 차단, 기존 회원 로그인은 유지), AI는 Groq 호출·한도 소모 전, 카카오는 `kakaoClient`(장소검색 503 안내·길찾기는 저장된 값 표시), 여행은 `createTrip`/`copyTrip`(같은 Idempotency-Key 재요청은 기존 여행 반환), 사진은 공통 경로 `withUploadQuota`
+  - 관리자 화면 [/admin/features](apps/web/src/app/admin/features/page.tsx)(사이드 메뉴 "긴급 차단") + `GET/PATCH /api/admin/features`(관리자 외 404): 상태·설명·사유·마지막 변경, 차단 시 사유 입력·재개 시 확인
+  - 마이그레이션 `20261013180000_add_feature_flags`(새 테이블만)
+- 검증: 테스트 42개 통과(5단계 신규 5개 — 실제 `feature_flags`를 바꾸면 같은 DB를 쓰는 dev 서버 기능이 잠깐 꺼질 수 있어 스위치 저장소만 메모리 가짜로 대체: 끈 기능만 503+안내 문구, 다른 서버 변경은 캐시 만료 후 반영, 읽기 실패 시 마지막 상태 유지, 환경변수 강제 차단·관리자 화면 표시, 차단 중 기존 여행 조회는 되고 생성·AI·사진 저장은 외부 호출/저장 전에 차단). 실제 `feature_flags` 0행·임시 회원 잔여 0 확인. `tsc --noEmit`·eslint 통과. 비로그인 시 `/admin/features` → 홈 리다이렉트, API 401 확인(관리자 계정이 없어 화면 자체는 확인 못 함)
+
 **다음 세션 할 일**
 - (신규) 로그인 상태에서 여행 만들기·복사·장소 추가·사진 업로드·메시지(실시간 수신, 개발자도구 네트워크 탭에서 `/api/messages/stream`이 탭당 1개인지) 한 번씩 확인
-- (신규) 보안 계획 [docs/SECURITY_PLAN.md](docs/SECURITY_PLAN.md) 5단계(긴급 차단 플래그 + 관리자 토글)부터 이어서 진행
+- **(중요, 신규)** 로컬 dev 서버 재시작 필요(2026-10-13 `feature_flags` 마이그레이션 — 재시작 전엔 `/admin/features`가 오류, 차단 스위치는 모두 "정상"으로 동작). 재시작 후 관리자 계정으로 `/admin/features`에서 아무 기능 하나 차단→해당 기능 안내 문구 확인→다시 켜기
+- (신규) 보안 계획 [docs/SECURITY_PLAN.md](docs/SECURITY_PLAN.md) 6단계(회원가입 Turnstile — Cloudflare에서 사이트 키 발급 필요)부터 이어서 진행
 - (신규) 카카오 개발자 콘솔·카카오모빌리티 콘솔에서 실제 일일 쿼터를 확인해 `KAKAO_LOCAL_DAILY_QUOTA`/`KAKAO_DIRECTIONS_DAILY_QUOTA` 설정(지금은 임시 기본값 100,000/10,000), Groq 요금제에 맞춰 `AI_DAILY_TOKEN_BUDGET` 설정
 - (신규) 로그인 상태에서 AI 분석 1회 실행해 정상 동작·토큰 사용량 기록 확인(이번엔 실제 토큰을 안 쓰려고 생략)
 - (신규) 배포 시 `TRUST_PROXY` 환경변수 설정 필수 — 미설정이면 IP 기준 제한이 꺼짐

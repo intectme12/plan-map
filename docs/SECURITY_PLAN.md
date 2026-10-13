@@ -106,7 +106,7 @@ DDoS, 계정/여행 대량 생성, 외부 API(AI·카카오) 비용 소진 공�
 | 2 (P0) | AI·카카오 타임아웃, 예산, 회로 차단기, 동시 실행 수 | **완료 (2026-10-13)** |
 | 3 (P1) | 여행 생성·복사·장소 제한, 총량 상한, Idempotency-Key | **완료 (2026-10-13)** |
 | 4 (P1) | 업로드 매직 바이트·장수 상한, SSE 연결 상한 | **완료 (2026-10-13)** |
-| 5 (P1) | 긴급 차단 플래그 + 관리자 토글 | 대기 |
+| 5 (P1) | 긴급 차단 플래그 + 관리자 토글 | **완료 (2026-10-13)** |
 | 6 (P2) | 회원가입 Turnstile | 대기 |
 | 7 (배포 시) | Cloudflare·방화벽·nginx·DB 풀 + 운영 문서 | 대기 |
 
@@ -143,6 +143,16 @@ DDoS, 계정/여행 대량 생성, 외부 API(AI·카카오) 비용 소진 공�
 - 실시간 연결(SSE): 화면이 컴포넌트마다 연결을 따로 열어 **탭 하나에 최대 4개**였음 → `hooks/useMessageStream.ts`가 탭당 연결 1개를 공유하도록 변경. 서버(`lib/messageEvents.ts`)는 사용자당 5개(=탭 5개, 계획의 3에서 상향), 전체 `SSE_MAX_CONNECTIONS`(기본 2000). 초과 시 429/503이고, 브라우저 EventSource는 200 아닌 응답이면 재연결을 멈추므로 30초 뒤 직접 다시 연결.
 - 그 밖의 쓰기 API 사용자 분당 한도: 지출 60, 후기 20, 팔로우 30, 좋아요 60, 공유 30, 메시지 60, 새 대화 20(계획표의 "메시지·팔로우·좋아요 30"에서 실사용 속도에 맞게 조정).
 
+### 5단계 구현 메모
+- `lib/featureFlags.ts`: 스위치 5개(`signup`, `aiParse`, `kakaoApi`, `tripCreate`, `photoUpload`). DB `feature_flags`(행 없으면 정상) + 서버 메모리 30초 캐시(같은 서버는 즉시 반영). DB를 못 읽으면 마지막 상태 유지(처음부터 못 읽으면 모두 정상). 환경변수 `DISABLED_FEATURES`(쉼표 구분)는 DB와 무관하게 항상 차단 — DB 장애 시 비상구.
+- 적용 위치(전부 쓰기·외부 호출 직전, 조회 경로엔 없음):
+  - `signup`: `/api/auth/register` + Better Auth `databaseHooks.user.create.before`(소셜 로그인 첫 가입도 차단, 기존 회원 소셜 로그인은 영향 없음)
+  - `aiParse`: `aiImport.extract` 맨 앞(Groq 호출·한도 소모 전)
+  - `kakaoApi`: `kakaoClient.kakaoGet`(장소검색은 503 안내, 길찾기는 저장된 이동정보로 표시)
+  - `tripCreate`: `createTrip`(같은 Idempotency-Key 재요청은 기존 여행 반환이라 차단 전 처리), `copyTrip`
+  - `photoUpload`: `withUploadQuota`(장소 사진·대표사진·프로필·메시지 사진 공통 경로, 글 메시지는 유지)
+- 관리자 화면 `/admin/features`(사이드 메뉴 "긴급 차단"): 상태·설명·사유·마지막 변경 시각, 차단 시 사유 입력(선택)·재개 시 확인. API `GET/PATCH /api/admin/features`(관리자 아니면 404).
+
 ## 배포 시 필요한 환경변수
 | 변수 | 값 | 설명 |
 |---|---|---|
@@ -154,3 +164,4 @@ DDoS, 계정/여행 대량 생성, 외부 API(AI·카카오) 비용 소진 공�
 | `AI_MAX_CONCURRENCY` | 서버 전체 동시 AI 분석 수 | 기본 4 |
 | `UPLOAD_USER_DAILY_BYTES` | 사용자당 하루 업로드 용량(바이트) | 기본 314572800(300MB) |
 | `SSE_MAX_CONNECTIONS` | 서버 전체 실시간 연결 수 | 기본 2000 |
+| `DISABLED_FEATURES` | 예: `aiParse,kakaoApi` | 평소엔 비워둠. DB 장애 등으로 관리자 화면을 못 쓸 때 기능을 강제로 끄는 비상구(재시작 필요) |

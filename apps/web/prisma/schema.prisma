@@ -167,6 +167,18 @@ model RateLimit {
   @@map("rate_limits")
 }
 
+// 기능별 긴급 차단 스위치 — lib/featureFlags.ts, /admin/features. 행이 없으면 켜진(정상) 상태.
+// key: signup | aiParse | kakaoApi | tripCreate | photoUpload. docs/SECURITY_PLAN.md 5단계.
+model FeatureFlag {
+  key       String   @id
+  disabled  Boolean  @default(false)
+  reason    String? // 관리자가 남긴 차단 사유(운영 기록용, 사용자에게는 안 보임)
+  updatedBy String? // 마지막으로 바꾼 관리자 id
+  updatedAt DateTime @updatedAt
+
+  @@map("feature_flags")
+}
+
 // 우리 API 요청 제한 카운터(고정 창) — lib/rateLimit.ts, docs/SECURITY_PLAN.md.
 // key = "{규칙}:{주체}", windowStart = 창 시작 시각. 만료된 행은 lib/rateLimit.ts가 가끔 지운다.
 model RateLimitCounter {

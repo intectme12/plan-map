@@ -1,6 +1,7 @@
 import { prisma } from "../db";
 import { NotFoundError, RateLimitedError, ServiceUnavailableError } from "../errors";
 import { ConcurrencyLimiter } from "../externalGuard";
+import { assertFeatureEnabled } from "../featureFlags";
 import { addUsage, assertRateLimits, GLOBAL_SUBJECT, RATE_RULES, remainingBudget } from "../rateLimit";
 import { extractPlacesFromText, type ExtractedPlace, type ExtractPlacesContext } from "./aiParse";
 import { getTripDays } from "@/app/trips/[tripId]/days";
@@ -20,6 +21,7 @@ async function extract(
   rawText: string,
   context?: ExtractPlacesContext
 ): Promise<ExtractedPlace[]> {
+  await assertFeatureEnabled("aiParse");
   await assertRateLimits(
     [{ rule: RATE_RULES.aiPerUserHour, subject: userId }],
     "AI 분석 요청이 너무 많습니다. 잠시 후 다시 시도해주세요."
