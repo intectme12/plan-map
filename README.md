@@ -15,6 +15,7 @@
 
 - Node 버전은 `.nvmrc`(24) 기준 — `nvm install && nvm use`로 맞추는 걸 권장(회사 보안 소프트웨어가 인터셉트하는 인증서 문제를 우회하는 `--use-system-ca`가 Node 24부터 지원됨, 그 미만 버전에서도 `npm run dev` 자체는 정상 동작함 — 아래 "이 환경 관련 참고사항" 참고).
 - 최초 1회는 `apps/web/.env`를 `apps/web/.env.example`을 복사해서 만들어둬야 한다(`cp apps/web/.env.example apps/web/.env`). 카카오/Groq 키는 없어도 앱은 뜨고, 해당 기능만 "키 설정 필요" 안내로 대체된다.
+- **`.env`에 `DATABASE_URL`과 `DIRECT_URL`이 둘 다 있어야 한다**(2026-10-13부터 — 없으면 `prisma` 명령이 `Environment variable not found: DIRECT_URL` 오류). 로컬 Docker면 두 값이 같고, Neon이면 `DIRECT_URL`은 `DATABASE_URL`의 호스트에서 `-pooler`를 뺀 주소. 앱은 `DATABASE_URL`(풀러), 마이그레이션만 `DIRECT_URL`(직접 연결)을 쓴다 — 풀러로 마이그레이션하면 잠금이 남아 다음 `migrate deploy`가 `P1002`(advisory lock 타임아웃)로 멈추기 때문
 - `up.sh`가 띄운 dev 서버 로그: `tail -f .dev-server.log`
 - 접속: http://localhost:3000
 
@@ -1221,8 +1222,17 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
   - 마이그레이션 `20261013180000_add_feature_flags`(새 테이블만)
 - 검증: 테스트 42개 통과(5단계 신규 5개 — 실제 `feature_flags`를 바꾸면 같은 DB를 쓰는 dev 서버 기능이 잠깐 꺼질 수 있어 스위치 저장소만 메모리 가짜로 대체: 끈 기능만 503+안내 문구, 다른 서버 변경은 캐시 만료 후 반영, 읽기 실패 시 마지막 상태 유지, 환경변수 강제 차단·관리자 화면 표시, 차단 중 기존 여행 조회는 되고 생성·AI·사진 저장은 외부 호출/저장 전에 차단). 실제 `feature_flags` 0행·임시 회원 잔여 0 확인. `tsc --noEmit`·eslint 통과. 비로그인 시 `/admin/features` → 홈 리다이렉트, API 401 확인(관리자 계정이 없어 화면 자체는 확인 못 함)
 
+**완료 (2026-10-13, `up.sh` 마이그레이션 P1002 오류 해결 — Prisma 직접 연결 주소 분리)**
+
+- 발견한 버그: `./up.sh` 실행 시 `prisma migrate deploy`가 `P1002 Timed out trying to acquire a postgres advisory lock`으로 실패. 원인: `DATABASE_URL`이 Neon **풀러(pgbouncer)** 주소인데, `migrate`는 세션 단위 잠금(advisory lock)을 걸고 푸는 구조라 풀러를 거치면 잠금과 해제가 서로 다른 실제 연결로 가서 잠금이 남는다. `pg_locks`로 확인하니 5단계 마이그레이션 때 쓰인 풀러 연결(pgbouncer, 06:33 시작)이 잠금을 계속 쥐고 있었음
+- 즉시 조치: 잠금을 쥔 풀러 연결 1개를 `pg_terminate_backend`로 종료(풀러가 자동 재연결, 데이터 영향 없음) → 잠금 0건 확인
+- 근본 해결: [schema.prisma](apps/web/prisma/schema.prisma)에 `directUrl = env("DIRECT_URL")` 추가 — 앱은 계속 풀러(`DATABASE_URL`), 마이그레이션만 직접 연결(`DIRECT_URL`, Neon 호스트에서 `-pooler` 제거). 로컬 `apps/web/.env`에 `DIRECT_URL` 추가(수정 전 `.env.bak-20261013`으로 백업, 둘 다 gitignore), [.env.example](apps/web/.env.example)·위 "실행 방법"·[DEPLOYMENT_PLAN.md](docs/DEPLOYMENT_PLAN.md)(단계 0 항목 완료 처리) 갱신
+- 주의: 이제 `.env`에 `DIRECT_URL`이 없으면 `prisma` 명령이 오류 — 다른 PC/팀원은 `.env`에 추가 필요
+- 검증: `prisma validate` 통과, `migrate status`·`migrate deploy` 2회 모두 직접 연결 호스트로 실행돼 "No pending migrations", 실행 후 남은 잠금 0건, `prisma generate` 정상, 테스트 42개 통과(앱 쪽 DB 연결 정상)
+
 **다음 세션 할 일**
 - (신규) 로그인 상태에서 여행 만들기·복사·장소 추가·사진 업로드·메시지(실시간 수신, 개발자도구 네트워크 탭에서 `/api/messages/stream`이 탭당 1개인지) 한 번씩 확인
+- **(중요, 신규)** 다른 PC(맥 등)·팀원 `apps/web/.env`에 `DIRECT_URL` 추가 필요(2026-10-13 `directUrl` 도입 — 없으면 prisma 명령 오류). 값은 `DATABASE_URL`에서 호스트의 `-pooler`만 뺀 주소. 확인되면 이 PC의 `apps/web/.env.bak-20261013`(수정 전 백업, 비밀값 포함)은 삭제
 - **(중요, 신규)** 로컬 dev 서버 재시작 필요(2026-10-13 `feature_flags` 마이그레이션 — 재시작 전엔 `/admin/features`가 오류, 차단 스위치는 모두 "정상"으로 동작). 재시작 후 관리자 계정으로 `/admin/features`에서 아무 기능 하나 차단→해당 기능 안내 문구 확인→다시 켜기
 - (신규) 보안 계획 [docs/SECURITY_PLAN.md](docs/SECURITY_PLAN.md) 6단계(회원가입 Turnstile — Cloudflare에서 사이트 키 발급 필요)부터 이어서 진행
 - (신규) 카카오 개발자 콘솔·카카오모빌리티 콘솔에서 실제 일일 쿼터를 확인해 `KAKAO_LOCAL_DAILY_QUOTA`/`KAKAO_DIRECTIONS_DAILY_QUOTA` 설정(지금은 임시 기본값 100,000/10,000), Groq 요금제에 맞춰 `AI_DAILY_TOKEN_BUDGET` 설정

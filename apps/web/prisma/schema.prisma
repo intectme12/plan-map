@@ -5,9 +5,14 @@ generator client {
   previewFeatures = ["relationJoins"]
 }
 
+// url: 앱이 쓰는 주소(Neon이면 풀링 주소 -pooler). directUrl: prisma migrate 전용 직접 연결 주소.
+// 마이그레이션은 세션 단위 잠금(advisory lock)을 거는데, 풀러(pgbouncer)를 거치면 잠금과 해제가 서로 다른
+// 연결로 가서 잠금이 풀리지 않고 남아 다음 migrate가 P1002로 멈춘다(2026-10-13 실제 발생). 로컬 Docker처럼
+// 풀러가 없으면 DIRECT_URL을 DATABASE_URL과 같은 값으로 두면 된다.
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // email/비밀번호 + OAuth(카카오/구글/네이버) 로그인은 better-auth가 관장한다 — docs/OAUTH.md 참고.
