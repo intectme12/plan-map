@@ -1230,11 +1230,24 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - 주의: 이제 `.env`에 `DIRECT_URL`이 없으면 `prisma` 명령이 오류 — 다른 PC/팀원은 `.env`에 추가 필요
 - 검증: `prisma validate` 통과, `migrate status`·`migrate deploy` 2회 모두 직접 연결 호스트로 실행돼 "No pending migrations", 실행 후 남은 잠금 0건, `prisma generate` 정상, 테스트 42개 통과(앱 쪽 DB 연결 정상)
 
+**완료 (2026-10-13, 보안 6단계: 회원가입 봇 확인 — Cloudflare Turnstile)**
+
+- 무엇을/왜: [docs/SECURITY_PLAN.md](docs/SECURITY_PLAN.md) 6단계. 요청 제한만으로는 IP를 바꿔가며 계정을 대량으로 만드는 봇을 막기 어려워 이메일 회원가입에 사람 확인을 추가
+- 어떻게:
+  - [turnstile.ts](apps/web/src/lib/turnstile.ts)(신규): Cloudflare siteverify로 토큰 확인(5초 타임아웃). 토큰 없음·실패는 거절, Cloudflare에 닿지 못하면(장애) 통과시켜 가입 전체가 멈추지 않게(요청 제한은 그대로), 시크릿 키 미설정이면 생략
+  - [/api/auth/register](apps/web/src/app/api/auth/register/route.ts): 입력 검증 뒤·DB 조회 전에 봇 확인, 실패 시 400 `TURNSTILE_FAILED`. 본문 64KB 상한도 적용
+  - [TurnstileWidget.tsx](apps/web/src/components/TurnstileWidget.tsx)(신규) + [회원가입 화면](apps/web/src/app/register/page.tsx): 위젯이 토큰을 주기 전엔 "가입하기" 비활성, 가입 실패 시 위젯 초기화(토큰은 한 번만 검증 가능), 입력칸 폭에 맞춤
+  - 소셜 가입은 제공자 자체 보호에 맡김(긴급 차단으로는 막을 수 있음)
+  - Cloudflare 계정이 아직 없어 **공식 테스트 키**(항상 통과)로 구현·검증 — 이 PC `.env`와 [.env.example](apps/web/.env.example)에 테스트 키를 넣어 둠. 운영 전 실제 키 발급 필요
+- 함께 고친 것: 실제 시각의 "분당 한도"를 세는 테스트 2개가 분 경계(:59→:00)에 걸리면 카운트가 초기화돼 가끔 실패(전체 실행 중 1회 발생) → [testing.ts](apps/web/src/lib/testing.ts) `waitForFreshWindow`로 새 분이 시작될 때 실행
+- 검증: 테스트 47개 통과(6단계 신규 5개 — 키 없음 생략, 토큰 없음·2048자 초과는 Cloudflare 호출 없이 거절, Cloudflare 타임아웃·503 시 통과, IP 전달·IPv6 /64 표기는 미전달, **실제 Cloudflare siteverify에 공식 테스트 키로 통과/실패/이미 쓴 토큰 확인**). `tsc --noEmit`·eslint 통과. 브라우저(모바일 375px)에서 `/register` 위젯 "성공!" 표시·토큰 수신 후 가입 버튼 활성·위젯 폭이 입력칸과 같음(343px) 확인. dev 서버에 직접 호출해 토큰 없으면 400 `TURNSTILE_FAILED`, 테스트 토큰이면 201 가입 성공 확인(만든 임시 계정 즉시 삭제)
+
 **다음 세션 할 일**
 - (신규) 로그인 상태에서 여행 만들기·복사·장소 추가·사진 업로드·메시지(실시간 수신, 개발자도구 네트워크 탭에서 `/api/messages/stream`이 탭당 1개인지) 한 번씩 확인
 - **(중요, 신규)** 다른 PC(맥 등)·팀원 `apps/web/.env`에 `DIRECT_URL` 추가 필요(2026-10-13 `directUrl` 도입 — 없으면 prisma 명령 오류). 값은 `DATABASE_URL`에서 호스트의 `-pooler`만 뺀 주소. 확인되면 이 PC의 `apps/web/.env.bak-20261013`(수정 전 백업, 비밀값 포함)은 삭제
 - **(중요, 신규)** 로컬 dev 서버 재시작 필요(2026-10-13 `feature_flags` 마이그레이션 — 재시작 전엔 `/admin/features`가 오류, 차단 스위치는 모두 "정상"으로 동작). 재시작 후 관리자 계정으로 `/admin/features`에서 아무 기능 하나 차단→해당 기능 안내 문구 확인→다시 켜기
-- (신규) 보안 계획 [docs/SECURITY_PLAN.md](docs/SECURITY_PLAN.md) 6단계(회원가입 Turnstile — Cloudflare에서 사이트 키 발급 필요)부터 이어서 진행
+- (신규) 운영 전: Cloudflare 대시보드 → Turnstile에서 위젯 생성(운영 도메인 등록) 후 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`·`TURNSTILE_SECRET_KEY`를 실제 키로 설정(지금은 공식 테스트 키 — 항상 통과라 봇 차단 효과 없음)
+- (신규) 보안 계획 [docs/SECURITY_PLAN.md](docs/SECURITY_PLAN.md) 7단계(배포 시: Cloudflare 앞단·방화벽·nginx·DB 풀 + `docs/SECURITY_RUNBOOK.md`)는 배포 서버를 정할 때 진행
 - (신규) 카카오 개발자 콘솔·카카오모빌리티 콘솔에서 실제 일일 쿼터를 확인해 `KAKAO_LOCAL_DAILY_QUOTA`/`KAKAO_DIRECTIONS_DAILY_QUOTA` 설정(지금은 임시 기본값 100,000/10,000), Groq 요금제에 맞춰 `AI_DAILY_TOKEN_BUDGET` 설정
 - (신규) 로그인 상태에서 AI 분석 1회 실행해 정상 동작·토큰 사용량 기록 확인(이번엔 실제 토큰을 안 쓰려고 생략)
 - (신규) 배포 시 `TRUST_PROXY` 환경변수 설정 필수 — 미설정이면 IP 기준 제한이 꺼짐

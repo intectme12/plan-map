@@ -107,7 +107,7 @@ DDoS, 계정/여행 대량 생성, 외부 API(AI·카카오) 비용 소진 공�
 | 3 (P1) | 여행 생성·복사·장소 제한, 총량 상한, Idempotency-Key | **완료 (2026-10-13)** |
 | 4 (P1) | 업로드 매직 바이트·장수 상한, SSE 연결 상한 | **완료 (2026-10-13)** |
 | 5 (P1) | 긴급 차단 플래그 + 관리자 토글 | **완료 (2026-10-13)** |
-| 6 (P2) | 회원가입 Turnstile | 대기 |
+| 6 (P2) | 회원가입 Turnstile | **완료 (2026-10-13, 공식 테스트 키로 동작 확인 — 운영 키 발급 필요)** |
 | 7 (배포 시) | Cloudflare·방화벽·nginx·DB 풀 + 운영 문서 | 대기 |
 
 ### 1단계 구현 메모
@@ -153,6 +153,13 @@ DDoS, 계정/여행 대량 생성, 외부 API(AI·카카오) 비용 소진 공�
   - `photoUpload`: `withUploadQuota`(장소 사진·대표사진·프로필·메시지 사진 공통 경로, 글 메시지는 유지)
 - 관리자 화면 `/admin/features`(사이드 메뉴 "긴급 차단"): 상태·설명·사유·마지막 변경 시각, 차단 시 사유 입력(선택)·재개 시 확인. API `GET/PATCH /api/admin/features`(관리자 아니면 404).
 
+### 6단계 구현 메모
+- 서버 `lib/turnstile.ts`: Cloudflare siteverify(5초 타임아웃)로 토큰 확인. 토큰 없음/2048자 초과는 Cloudflare에 묻지 않고 거절, Cloudflare가 실패라고 하면 거절, **Cloudflare에 닿지 못하면(네트워크·타임아웃·5xx) 통과**(Cloudflare 장애로 가입 전체가 멈추지 않게 — 가입 요청 제한은 그대로). `TURNSTILE_SECRET_KEY`가 없으면 검증 생략(로컬 개발). 로그엔 오류 코드만.
+- `/api/auth/register`: 요청 제한 → 긴급 차단 → 입력 검증 → **봇 확인** → 중복 확인 → 계정 생성 순서. 실패 시 400 + `code: "TURNSTILE_FAILED"`. 본문은 `readJsonBody`(64KB)로.
+- 화면 `components/TurnstileWidget.tsx`: explicit 렌더링, 입력칸 폭에 맞춤(`size: flexible`). 토큰을 받기 전엔 "가입하기" 비활성. 토큰은 한 번만 검증되므로 가입 실패 시 위젯을 초기화해 새 토큰을 받음. `NEXT_PUBLIC_TURNSTILE_SITE_KEY`가 없으면 위젯을 안 그림.
+- 소셜 가입(카카오·구글·네이버)은 각 제공자가 자체 로그인 보호를 하므로 Turnstile을 붙이지 않음(가입 자체는 5단계 긴급 차단으로 막을 수 있음).
+- **운영 전 할 일**: Cloudflare 대시보드 → Turnstile에서 위젯 생성(도메인 등록) → 사이트 키·시크릿 키를 운영 환경변수에 설정. 지금 이 PC의 `.env`엔 공식 테스트 키(항상 통과)가 들어 있음.
+
 ## 배포 시 필요한 환경변수
 | 변수 | 값 | 설명 |
 |---|---|---|
@@ -164,4 +171,6 @@ DDoS, 계정/여행 대량 생성, 외부 API(AI·카카오) 비용 소진 공�
 | `AI_MAX_CONCURRENCY` | 서버 전체 동시 AI 분석 수 | 기본 4 |
 | `UPLOAD_USER_DAILY_BYTES` | 사용자당 하루 업로드 용량(바이트) | 기본 314572800(300MB) |
 | `SSE_MAX_CONNECTIONS` | 서버 전체 실시간 연결 수 | 기본 2000 |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Cloudflare Turnstile 사이트 키 | 회원가입 봇 확인 위젯. 시크릿 키와 **함께** 설정. 개발용 공식 테스트 키 `1x00000000000000000000AA` |
+| `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile 시크릿 키 | 없으면 서버 검증 생략 — **운영에선 필수**. 개발용 공식 테스트 키 `1x0000000000000000000000000000000AA` |
 | `DISABLED_FEATURES` | 예: `aiParse,kakaoApi` | 평소엔 비워둠. DB 장애 등으로 관리자 화면을 못 쓸 때 기능을 강제로 끄는 비상구(재시작 필요) |

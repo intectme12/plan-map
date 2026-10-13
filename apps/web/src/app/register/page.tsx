@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { OAuthButtons } from "@/components/OAuthButtons";
+import { TurnstileWidget, TURNSTILE_SITE_KEY } from "@/components/TurnstileWidget";
 import { NICKNAME_MAX_LENGTH } from "@/lib/validation";
 
 type NicknameCheckStatus = "idle" | "checking" | "available" | "taken";
@@ -19,6 +20,10 @@ export default function RegisterPage() {
 
   const [nicknameStatus, setNicknameStatus] = useState<NicknameCheckStatus>("idle");
   const [checkedNickname, setCheckedNickname] = useState<string | null>(null);
+  // 봇 확인(Turnstile) 토큰 — 사이트 키가 설정된 경우에만 필요. 한 번 쓰면 끝이라 제출이 실패하면 위젯을 초기화한다.
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const needsTurnstile = Boolean(TURNSTILE_SITE_KEY);
 
   function onNicknameChange(value: string) {
     setNickname(value);
@@ -45,10 +50,12 @@ export default function RegisterPage() {
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, nickname }),
+      body: JSON.stringify({ email, password, nickname, turnstileToken }),
     });
     setPending(false);
     if (!res.ok) {
+      // 서버가 토큰을 이미 검증했을 수 있어(한 번만 검증 가능) 실패하면 항상 새 토큰을 받는다
+      if (needsTurnstile) setTurnstileResetKey((k) => k + 1);
       const data = await res.json().catch(() => null);
       const message =
         typeof data?.error === "string"
@@ -109,8 +116,13 @@ export default function RegisterPage() {
           onChange={(e) => setPassword(e.target.value)}
           className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
         />
+        <TurnstileWidget onToken={setTurnstileToken} resetKey={turnstileResetKey} />
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
-        <Button type="submit" disabled={pending} className="h-auto rounded-md px-3 py-2 text-sm font-semibold">
+        <Button
+          type="submit"
+          disabled={pending || (needsTurnstile && !turnstileToken)}
+          className="h-auto rounded-md px-3 py-2 text-sm font-semibold"
+        >
           {pending ? "가입 중..." : "가입하기"}
         </Button>
       </form>

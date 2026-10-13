@@ -5,7 +5,8 @@ import { headers } from "next/headers";
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/betterAuth";
 import { registerSchema } from "@/lib/validation";
-import { handleRouteError, tooManyRequests } from "@/lib/http";
+import { handleRouteError, readJsonBody, tooManyRequests } from "@/lib/http";
+import { verifyTurnstile } from "@/lib/turnstile";
 import { getClientIp } from "@/lib/clientIp";
 import { enforceRateLimits, GLOBAL_SUBJECT, RATE_RULES } from "@/lib/rateLimit";
 import { assertFeatureEnabled } from "@/lib/featureFlags";
@@ -22,8 +23,24 @@ export async function POST(request: Request) {
     if (!limited.ok) return tooManyRequests(limited.retryAfterSec);
     await assertFeatureEnabled("signup");
 
-    const body = await request.json().catch(() => null);
+    const body = await readJsonBody(request);
     const { email, password, nickname } = registerSchema.parse(body);
+
+    // 봇 확인(Cloudflare Turnstile) — 입력 형식 검증 뒤, DB 조회·계정 생성 전에
+    const turnstileToken = (body as { turnstileToken?: unknown } | null)?.turnstileToken;
+    const human = await verifyTurnstile(turnstileToken, ip);
+    if (!human.ok) {
+      return NextResponse.json(
+        {
+          error:
+            human.reason === "missing_token"
+              ? "봇 확인을 완료한 뒤 다시 시도해주세요."
+              : "봇 확인에 실패했습니다. 새로고침 후 다시 시도해주세요.",
+          code: "TURNSTILE_FAILED",
+        },
+        { status: 400 }
+      );
+    }
 
     const [existingEmail, existingNickname] = await Promise.all([
       prisma.user.findUnique({ where: { email } }),

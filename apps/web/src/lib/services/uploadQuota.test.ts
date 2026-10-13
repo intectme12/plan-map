@@ -2,6 +2,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { prisma } from "../db";
+import { waitForFreshWindow } from "../testing";
 import { ForbiddenError, RateLimitedError } from "../errors";
 import { withUploadQuota } from "./uploadQuota";
 import { addPhoto, MAX_PHOTOS_PER_PLACE } from "./photos";
@@ -64,6 +65,7 @@ test("장소 하나에 사진이 상한만큼 있으면 파일을 저장하기 �
 });
 
 test("메시지 등 쓰기 API도 사용자별 분당 한도가 있다", async (t) => {
+  await waitForFreshWindow(); // 분 경계에 걸리면 카운트가 초기화돼 429가 안 나올 수 있음
   t.mock.method(console, "warn", () => {});
   const userId = `write-test-${randomUUID()}`;
   subjects.push(userId);

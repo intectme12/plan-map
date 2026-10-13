@@ -2,6 +2,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { prisma } from "../db";
+import { waitForFreshWindow } from "../testing";
 import { ForbiddenError, PayloadTooLargeError, RateLimitedError } from "../errors";
 import { readJsonBody } from "../http";
 import { copyTrip, createTrip } from "./trips";
@@ -51,6 +52,7 @@ test("가입 24시간 미만 계정은 하루 3개까지만 만들 수 있다", 
 });
 
 test("일반 계정은 분당 5개까지, 6번째는 429", async (t) => {
+  await waitForFreshWindow(); // 분 경계에 걸리면 카운트가 초기화돼 429가 안 나올 수 있음
   t.mock.method(console, "warn", () => {});
   const user = await tempUser(2 * DAY_MS);
   for (let i = 0; i < 5; i++) await createTrip(user, tripInput());
