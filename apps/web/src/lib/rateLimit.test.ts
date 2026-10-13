@@ -2,7 +2,14 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { prisma } from "./db";
-import { enforceRateLimits, hit, type RateRule } from "./rateLimit";
+import {
+  addUsage,
+  enforceRateLimits,
+  hit,
+  KST_OFFSET_SEC,
+  remainingBudget,
+  type RateRule,
+} from "./rateLimit";
 
 // 실제 DB(rate_limit_counters)에 붙어서 원자성까지 확인한다. 테스트마다 고유한 규칙 이름을 써서
 // 다른 데이터와 섞이지 않게 하고, 끝나면 이번 실행에서 만든 행만 지운다.
@@ -65,6 +72,28 @@ test("창이 바뀌면 다시 허용된다", async () => {
   assert.equal((await enforceRateLimits([{ rule: r, subject: "w" }], windowStart + 1000)).ok, true);
   assert.equal((await enforceRateLimits([{ rule: r, subject: "w" }], windowStart + 2000)).ok, false);
   assert.equal((await enforceRateLimits([{ rule: r, subject: "w" }], windowStart + 61_000)).ok, true);
+});
+
+test("토큰 같은 사용량 예산은 실제 사용량만큼 더하고, 다 쓰면 남은 양이 0 이하가 된다", async () => {
+  const r = rule("budget", 100, 24 * 60 * 60);
+  assert.equal((await remainingBudget(r, "u")).remaining, 100);
+  await addUsage(r, "u", 60);
+  assert.equal((await remainingBudget(r, "u")).remaining, 40);
+  await addUsage(r, "u", 50.2); // 소수는 올림
+  assert.equal((await remainingBudget(r, "u")).remaining, -11);
+  await addUsage(r, "u", 0); // 0은 기록 안 함
+  assert.equal((await remainingBudget(r, "u")).remaining, -11);
+});
+
+test("일일 예산 창은 한국 자정(UTC 15시)에 바뀐다", async () => {
+  const r = { ...rule("kst", 10, 24 * 60 * 60), offsetSec: KST_OFFSET_SEC };
+  const beforeMidnightKst = Date.parse("2026-10-13T14:59:59Z");
+  const afterMidnightKst = Date.parse("2026-10-13T15:00:01Z");
+  const a = await hit(r, "s", beforeMidnightKst);
+  const b = await hit(r, "s", afterMidnightKst);
+  assert.equal(a.expiresAt, Date.parse("2026-10-13T15:00:00Z"));
+  assert.equal(a.count, 1);
+  assert.equal(b.count, 1, "자정이 지나면 새 창");
 });
 
 test("주체를 모르는 규칙(null)은 건너뛴다", async () => {

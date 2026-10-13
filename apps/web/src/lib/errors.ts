@@ -1,6 +1,15 @@
 export class NotFoundError extends Error {}
 export class ForbiddenError extends Error {}
 export class ServiceUnavailableError extends Error {}
+// 요청 제한/사용량 예산 초과 — handleRouteError가 429 + Retry-After로 응답
+export class RateLimitedError extends Error {
+  constructor(
+    message = "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+    readonly retryAfterSec = 60
+  ) {
+    super(message);
+  }
+}
 export class InvalidFileError extends Error {}
 export class InvalidCredentialsError extends Error {}
 export class NicknameTakenError extends Error {}

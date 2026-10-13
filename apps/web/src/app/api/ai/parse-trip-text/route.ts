@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null);
     const { text, destination, dayCount, personnel, budgetWon, style, transport } =
       aiParseNewTripRequestSchema.parse(body);
-    const places = await extractPlaces(text, { destination, dayCount, personnel, budgetWon, style, transport });
+    const places = await extractPlaces(user.id, text, { destination, dayCount, personnel, budgetWon, style, transport });
     return NextResponse.json({ places });
   } catch (err) {
     return handleRouteError(err);

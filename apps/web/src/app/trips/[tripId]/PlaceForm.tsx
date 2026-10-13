@@ -21,7 +21,8 @@ export function PlaceForm({ tripId, scheduledAt }: { tripId: string; scheduledAt
   const [searching, setSearching] = useState(false);
   const [addingName, setAddingName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [unavailable, setUnavailable] = useState(false);
+  // 검색을 쓸 수 없는 이유(키 미설정·일시 장애·요청 과다) — 서버가 준 메시지를 그대로 보여준다
+  const [unavailable, setUnavailable] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 지금 화면에 결과가 떠 있는 검색어 — 앞뒤 공백만 바뀐 경우처럼 같은 검색어면 다시 요청하지 않는다.
   // (카카오 Local API는 운영정책상 결과 캐시/저장이 금지라, 지나간 검색어의 결과를 보관해 재사용하지는 않음)
@@ -45,9 +46,10 @@ export function PlaceForm({ tripId, scheduledAt }: { tripId: string; scheduledAt
       const res = await fetch(`/api/places/search?q=${encodeURIComponent(trimmed)}`);
       setSearching(false);
 
-      if (res.status === 503) {
+      if (res.status === 503 || res.status === 429) {
         lastQueryRef.current = null;
-        setUnavailable(true);
+        const data = await res.json().catch(() => null);
+        setUnavailable(typeof data?.error === "string" ? data.error : "장소 검색을 사용할 수 없습니다.");
         setResults([]);
         return;
       }
@@ -57,7 +59,7 @@ export function PlaceForm({ tripId, scheduledAt }: { tripId: string; scheduledAt
         return;
       }
       const data = await res.json();
-      setUnavailable(false);
+      setUnavailable(null);
       setResults(data.candidates ?? []);
     }, 400);
 
@@ -106,9 +108,7 @@ export function PlaceForm({ tripId, scheduledAt }: { tripId: string; scheduledAt
       />
 
       {unavailable ? (
-        <p className="text-xs text-neutral-400">
-          장소 검색을 사용하려면 .env의 KAKAO_REST_API_KEY를 설정하세요.
-        </p>
+        <p className="text-xs text-neutral-400">{unavailable}</p>
       ) : null}
       {error ? <p className="text-xs text-red-600">{error}</p> : null}
       {searching ? <p className="text-xs text-neutral-400">검색 중...</p> : null}

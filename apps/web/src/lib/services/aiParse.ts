@@ -1,5 +1,6 @@
 import Groq from "groq-sdk";
 import { z } from "zod";
+import { ServiceUnavailableError } from "../errors";
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
@@ -61,44 +62,67 @@ function buildContextLine(context?: ExtractPlacesContext): string | null {
   return `이 여행은 ${parts.join(", ")}이다. 이 정보를 참고해 일차 배분과 추천 이유·예상 체류시간·예상 비용을 판단한다.${dayRule}`;
 }
 
+// 비용 보호(docs/SECURITY_PLAN.md 2단계): 응답 토큰 상한, 30초 타임아웃, 자동 재시도 끔(SDK 기본은 2회 재시도 —
+// 실패할 때마다 토큰을 더 쓰게 됨). 추론 모델이라 추론 토큰도 이 상한에 포함되므로 장소 30개 출력에 여유를 둔다.
+const MAX_COMPLETION_TOKENS = 8_000;
+const TIMEOUT_MS = 30_000;
+
+export type ExtractionResult = { places: ExtractedPlace[]; totalTokens: number };
+
+// GROQ_API_KEY 미설정이면 null. 호출 실패·타임아웃이면 ServiceUnavailableError.
 export async function extractPlacesFromText(
   rawText: string,
   context?: ExtractPlacesContext
-): Promise<ExtractedPlace[] | null> {
+): Promise<ExtractionResult | null> {
   if (!GROQ_API_KEY) return null;
 
   const contextLine = buildContextLine(context);
-  const client = new Groq({ apiKey: GROQ_API_KEY });
-  const response = await client.chat.completions.create({
-    model: "openai/gpt-oss-120b",
-    messages: [
-      {
-        role: "system",
-        content:
-          "여행 후기나 일정 텍스트에서 실제로 방문했거나 방문할 예정인 장소만 추출한다. " +
-          "본문에 등장하는 순서를 유지하고, 장소인지 확실하지 않은 것은 제외한다." +
-          (contextLine ? ` ${contextLine}` : ""),
+  const client = new Groq({ apiKey: GROQ_API_KEY, timeout: TIMEOUT_MS, maxRetries: 0 });
+  let response;
+  try {
+    response = await client.chat.completions.create({
+      model: "openai/gpt-oss-120b",
+      max_completion_tokens: MAX_COMPLETION_TOKENS,
+      messages: [
+        {
+          role: "system",
+          content:
+            "여행 후기나 일정 텍스트에서 실제로 방문했거나 방문할 예정인 장소만 추출한다. " +
+            "본문에 등장하는 순서를 유지하고, 장소인지 확실하지 않은 것은 제외한다." +
+            (contextLine ? ` ${contextLine}` : ""),
+        },
+        { role: "user", content: rawText },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "extraction_result",
+          strict: true,
+          schema: z.toJSONSchema(extractionResultSchema),
+        },
       },
-      { role: "user", content: rawText },
-    ],
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "extraction_result",
-        strict: true,
-        schema: z.toJSONSchema(extractionResultSchema),
-      },
-    },
-  });
-
-  const content = response.choices[0]?.message?.content;
-  if (!content) return null;
-
-  const parsed = extractionResultSchema.safeParse(JSON.parse(content));
-  if (!parsed.success) {
-    console.error("Groq 응답이 예상한 스키마와 다릅니다:", parsed.error);
-    return null;
+    });
+  } catch (err) {
+    console.error("Groq 호출 실패:", err instanceof Error ? err.message : err);
+    throw new ServiceUnavailableError("AI 분석이 지연되고 있습니다. 잠시 후 다시 시도해주세요.");
   }
 
-  return parsed.data.places;
+  const totalTokens = response.usage?.total_tokens ?? 0;
+  const content = response.choices[0]?.message?.content;
+  if (!content) return { places: [], totalTokens };
+
+  let json: unknown;
+  try {
+    json = JSON.parse(content);
+  } catch {
+    console.error("Groq 응답이 JSON이 아닙니다(응답 토큰 상한에 걸려 잘렸을 수 있음)");
+    return { places: [], totalTokens };
+  }
+  const parsed = extractionResultSchema.safeParse(json);
+  if (!parsed.success) {
+    console.error("Groq 응답이 예상한 스키마와 다릅니다:", parsed.error);
+    return { places: [], totalTokens };
+  }
+
+  return { places: parsed.data.places, totalTokens };
 }

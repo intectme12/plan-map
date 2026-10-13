@@ -1171,11 +1171,26 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
   - 마이그레이션 `20261013120000_add_rate_limits`(새 테이블 2개만) — `migrate diff`로 추가분만 뽑아 `migrate deploy`(기존 드리프트 우회 절차와 동일)
   - 테스트 도구가 없어서 Node 내장 `node:test` + 이미 설치돼 있던 `jiti`(devDependency로 명시)로 `npm test --workspace=web` 추가
 - 발견한 버그: 설정 후 실행 중이던 dev 서버에서 로그인 실패가 401이 아니라 500 — 원인은 Better Auth가 `storage: "database"`일 때 Prisma 클라이언트에 `rateLimit` 모델이 있는지 검사하는데, dev 서버가 마이그레이션 전 클라이언트를 메모리에 들고 있어서(`SCHEMA_MISMATCH`). 새 클라이언트로 같은 호출을 따로 실행하면 정상 401 → **dev 서버 재시작 필요**. 운영 배포도 반드시 마이그레이션+generate 후 기동해야 함(계획 문서에 명시)
-- 검증: 테스트 11개 통과(IP 헤더 위조 무시·IPv6 /64, 단일 사용자 초과 시 Retry-After, 여러 계정 서비스 전체 한도, 25개 동시 요청 중 정확히 10개만 통과(원자성), 창 전환, fail-open — 실제 DB에 고유 키로 실행 후 정리). `tsc --noEmit`·변경 파일 eslint 통과. 실행 중인 dev 서버에 직접 호출해 같은 이메일 12번째 로그인에서 429 + `retry-after` 헤더, `/api/auth/sign-up/email`·`/sign-in/email` 404 확인
+- 검증(1단계): 테스트 11개 통과(IP 헤더 위조 무시·IPv6 /64, 단일 사용자 초과 시 Retry-After, 여러 계정 서비스 전체 한도, 25개 동시 요청 중 정확히 10개만 통과(원자성), 창 전환, fail-open — 실제 DB에 고유 키로 실행 후 정리). `tsc --noEmit`·변경 파일 eslint 통과. 실행 중인 dev 서버에 직접 호출해 같은 이메일 12번째 로그인에서 429 + `retry-after` 헤더, `/api/auth/sign-up/email`·`/sign-in/email` 404 확인
+
+**완료 (2026-10-13, 보안 2단계: AI·카카오 비용 보호)**
+
+- 무엇을/왜: [docs/SECURITY_PLAN.md](docs/SECURITY_PLAN.md) 2단계. 카카오·Groq 호출에 타임아웃·예산·동시 실행 제한이 전혀 없어서, 반복 호출이나 외부 장애 때 비용·쿼터가 그대로 새거나 요청이 오래 붙잡혀 있을 수 있었음
+- 어떻게:
+  - [kakaoClient.ts](apps/web/src/lib/services/kakaoClient.ts)(신규): 카카오 호출 단일 경로 — 키 확인 → 회로 차단(연속 5회 장애 시 60초, 장소검색·길찾기 별개, 400은 안 셈) → 서비스 전체 일일 예산(`KAKAO_*_DAILY_QUOTA`의 80% 경고, 95% 차단, 한국 자정 기준) → 5초 타임아웃, 재시도 없음. [geocode.ts](apps/web/src/lib/services/geocode.ts)·[routes.ts](apps/web/src/lib/services/routes.ts)가 이걸 쓰게 변경(응답 결과 캐시는 카카오 정책상 여전히 안 함)
+  - [externalGuard.ts](apps/web/src/lib/externalGuard.ts)(신규): 회로 차단기(half-open 포함), 사용자별·전체 동시 실행 수 제한(메모리, 서버 1대 기준)
+  - [rateLimit.ts](apps/web/src/lib/rateLimit.ts): 1씩이 아니라 사용량(토큰) 단위로 더하기, 한국 자정 기준 일일 창, 서비스 함수용 `assertRateLimits`(→ 새 `RateLimitedError` → 429 + Retry-After), `remainingBudget`/`addUsage`
+  - 장소검색: 사용자 분당 60회. 일시 장애·예산 소진은 503, 과다 요청은 429로 안내 — [PlaceForm.tsx](apps/web/src/app/trips/[tripId]/PlaceForm.tsx)가 예전엔 503이면 무조건 "KAKAO_REST_API_KEY를 설정하세요"를 보여주던 것을 서버 메시지 그대로 보여주게 수정
+  - 경로: 카카오를 실제로 부를 때만 사용자 분당 120회로 세고, 넘으면 오류 대신 있던 값(없으면 "불러올 수 없음") — 여행 상세가 구간 수만큼 한꺼번에 요청하므로
+  - AI([aiParse.ts](apps/web/src/lib/services/aiParse.ts), [aiImport.ts](apps/web/src/lib/services/aiImport.ts)): 응답 토큰 상한 8,000, 타임아웃 30초, SDK 자동 재시도(기본 2회) 끔. 사용자 시간당 10회, 사용자 하루 100,000토큰, 서비스 전체 하루 `AI_DAILY_TOKEN_BUDGET`, 동시 실행 사용자 1개·전체 4개. 응답의 실제 `usage.total_tokens`를 호출 후 예산에 더함
+- 계획 대비 조정: AI 사용자 일일 토큰을 20,000 → 100,000으로(입력 최대 5,000자 + 응답 상한 8,000토큰이라 20,000이면 하루 1~2회뿐), 경로 한도 60 → 120 + 실제 카카오 호출만 셈
+- 함께 고친 것: AI 응답이 비거나 JSON이 깨지면 "GROQ_API_KEY 설정 필요"라는 엉뚱한 오류가 나던 것 → 빈 결과("장소를 찾지 못했습니다")로. Groq 호출 실패가 500이던 것 → 503 안내
+- 검증: 테스트 21개 통과(2단계 신규 10개 — 회로 차단·half-open·성공 시 초기화, 동시 실행 수, 토큰 예산 누적, 한국 자정 창 전환, 카카오 예산 95% 차단·카운터 장애 시 허용·400 미집계·연속 장애 후 fetch 자체 생략·API별 회로 분리 — 카카오 테스트는 fetch/DB를 가짜로 바꿔 실제 호출 없음). `tsc --noEmit` 통과, 변경 파일 eslint는 `PlaceForm.tsx` 기존 1건만. 실제 키로 장소검색 1회(후보 5개)·**길찾기 1회 정상 응답**(`--use-system-ca` — 예전 세션에서 로컬 인증서 문제로 못 하던 확인) 및 일일 예산 카운터가 한국 자정 창으로 1씩 기록되는 것 확인. AI는 실제 토큰을 쓰지 않으려고 실호출 검증은 안 함
 
 **다음 세션 할 일**
-- **(중요, 신규)** 로컬 dev 서버 재시작 필요(2026-10-13 rate limit 마이그레이션 후 Prisma 클라이언트 갱신 — 재시작 전엔 로그인/가입이 500). 재시작 후 로그인 성공·실패(401) 정상 확인
-- (신규) 보안 계획 [docs/SECURITY_PLAN.md](docs/SECURITY_PLAN.md) 2단계(AI·카카오 타임아웃·예산·회로 차단기·동시 실행 수)부터 이어서 진행
+- (신규) 보안 계획 [docs/SECURITY_PLAN.md](docs/SECURITY_PLAN.md) 3단계(여행 생성·복사·장소 제한, 총량 상한, Idempotency-Key)부터 이어서 진행
+- (신규) 카카오 개발자 콘솔·카카오모빌리티 콘솔에서 실제 일일 쿼터를 확인해 `KAKAO_LOCAL_DAILY_QUOTA`/`KAKAO_DIRECTIONS_DAILY_QUOTA` 설정(지금은 임시 기본값 100,000/10,000), Groq 요금제에 맞춰 `AI_DAILY_TOKEN_BUDGET` 설정
+- (신규) 로그인 상태에서 AI 분석 1회 실행해 정상 동작·토큰 사용량 기록 확인(이번엔 실제 토큰을 안 쓰려고 생략)
 - (신규) 배포 시 `TRUST_PROXY` 환경변수 설정 필수 — 미설정이면 IP 기준 제한이 꺼짐
 - **(중요, 신규, 사용자 결정 필요)** 카카오 정책상 기존 구조에도 저장 이슈가 있음: ① `PlaceEntry`가 장소 검색 결과의 이름·좌표·주소·전화를 저장(허용은 장소 ID·place_url만) ② `RouteSegment`가 길찾기 결과를 10분 DB 캐시. 정책을 엄격히 따르려면 장소는 카카오 장소 ID 저장 + 표시 시 실시간 조회 구조로, 경로는 캐시 제거가 필요하지만 둘 다 호출량이 오히려 늘어남. 카카오에 서비스 구조로 직접 문의(데브톡)하거나, 저장이 허용되는 다른 데이터 소스(공공데이터 등) 검토 필요
 - (신규) 경로 중복 제거(RouteDetailsContext) 후 로그인 상태에서 타임라인 이동정보/택시요금 표시와 네트워크 탭에서 구간당 `/routes` 요청 1회인지 확인

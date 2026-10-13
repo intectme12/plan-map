@@ -1,7 +1,7 @@
 import { prisma } from "../db";
 import { NotFoundError } from "../errors";
-
-const KAKAO_REST_API_KEY = process.env.KAKAO_REST_API_KEY;
+import { enforceRateLimits, RATE_RULES } from "../rateLimit";
+import { kakaoGet } from "./kakaoClient";
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -14,26 +14,25 @@ type RouteResult = {
   path: LatLng[];
 };
 
-async function fetchCarRoute(from: LatLng, to: LatLng): Promise<RouteResult | null> {
-  if (!KAKAO_REST_API_KEY) return null;
+// 카카오모빌리티 길찾기 응답 중 쓰는 부분만
+type DirectionsResponse = {
+  routes?: {
+    summary?: { distance: number; duration: number; fare?: { taxi?: number } };
+    sections?: { roads?: { vertexes?: number[] }[] }[];
+  }[];
+};
 
+// 키 미설정·호출 실패·회로 차단·일일 예산 소진이면 null(호출 측은 있던 값으로 대신 표시)
+async function fetchCarRoute(from: LatLng, to: LatLng): Promise<RouteResult | null> {
   const url = new URL("https://apis-navi.kakaomobility.com/v1/directions");
   url.searchParams.set("origin", `${from.lng},${from.lat}`);
   url.searchParams.set("destination", `${to.lng},${to.lat}`);
   url.searchParams.set("priority", "RECOMMEND");
 
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      headers: { Authorization: `KakaoAK ${KAKAO_REST_API_KEY}` },
-    });
-  } catch {
-    // 네트워크/TLS 오류 등으로 fetch 자체가 실패한 경우도 "호출 실패"로 취급해 null 반환
-    return null;
-  }
-  if (!res.ok) return null;
+  const result = await kakaoGet("directions", url);
+  if (!result.ok) return null;
 
-  const data = await res.json();
+  const data = result.data as DirectionsResponse | null;
   const route = data?.routes?.[0];
   const summary = route?.summary;
   if (!summary) return null;
@@ -88,6 +87,11 @@ export async function getRoute(
   if (cached && Date.now() - cached.computedAt.getTime() < CACHE_TTL_MS) {
     return cached;
   }
+
+  // 카카오를 실제로 불러야 할 때만 사용자별 요청 수를 센다. 넘으면 오류 대신 있던 값(없으면 null)을 준다 —
+  // 여행 상세는 구간 수만큼 한꺼번에 요청하므로, 한 구간 때문에 화면 전체가 오류가 나지 않게.
+  const limited = await enforceRateLimits([{ rule: RATE_RULES.routePerUserMin, subject: userId }]);
+  if (!limited.ok) return cached ?? null;
 
   const result = await fetchCarRoute(fromPlace, toPlace);
 

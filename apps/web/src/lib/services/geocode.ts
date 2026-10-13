@@ -1,4 +1,5 @@
-const KAKAO_REST_API_KEY = process.env.KAKAO_REST_API_KEY;
+import { ServiceUnavailableError } from "../errors";
+import { kakaoGet } from "./kakaoClient";
 
 export type GeocodeCandidate = {
   name: string;
@@ -23,26 +24,20 @@ type KakaoKeywordDocument = {
   y: string;
 };
 
-// 키워드로 장소 검색해 좌표 후보를 반환. 카카오 키 미설정/호출 실패 시 null(geocoding 불가 상태).
+// 키워드로 장소 검색해 좌표 후보를 반환. 카카오 키 미설정이면 null(geocoding 불가 상태).
+// 일시적으로 쓸 수 없는 상태(호출 실패·타임아웃·회로 차단·일일 예산 소진)는 ServiceUnavailableError(503).
 export async function searchPlaceCandidates(query: string): Promise<GeocodeCandidate[] | null> {
-  if (!KAKAO_REST_API_KEY) return null;
-
   const url = new URL("https://dapi.kakao.com/v2/local/search/keyword.json");
   url.searchParams.set("query", query);
   url.searchParams.set("size", "5");
 
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      headers: { Authorization: `KakaoAK ${KAKAO_REST_API_KEY}` },
-    });
-  } catch {
-    // 네트워크/TLS 오류 등으로 fetch 자체가 실패한 경우도 "호출 실패"로 취급해 null 반환
-    return null;
+  const result = await kakaoGet("local", url);
+  if (!result.ok) {
+    if (result.reason === "no_key") return null;
+    throw new ServiceUnavailableError("장소 검색이 일시적으로 원활하지 않습니다. 잠시 후 다시 시도해주세요.");
   }
-  if (!res.ok) return null;
 
-  const data = await res.json();
+  const data = result.data as { documents?: KakaoKeywordDocument[] } | null;
   const documents: KakaoKeywordDocument[] = data?.documents ?? [];
 
   return documents.map((d) => ({
