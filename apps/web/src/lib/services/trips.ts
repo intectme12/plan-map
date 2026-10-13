@@ -2,10 +2,12 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { NotFoundError, ForbiddenError, InvalidInputError } from "../errors";
 import { assertCanCreateTrip, withTripWriteSlot, type QuotaUser } from "./tripQuota";
+import { withUploadQuota } from "./uploadQuota";
 import { TRIP_DATE_ORDER_MESSAGE } from "../validation";
 import { saveImageFile, deleteStoredFile } from "../upload";
 import { getReviewsForCoordinates, coordKey } from "./reviews";
 import { getTripDays, groupByDay } from "@/app/trips/[tripId]/days";
+import { assertRateLimits, RATE_RULES } from "../rateLimit";
 
 const SHARED_PAGE_SIZE = 20;
 
@@ -287,7 +289,7 @@ export async function setTripCoverPhoto(userId: string, tripId: string, file: Fi
   const trip = await prisma.trip.findFirst({ where: { id: tripId, userId }, select: { coverPhotoKey: true } });
   if (!trip) throw new NotFoundError("여행을 찾을 수 없습니다.");
 
-  const storageKey = await saveImageFile(file, [tripId, "cover"]);
+  const storageKey = await withUploadQuota(userId, file.size, () => saveImageFile(file, [tripId, "cover"]));
   if (trip.coverPhotoKey) await deleteStoredFile(trip.coverPhotoKey);
 
   return prisma.trip.update({ where: { id: tripId }, data: { coverPhotoKey: storageKey } });
@@ -631,6 +633,10 @@ export async function getTripShareContext(ownerId: string, tripId: string) {
 }
 
 export async function shareTrip(ownerId: string, tripId: string, nickname: string) {
+  await assertRateLimits(
+    [{ rule: RATE_RULES.sharePerUserMin, subject: ownerId }],
+    "공유 요청이 너무 많습니다. 잠시 후 다시 시도해주세요."
+  );
   const trip = await prisma.trip.findFirst({ where: { id: tripId, userId: ownerId } });
   if (!trip) throw new NotFoundError("여행을 찾을 수 없습니다.");
 

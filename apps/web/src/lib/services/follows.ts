@@ -1,6 +1,7 @@
 import { prisma } from "../db";
 import { NotFoundError, ForbiddenError } from "../errors";
 import { createFollowNotification } from "./notifications";
+import { assertRateLimits, RATE_RULES } from "../rateLimit";
 
 const FOLLOW_PAGE_SIZE = 20;
 
@@ -18,6 +19,10 @@ async function findUserByNickname(nickname: string) {
 }
 
 export async function followUser(followerId: string, targetNickname: string) {
+  await assertRateLimits(
+    [{ rule: RATE_RULES.followPerUserMin, subject: followerId }],
+    "팔로우 요청이 너무 많습니다. 잠시 후 다시 시도해주세요."
+  );
   const target = await findUserByNickname(targetNickname);
   if (target.id === followerId) throw new ForbiddenError("자기 자신은 팔로우할 수 없습니다.");
 

@@ -4,19 +4,34 @@
 const subscribers = new Map<string, Set<ReadableStreamDefaultController>>();
 const encoder = new TextEncoder();
 
+// 실시간 연결 수 상한(docs/SECURITY_PLAN.md 4단계) — 연결 하나하나가 서버 메모리·소켓을 붙잡고 있어서,
+// 한 사람이 연결을 수없이 열어 서버 자원을 고갈시키지 못하게 막는다. 화면은 탭 하나에 연결 하나를 같이 쓰므로
+// (hooks/useMessageStream.ts) 사용자당 상한은 동시에 열어둔 탭 수에 해당한다.
+export const SSE_MAX_PER_USER = 5;
+const SSE_MAX_TOTAL = Number(process.env.SSE_MAX_CONNECTIONS) || 2000;
+let totalConnections = 0;
+
+// 새 연결을 받아도 되는지 — "user"면 그 사용자 상한, "total"이면 서버 전체 상한에 걸린 것
+export function canSubscribe(userId: string): { ok: true } | { ok: false; reason: "user" | "total" } {
+  if ((subscribers.get(userId)?.size ?? 0) >= SSE_MAX_PER_USER) return { ok: false, reason: "user" };
+  if (totalConnections >= SSE_MAX_TOTAL) return { ok: false, reason: "total" };
+  return { ok: true };
+}
+
 export function subscribe(userId: string, controller: ReadableStreamDefaultController) {
   let set = subscribers.get(userId);
   if (!set) {
     set = new Set();
     subscribers.set(userId, set);
   }
+  if (!set.has(controller)) totalConnections += 1;
   set.add(controller);
 }
 
 export function unsubscribe(userId: string, controller: ReadableStreamDefaultController) {
   const set = subscribers.get(userId);
   if (!set) return;
-  set.delete(controller);
+  if (set.delete(controller)) totalConnections -= 1;
   if (set.size === 0) subscribers.delete(userId);
 }
 

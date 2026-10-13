@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { addPhoto } from "@/lib/services/photos";
-import { unauthorized, handleRouteError } from "@/lib/http";
+import { unauthorized, handleRouteError, readFormData } from "@/lib/http";
 
 type Context = { params: Promise<{ tripId: string; placeId: string }> };
 
@@ -11,7 +11,7 @@ export async function POST(request: Request, { params }: Context) {
     if (!user) return unauthorized();
 
     const { tripId, placeId } = await params;
-    const formData = await request.formData().catch(() => null);
+    const formData = await readFormData(request);
     const file = formData?.get("file");
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "파일이 필요합니다." }, { status: 400 });

@@ -1200,9 +1200,20 @@ AIParseJob  — id, trip_id, raw_text, parsed_json, status
 - 계획 대비 조정: 장소 추가 한도 분당 30 → 60(AI 일정 저장이 장소 최대 30개를 연달아 추가)
 - 검증: 테스트 29개 통과(3단계 신규 8개 — 실제 DB에 임시 회원을 만들어 확인 후 회원·카운터 삭제, 잔여 0건 확인): 신규 계정 하루 3개, 일반 계정 분당 5개, 같은 키 5번 재요청해도 여행 1개·한도 미사용, 같은 사용자 동시 5건 중 1건만 생성, 보유 수 상한 시 생성·복사 403, 신규 계정 복사 하루 2번·비공개 여행 복사 404, 장소 수 상한 403, 본문 크기 413/JSON 아님 null. `tsc --noEmit`·변경 파일 eslint 통과
 
+**완료 (2026-10-13, 보안 4단계: 업로드·실시간 연결·나머지 쓰기 API 제한)**
+
+- 무엇을/왜: [docs/SECURITY_PLAN.md](docs/SECURITY_PLAN.md) 4단계. 업로드 형식을 브라우저가 보낸 `file.type`으로만 판단해서 HTML/SVG를 이미지로 속여 올리면 우리 도메인(`/uploads`)에서 스크립트가 실행될 수 있었고, 업로드 용량·장수, 실시간 연결 수, 지출·후기·팔로우·좋아요·공유·메시지 쓰기에 제한이 없었음
+- 어떻게:
+  - [upload.ts](apps/web/src/lib/upload.ts): 매직 바이트로 jpg/png/gif/webp 판별(저장 확장자도 실제 형식), [avatars.ts](apps/web/src/lib/services/avatars.ts)도 같은 검사로 통일. [http.ts](apps/web/src/lib/http.ts) `readFormData`로 선언 크기 9MB 초과 업로드는 본문을 읽기 전에 413(장소 사진·대표사진·프로필·메시지 라우트)
+  - [uploadQuota.ts](apps/web/src/lib/services/uploadQuota.ts)(신규): 업로드 합산 10분 60장 + 하루 300MB(저장 성공분만 집계), 장소당 사진 30장([photos.ts](apps/web/src/lib/services/photos.ts))
+  - 쓰기 API 사용자 분당 한도: 지출 60·후기 20·팔로우 30·좋아요 60·공유 30·메시지 60·새 대화 20(각 서비스 함수 첫 줄)
+  - 실시간 연결: [useMessageStream.ts](apps/web/src/hooks/useMessageStream.ts)가 컴포넌트마다 SSE를 따로 열어 **탭 하나에 최대 4개**였던 것을 탭당 1개 공유로 변경. [messageEvents.ts](apps/web/src/lib/messageEvents.ts)에 사용자당 5개·전체 2000개 상한(429/503), 거절되면 EventSource가 재연결을 멈추므로 30초 뒤 직접 재연결
+- 계획 대비 조정: SSE 사용자당 3 → 5(탭 5개), "사용자당 총 저장 용량"은 사진 크기를 DB에 기록해야 해서 오브젝트 스토리지 이전 때 도입하고 지금은 하루 용량으로 대신함
+- 검증: 테스트 37개 통과(4단계 신규 8개 — HTML·SVG·WAV를 이미지로 속인 파일 거절, 이름이 .jpg인 PNG는 png로 저장, 8MB 초과·선언 크기 초과 413, 하루 용량 초과 시 저장 안 하고 429·저장 실패분은 미집계, 장소 사진 30장 상한 시 파일 저장 전 403, 쓰기 API 분당 한도, SSE 사용자당 상한·중복 등록/해제 1회만 집계). `tsc --noEmit`·변경 파일 eslint 통과. dev 서버에서 변경 라우트 비로그인 401·홈 화면 JS 오류 없음 확인(로그인이 필요해 탭당 연결 1개 공유는 화면으로 확인 못 함). 홈의 404 1건은 기존 데이터의 프로필 사진 파일이 디스크에 없는 것으로 이번 변경과 무관
+
 **다음 세션 할 일**
-- **(중요, 신규)** 로컬 dev 서버 재시작 필요(2026-10-13 `trips.idempotencyKey` 마이그레이션 — 재시작 전엔 여행 만들기가 실패). 재시작 후 로그인 상태에서 여행 만들기·복사·장소 추가 한 번씩 확인
-- (신규) 보안 계획 [docs/SECURITY_PLAN.md](docs/SECURITY_PLAN.md) 4단계(업로드 매직 바이트·장수 상한, SSE 연결 상한 + 지출·사진·메시지 쓰기 속도 제한 검토)부터 이어서 진행
+- (신규) 로그인 상태에서 여행 만들기·복사·장소 추가·사진 업로드·메시지(실시간 수신, 개발자도구 네트워크 탭에서 `/api/messages/stream`이 탭당 1개인지) 한 번씩 확인
+- (신규) 보안 계획 [docs/SECURITY_PLAN.md](docs/SECURITY_PLAN.md) 5단계(긴급 차단 플래그 + 관리자 토글)부터 이어서 진행
 - (신규) 카카오 개발자 콘솔·카카오모빌리티 콘솔에서 실제 일일 쿼터를 확인해 `KAKAO_LOCAL_DAILY_QUOTA`/`KAKAO_DIRECTIONS_DAILY_QUOTA` 설정(지금은 임시 기본값 100,000/10,000), Groq 요금제에 맞춰 `AI_DAILY_TOKEN_BUDGET` 설정
 - (신규) 로그인 상태에서 AI 분석 1회 실행해 정상 동작·토큰 사용량 기록 확인(이번엔 실제 토큰을 안 쓰려고 생략)
 - (신규) 배포 시 `TRUST_PROXY` 환경변수 설정 필수 — 미설정이면 IP 기준 제한이 꺼짐

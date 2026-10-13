@@ -2,16 +2,10 @@ import { writeFile, mkdir, unlink } from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
 import { prisma } from "../db";
-import { InvalidFileError } from "../errors";
+import { readImageFile } from "../upload";
+import { withUploadQuota } from "./uploadQuota";
 
 const UPLOAD_ROOT = path.join(process.cwd(), "public", "uploads", "avatars");
-const MAX_FILE_SIZE = 8 * 1024 * 1024;
-const EXT_BY_MIME_TYPE: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "image/gif": "gif",
-};
 
 async function deleteExistingFile(avatarUrl: string | null) {
   if (!avatarUrl) return;
@@ -19,20 +13,14 @@ async function deleteExistingFile(avatarUrl: string | null) {
 }
 
 export async function setAvatar(userId: string, file: File) {
-  const ext = EXT_BY_MIME_TYPE[file.type];
-  if (!ext) {
-    throw new InvalidFileError("이미지 파일(jpg/png/webp/gif)만 업로드할 수 있습니다.");
-  }
-  if (file.size > MAX_FILE_SIZE) {
-    throw new InvalidFileError("파일 크기는 8MB 이하여야 합니다.");
-  }
-
-  const dir = path.join(UPLOAD_ROOT, userId);
-  await mkdir(dir, { recursive: true });
-
+  // 크기·실제 형식 검사(매직 바이트)는 lib/upload.ts와 같은 기준, 업로드 횟수·일일 용량 한도도 동일하게 적용
+  const { buffer, ext } = await readImageFile(file);
   const filename = `${randomUUID()}.${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(dir, filename), buffer);
+  await withUploadQuota(userId, file.size, async () => {
+    const dir = path.join(UPLOAD_ROOT, userId);
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, filename), buffer);
+  });
 
   const prev = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { avatarUrl: true } });
   await deleteExistingFile(prev.avatarUrl);

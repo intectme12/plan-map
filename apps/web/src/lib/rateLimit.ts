@@ -57,6 +57,23 @@ export const RATE_RULES = {
   // 장소 추가 — AI 일정 저장은 장소(최대 30개)를 연달아 추가하므로 그보다 넉넉히
   placeAddPerUserMin: { name: "place-add:user:1m", limit: 60, windowSec: MINUTE },
 
+  // 업로드(장소 사진·대표사진·프로필 사진·메시지 사진 합산) — 횟수 + 하루 용량(바이트)
+  uploadPerUser10m: { name: "upload:user:10m", limit: 60, windowSec: 10 * MINUTE },
+  uploadBytesPerUserDay: {
+    name: "upload-bytes:user:1d",
+    limit: envInt("UPLOAD_USER_DAILY_BYTES", 300 * 1024 * 1024),
+    windowSec: DAY,
+    offsetSec: KST_OFFSET_SEC,
+  },
+  // 그 밖의 쓰기 — 사람이 직접 누르는 속도보다 넉넉히, 스크립트 반복만 막는 수준
+  expenseAddPerUserMin: { name: "expense-add:user:1m", limit: 60, windowSec: MINUTE },
+  reviewPerUserMin: { name: "review:user:1m", limit: 20, windowSec: MINUTE },
+  followPerUserMin: { name: "follow:user:1m", limit: 30, windowSec: MINUTE },
+  likePerUserMin: { name: "like:user:1m", limit: 60, windowSec: MINUTE },
+  sharePerUserMin: { name: "share:user:1m", limit: 30, windowSec: MINUTE },
+  messagePerUserMin: { name: "message:user:1m", limit: 60, windowSec: MINUTE },
+  conversationCreatePerUserMin: { name: "conversation-create:user:1m", limit: 20, windowSec: MINUTE },
+
   // 카카오 — 사용자별 요청 횟수(우리 API 기준). 경로는 여행 상세를 열 때 구간 수만큼 한꺼번에 요청하므로 넉넉히.
   placeSearchPerUserMin: { name: "place-search:user:1m", limit: 60, windowSec: MINUTE },
   routePerUserMin: { name: "route:user:1m", limit: 120, windowSec: MINUTE },

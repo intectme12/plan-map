@@ -42,6 +42,16 @@ export async function readJsonBody(request: Request, maxBytes = 64 * 1024): Prom
   }
 }
 
+// 업로드(multipart) 본문 — formData()는 본문 전체를 메모리에 올리므로, 선언된 크기(Content-Length)가
+// 상한(파일 8MB + 여유)을 넘으면 읽기 전에 거절한다. 크기를 안 밝힌(chunked) 요청은 앞단 nginx가 막는다.
+export async function readFormData(request: Request, maxBytes = 9 * 1024 * 1024): Promise<FormData | null> {
+  const declared = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    throw new PayloadTooLargeError("파일 크기는 8MB 이하여야 합니다.");
+  }
+  return request.formData().catch(() => null);
+}
+
 export function notFound(message = "찾을 수 없습니다.") {
   return NextResponse.json({ error: message }, { status: 404 });
 }

@@ -1,5 +1,6 @@
 import { prisma } from "../db";
 import { NotFoundError, ForbiddenError } from "../errors";
+import { assertRateLimits, RATE_RULES } from "../rateLimit";
 
 // 좌표(lat/lng)로 실제 장소를 식별해 트립/PlaceEntry 경계를 넘어 후기를 전체공개한다 — schema.prisma의
 // Review 모델 주석 참고. 작성 자격은 "이 좌표의 장소를 자기 트립(오너 또는 공유받은 편집권한)에 추가해본 사람"이고,
@@ -10,6 +11,10 @@ export async function upsertReview(
   placeId: string,
   data: { rating: number; content: string }
 ) {
+  await assertRateLimits(
+    [{ rule: RATE_RULES.reviewPerUserMin, subject: userId }],
+    "후기 작성 요청이 너무 많습니다. 잠시 후 다시 시도해주세요."
+  );
   const place = await prisma.placeEntry.findFirst({
     where: { id: placeId, tripId, trip: { OR: [{ userId }, { shares: { some: { userId } } }] } },
     select: { lat: true, lng: true },

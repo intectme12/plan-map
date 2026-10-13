@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { setAvatar, removeAvatar } from "@/lib/services/avatars";
-import { unauthorized, handleRouteError } from "@/lib/http";
+import { unauthorized, handleRouteError, readFormData } from "@/lib/http";
 
 export async function POST(request: Request) {
   try {
     const user = await getCurrentUser();
     if (!user) return unauthorized();
 
-    const formData = await request.formData().catch(() => null);
+    const formData = await readFormData(request);
     const file = formData?.get("file");
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "파일이 필요합니다." }, { status: 400 });

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { listMessages, sendMessage } from "@/lib/services/conversations";
 import { messagesQuerySchema, sendMessageSchema } from "@/lib/validation";
-import { unauthorized, handleRouteError } from "@/lib/http";
+import { unauthorized, handleRouteError, readFormData } from "@/lib/http";
 
 type Context = { params: Promise<{ conversationId: string }> };
 
@@ -28,7 +28,7 @@ export async function POST(request: Request, { params }: Context) {
     if (!user) return unauthorized();
 
     const { conversationId } = await params;
-    const formData = await request.formData().catch(() => null);
+    const formData = await readFormData(request);
     const { content } = sendMessageSchema.parse({
       content: (formData?.get("content") as string | null) ?? undefined,
     });

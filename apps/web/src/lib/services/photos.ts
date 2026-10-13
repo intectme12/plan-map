@@ -1,13 +1,24 @@
 import { prisma } from "../db";
-import { NotFoundError } from "../errors";
+import { ForbiddenError, NotFoundError } from "../errors";
 import { assertPlaceEditAccess } from "./tripAccess";
 import { saveImageFile, deleteStoredFile } from "../upload";
+import { withUploadQuota } from "./uploadQuota";
+
+// 장소 하나에 사진 최대 장수 — docs/SECURITY_PLAN.md 4단계
+export const MAX_PHOTOS_PER_PLACE = 30;
 
 export async function addPhoto(userId: string, tripId: string, placeId: string, file: File) {
   await assertPlaceEditAccess(userId, tripId, placeId);
 
-  const storageKey = await saveImageFile(file, [tripId, placeId]);
-  return prisma.photo.create({ data: { placeEntryId: placeId, storageKey } });
+  const count = await prisma.photo.count({ where: { placeEntryId: placeId } });
+  if (count >= MAX_PHOTOS_PER_PLACE) {
+    throw new ForbiddenError(`장소 하나에 사진은 최대 ${MAX_PHOTOS_PER_PLACE}장까지 올릴 수 있습니다.`);
+  }
+
+  return withUploadQuota(userId, file.size, async () => {
+    const storageKey = await saveImageFile(file, [tripId, placeId]);
+    return prisma.photo.create({ data: { placeEntryId: placeId, storageKey } });
+  });
 }
 
 export async function deletePhoto(userId: string, tripId: string, placeId: string, photoId: string) {

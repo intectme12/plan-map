@@ -3,6 +3,8 @@ import { prisma } from "../db";
 import { NotFoundError, ForbiddenError, InvalidFileError } from "../errors";
 import { saveImageFile } from "../upload";
 import { publishMessage, publishTyping, publishRead } from "../messageEvents";
+import { assertRateLimits, RATE_RULES } from "../rateLimit";
+import { withUploadQuota } from "./uploadQuota";
 
 const MESSAGE_PAGE_SIZE = 30;
 
@@ -12,6 +14,10 @@ function sortPair(a: string, b: string): [string, string] {
 }
 
 export async function getOrCreateConversation(userId: string, otherUserId: string) {
+  await assertRateLimits(
+    [{ rule: RATE_RULES.conversationCreatePerUserMin, subject: userId }],
+    "새 대화 요청이 너무 많습니다. 잠시 후 다시 시도해주세요."
+  );
   if (userId === otherUserId) {
     throw new ForbiddenError("자기 자신에게는 메시지를 보낼 수 없습니다.");
   }
@@ -180,7 +186,13 @@ export async function sendMessage(
   const conversation = await getConversationForUser(userId, conversationId);
   const otherUserId = conversation.userAId === userId ? conversation.userBId : conversation.userAId;
 
-  const imageKey = imageFile ? await saveImageFile(imageFile, ["messages", conversationId]) : null;
+  await assertRateLimits(
+    [{ rule: RATE_RULES.messagePerUserMin, subject: userId }],
+    "메시지를 너무 빠르게 보내고 있습니다. 잠시 후 다시 시도해주세요."
+  );
+  const imageKey = imageFile
+    ? await withUploadQuota(userId, imageFile.size, () => saveImageFile(imageFile, ["messages", conversationId]))
+    : null;
 
   const message = await prisma.message.create({
     data: { conversationId, senderId: userId, content: content ?? null, imageKey },
